@@ -5,6 +5,7 @@ Given the three prebuilt device binaries (exploiter.exe, nativeapp.exe, zuxhook.
 and the mods to bundle, this builds one shared payload tree and emits:
 
   <out>/lyra-hd-deploykit/    a zune-deploy "Deploy Kit" folder (application.cfg + payload/)
+  <out>/lyra-hd-deploykit.zip the Deploy Kit folder zipped for release download
   <out>/lyra-hd.ccgame        an XNA game package (CAB with XCabInfo.resources + members)
 
 Both carry identical content; they differ only in container format so either deploy
@@ -249,8 +250,10 @@ def main():
         kit = emit_deploykit(payload, Path(args.thumbnail), out)
         pkg = emit_ccgame(payload, Path(args.thumbnail), out, work)
 
+    kit_zip = shutil.make_archive(str(kit), "zip", root_dir=str(out), base_dir=kit.name)
     n = sum(1 for _ in (kit / "payload").rglob("*") if _.is_file())
     print(f"deploykit: {kit}  ({n} payload files)")
+    print(f"deploykit zip: {kit_zip}")
     print(f"ccgame:    {pkg}")
 
 
