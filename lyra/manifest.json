@@ -1,10 +1,10 @@
 {
   "mod_id": "lyra",
   "name": "Lyra",
-  "version": "1.0.13",
+  "version": "1.0.14",
   "author": "Project Lyra",
   "category": "Platform",
   "description": "The Lyra platform: the mod manager UI, zuxhook, nativeapp daemon, and its component mods (mods-tab, wifi-power) all wrapped in a pretty bow.",
-  "changelog": "Rebuilds the platform with the latest device binaries.",
+  "changelog": "Faster, more reliable file transfers that no longer stall on large files or big folders.",
   "platform_files": ["zuxhook.dll", "nativeapp.exe"]
 }

@@ -25,8 +25,21 @@ RSP_ERR = 4
 _LEGACY_ERROR_LEAD_BYTES = (0xCD, 0xCE, 0xCF, 0xDE, 0xDF, 0xFF)
 
 
-def make_rdfile_request(path):
+class FileTooLarge(Exception):
+    """File size exceeds max_bytes; a distinct type so a retrying caller skips it."""
+
+    def __init__(self, path, size):
+        super().__init__(f"{path} is {size} bytes, exceeds max_bytes")
+        self.size = size
+
+
+def make_rdfile_request(path, offset=0, length=0):
+    """length 0 = read to EOF."""
     payload = encode_field_bytes(1, path.encode("utf-8"))
+    if offset:
+        payload += encode_field_varint(2, offset)
+    if length:
+        payload += encode_field_varint(3, length)
     message = encode_field_varint(1, CMD_RDFILE)
     message += encode_field_bytes(3, payload)
     return bytes([16]) + message
@@ -121,20 +134,24 @@ def read_file(
     sock,
     path,
     timeout,
-    max_bytes,
+    max_bytes=None,
     sink=None,
+    offset=0,
+    length=0,
     progress_interval=0,
-    resume_bytes=0,
 ):
+    """Read [offset, offset+length) of a device file (length 0 = to EOF) in one
+    request, draining to EOF so the connection stays resynced. Streams to `sink`
+    (returns bytes written) or returns the bytes; the second value is the total
+    file size. Raises FileTooLarge if the file exceeds max_bytes."""
     sock.settimeout(timeout)
-    sock.sendall(make_rdfile_request(path))
+    sock.sendall(make_rdfile_request(path, offset, length))
 
     pending = bytearray()
     chunks = [] if sink is None else None
     full_size = None
-    bytes_written_total = resume_bytes
-    bytes_seen_total = 0
-    next_progress = 0
+    read_this_request = 0
+    next_progress = progress_interval
     started_at = time.monotonic()
     legacy_check_pending = True
 
@@ -146,7 +163,7 @@ def read_file(
             except ValueError as exc:
                 if "truncated" not in str(exc):
                     raise
-                chunk = sock.recv(4096)
+                chunk = sock.recv(65536)
                 if not chunk:
                     raise RuntimeError("socket closed while reading file")
                 if legacy_check_pending and not pending and chunk[0] in _LEGACY_ERROR_LEAD_BYTES:
@@ -154,19 +171,13 @@ def read_file(
                 legacy_check_pending = False
                 pending.extend(chunk)
 
-        consumed = message["consumed"]
-        del pending[:consumed]
+        del pending[:message["consumed"]]
 
         if message["kind"] == "eof":
-            data = b"" if chunks is None else b"".join(chunks)
-            total_len = bytes_written_total if sink is not None else len(data)
-            if full_size is not None and total_len != full_size:
-                if sink is not None and total_len == full_size:
-                    return data, full_size
-                raise RuntimeError(
-                    f"short read for {path}: got {total_len} bytes, expected {full_size}"
-                )
-            return data, full_size if full_size is not None else total_len
+            if sink is not None:
+                return read_this_request, (full_size if full_size is not None else offset + read_this_request)
+            data = b"".join(chunks)
+            return data, (full_size if full_size is not None else len(data))
 
         if message["kind"] == "error":
             err = message.get("error")
@@ -179,38 +190,24 @@ def read_file(
         chunk = message["data"]
         if full_size is None:
             full_size = message["full_size"]
-            if full_size > max_bytes:
+            if max_bytes is not None and full_size > max_bytes:
                 raise RuntimeError(
-                    f"{path} is {full_size} bytes, exceeds --max-bytes {max_bytes}"
+                    f"{path} is {full_size} bytes, exceeds max_bytes {max_bytes}"
                 )
-            if resume_bytes > full_size:
-                raise RuntimeError(
-                    f"resume offset {resume_bytes} exceeds file size {full_size}"
-                )
-            if progress_interval > 0 and resume_bytes > 0:
-                next_progress = ((resume_bytes // progress_interval) + 1) * progress_interval
         elif full_size != message["full_size"]:
             raise RuntimeError(
                 f"{path} size changed from {full_size} to {message['full_size']}"
             )
-        bytes_seen_total += len(chunk)
-        if resume_bytes > 0 and bytes_seen_total <= resume_bytes:
-            continue
-        if resume_bytes > 0 and bytes_seen_total - len(chunk) < resume_bytes:
-            skip = resume_bytes - (bytes_seen_total - len(chunk))
-            chunk = chunk[skip:]
+
+        read_this_request += len(chunk)
         if sink is not None:
             sink.write(chunk)
-            bytes_written_total += len(chunk)
-            if progress_interval > 0 and full_size is not None:
-                while bytes_written_total >= next_progress:
-                    if next_progress == 0:
-                        next_progress = progress_interval
-                        continue
+            if progress_interval > 0:
+                pos = offset + read_this_request
+                while pos >= next_progress:
                     elapsed = time.monotonic() - started_at
                     print(
-                        f"progress={bytes_written_total}/{full_size} "
-                        f"elapsed={elapsed:.1f}s",
+                        f"progress={pos}/{full_size} elapsed={elapsed:.1f}s",
                         file=sys.stderr,
                     )
                     next_progress += progress_interval

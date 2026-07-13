@@ -31,7 +31,8 @@
 
 #define INBUFSZ 1024
 #define OBUFSZ 0x10000
-#define RDFILESZ 0x400
+// Keep <= RespRdfile.data max_size (msg.options); encoded msg must fit OBUFSZ.
+#define RDFILESZ 0xC000
 
 typedef unsigned int u32;
 typedef unsigned short u16;

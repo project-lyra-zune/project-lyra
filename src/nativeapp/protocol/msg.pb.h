@@ -32,6 +32,10 @@ typedef struct _zunecom_CommandReq_PayloadLsdir {
 
 typedef struct _zunecom_CommandReq_PayloadRdfile {
     char path[300];
+    bool has_offset;
+    uint32_t offset;
+    bool has_length;
+    uint32_t length; /* max bytes for this request; 0 = read to EOF */
 } zunecom_CommandReq_PayloadRdfile;
 
 typedef struct _zunecom_CommandReq_PayloadKwrite32 {
@@ -69,7 +73,7 @@ typedef struct _zunecom_CommandResp_RespLsdir {
     char path[300];
 } zunecom_CommandResp_RespLsdir;
 
-typedef PB_BYTES_ARRAY_T(1024) zunecom_CommandResp_RespRdfile_data_t;
+typedef PB_BYTES_ARRAY_T(49152) zunecom_CommandResp_RespRdfile_data_t;
 typedef struct _zunecom_CommandResp_RespRdfile {
     zunecom_CommandResp_RespRdfile_data_t data;
     uint32_t fullsz;
@@ -132,7 +136,7 @@ extern "C" {
 /* Initializer values for message structs */
 #define zunecom_CommandReq_init_default          {_zunecom_CommandReq_CommandType_MIN, 0, {zunecom_CommandReq_PayloadLsdir_init_default}}
 #define zunecom_CommandReq_PayloadLsdir_init_default {""}
-#define zunecom_CommandReq_PayloadRdfile_init_default {""}
+#define zunecom_CommandReq_PayloadRdfile_init_default {"", false, 0, false, 0}
 #define zunecom_CommandReq_PayloadKwrite32_init_default {0, 0}
 #define zunecom_CommandReq_PayloadKread32_init_default {0}
 #define zunecom_CommandResp_init_default         {_zunecom_CommandResp_ResType_MIN, 0, {zunecom_CommandResp_RespLsdir_init_default}}
@@ -144,7 +148,7 @@ extern "C" {
 #define zunecom_CommandResp_RespKread32_init_default {0}
 #define zunecom_CommandReq_init_zero             {_zunecom_CommandReq_CommandType_MIN, 0, {zunecom_CommandReq_PayloadLsdir_init_zero}}
 #define zunecom_CommandReq_PayloadLsdir_init_zero {""}
-#define zunecom_CommandReq_PayloadRdfile_init_zero {""}
+#define zunecom_CommandReq_PayloadRdfile_init_zero {"", false, 0, false, 0}
 #define zunecom_CommandReq_PayloadKwrite32_init_zero {0, 0}
 #define zunecom_CommandReq_PayloadKread32_init_zero {0}
 #define zunecom_CommandResp_init_zero            {_zunecom_CommandResp_ResType_MIN, 0, {zunecom_CommandResp_RespLsdir_init_zero}}
@@ -158,6 +162,8 @@ extern "C" {
 /* Field tags (for use in manual encoding/decoding) */
 #define zunecom_CommandReq_PayloadLsdir_path_tag 1
 #define zunecom_CommandReq_PayloadRdfile_path_tag 1
+#define zunecom_CommandReq_PayloadRdfile_offset_tag 2
+#define zunecom_CommandReq_PayloadRdfile_length_tag 3
 #define zunecom_CommandReq_PayloadKwrite32_addr_tag 1
 #define zunecom_CommandReq_PayloadKwrite32_value_tag 2
 #define zunecom_CommandReq_PayloadKread32_addr_tag 1
@@ -201,7 +207,9 @@ X(a, STATIC,   REQUIRED, STRING,   path,              1)
 #define zunecom_CommandReq_PayloadLsdir_DEFAULT NULL
 
 #define zunecom_CommandReq_PayloadRdfile_FIELDLIST(X, a) \
-X(a, STATIC,   REQUIRED, STRING,   path,              1)
+X(a, STATIC,   REQUIRED, STRING,   path,              1) \
+X(a, STATIC,   OPTIONAL, UINT32,   offset,            2) \
+X(a, STATIC,   OPTIONAL, UINT32,   length,            3)
 #define zunecom_CommandReq_PayloadRdfile_CALLBACK NULL
 #define zunecom_CommandReq_PayloadRdfile_DEFAULT NULL
 
@@ -298,15 +306,15 @@ extern const pb_msgdesc_t zunecom_CommandResp_RespKread32_msg;
 #define zunecom_CommandReq_PayloadKread32_size   6
 #define zunecom_CommandReq_PayloadKwrite32_size  12
 #define zunecom_CommandReq_PayloadLsdir_size     302
-#define zunecom_CommandReq_PayloadRdfile_size    302
-#define zunecom_CommandReq_size                  307
+#define zunecom_CommandReq_PayloadRdfile_size    314
+#define zunecom_CommandReq_size                  319
 #define zunecom_CommandResp_RespEof_size         0
 #define zunecom_CommandResp_RespErr_size         136
 #define zunecom_CommandResp_RespKread32_size     6
 #define zunecom_CommandResp_RespKwrite32_size    0
 #define zunecom_CommandResp_RespLsdir_size       304
-#define zunecom_CommandResp_RespRdfile_size      1033
-#define zunecom_CommandResp_size                 1038
+#define zunecom_CommandResp_RespRdfile_size      49162
+#define zunecom_CommandResp_size                 49168
 
 #ifdef __cplusplus
 } /* extern "C" */

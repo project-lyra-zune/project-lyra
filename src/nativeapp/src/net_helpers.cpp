@@ -1,20 +1,27 @@
 #include "net_helpers.h"
 
 int safe_send(SOCKET client, unsigned char* out, uint32_t count) {
+	// Scoped non-blocking; recv paths rely on the socket staying blocking.
+	unsigned long nb = 1;
+	ioctlsocket(client, FIONBIO, &nb);
 	uint32_t off = 0;
-	int rem = count;
-	while(true) {
-		int send_res = send(client,(char*)&out[off], rem, 0);
-		if(send_res == SOCKET_ERROR) {
-			return 1;
+	int rem = (int)count;
+	int rc = 0;
+	while (rem > 0) {
+		if (wait_for_writable(client, 30000) <= 0) { rc = 1; break; }
+		int n = send(client, (char*)&out[off], rem, 0);
+		if (n == SOCKET_ERROR) {
+			// CE Winsock: use GetLastError; WSAGetLastError isn't exported here.
+			if (GetLastError() == WSAEWOULDBLOCK) continue;
+			rc = 1;
+			break;
 		}
-		rem -= send_res;
-		off += send_res;
-		if(rem <= 0) {
-			return 0;
-		}
-		Sleep(100);
+		rem -= n;
+		off += n;
 	}
+	unsigned long blocking = 0;
+	ioctlsocket(client, FIONBIO, &blocking);
+	return rc;
 }
 
 bool send_resp_err(SOCKET client, DWORD code, const char* fmt, ...) {
@@ -29,16 +36,16 @@ bool send_resp_err(SOCKET client, DWORD code, const char* fmt, ...) {
 	_vsnprintf(msgbuf, sizeof(msgbuf) - 1, fmt, ap);
 	va_end(ap);
 
-	zunecom_CommandResp local = zunecom_CommandResp_init_zero;
-	local.cmd = zunecom_CommandResp_ResType_RESP_ERR;
-	local.which_payload = zunecom_CommandResp_err_tag;
-	local.payload.err.code = code;
-	strncpy(local.payload.err.msg, msgbuf, sizeof(local.payload.err.msg) - 1);
-	local.payload.err.msg[sizeof(local.payload.err.msg) - 1] = 0;
+	// Reuse resp (BSS): CommandResp is ~49 KB, the thread stack only 64 KB.
+	resp.cmd = zunecom_CommandResp_ResType_RESP_ERR;
+	resp.which_payload = zunecom_CommandResp_err_tag;
+	resp.payload.err.code = code;
+	strncpy(resp.payload.err.msg, msgbuf, sizeof(resp.payload.err.msg) - 1);
+	resp.payload.err.msg[sizeof(resp.payload.err.msg) - 1] = 0;
 
 	pb_ostream_t ostream = pb_ostream_from_buffer(out, OBUFSZ);
 	bool failed = true;
-	if (pb_encode(&ostream, zunecom_CommandResp_fields, &local)) {
+	if (pb_encode(&ostream, zunecom_CommandResp_fields, &resp)) {
 		failed = safe_send(client, out, ostream.bytes_written) != 0;
 	}
 	free(out);
@@ -74,6 +81,16 @@ int wait_for_readable(SOCKET s, int timeout_ms) {
 	tv.tv_sec  = timeout_ms / 1000;
 	tv.tv_usec = (timeout_ms % 1000) * 1000;
 	return select(0, &rfds, NULL, NULL, &tv);
+}
+
+int wait_for_writable(SOCKET s, int timeout_ms) {
+	fd_set wfds;
+	FD_ZERO(&wfds);
+	FD_SET(s, &wfds);
+	struct timeval tv;
+	tv.tv_sec  = timeout_ms / 1000;
+	tv.tv_usec = (timeout_ms % 1000) * 1000;
+	return select(0, NULL, &wfds, NULL, &tv);
 }
 
 u32 stream_consume(struct recv_stream* s, void* dst, u32 wanted) {

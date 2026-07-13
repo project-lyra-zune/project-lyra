@@ -58,6 +58,10 @@ HANDLE find_first_with_retry(LPCWSTR path, WIN32_FIND_DATA* ffd, DWORD* out_erro
 		if (out_error) {
 			*out_error = err;
 		}
+		// empty dir is definitive, not a retryable flash-not-ready transient
+		if (err == ERROR_NO_MORE_FILES) {
+			return INVALID_HANDLE_VALUE;
+		}
 		if (GetTickCount() - start >= timeout_ms) {
 			return INVALID_HANDLE_VALUE;
 		}

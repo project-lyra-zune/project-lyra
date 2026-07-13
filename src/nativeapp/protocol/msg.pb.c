@@ -21,7 +21,7 @@ PB_BIND(zunecom_CommandReq_PayloadKwrite32, zunecom_CommandReq_PayloadKwrite32, 
 PB_BIND(zunecom_CommandReq_PayloadKread32, zunecom_CommandReq_PayloadKread32, AUTO)
 
 
-PB_BIND(zunecom_CommandResp, zunecom_CommandResp, 2)
+PB_BIND(zunecom_CommandResp, zunecom_CommandResp, 4)
 
 
 PB_BIND(zunecom_CommandResp_RespErr, zunecom_CommandResp_RespErr, AUTO)
@@ -30,7 +30,7 @@ PB_BIND(zunecom_CommandResp_RespErr, zunecom_CommandResp_RespErr, AUTO)
 PB_BIND(zunecom_CommandResp_RespLsdir, zunecom_CommandResp_RespLsdir, 2)
 
 
-PB_BIND(zunecom_CommandResp_RespRdfile, zunecom_CommandResp_RespRdfile, 2)
+PB_BIND(zunecom_CommandResp_RespRdfile, zunecom_CommandResp_RespRdfile, 4)
 
 
 PB_BIND(zunecom_CommandResp_RespEof, zunecom_CommandResp_RespEof, AUTO)

@@ -608,26 +608,32 @@ static int op_16(SOCKET client, unsigned char* inbuf, int res, unsigned char* ou
 		DWORD lsdir_probe_err = ERROR_SUCCESS;
 		hFind = find_first_with_retry(foo, &ffd, &lsdir_probe_err, 4000);
 
+		bool lsdir_empty = false;
 		if (INVALID_HANDLE_VALUE == hFind) {
-			refresh_file_runtime_state();
-			if (send_resp_err(
-				client,
-				lsdir_probe_err,
-				"lsdir path=%S err=%lu flash2=%d/%lu",
-				foo,
-				lsdir_probe_err,
-				g_file_runtime.flash2_ready ? 1 : 0,
-				g_file_runtime.flash2_error)) {
-				closesocket(client);
+			if (lsdir_probe_err == ERROR_NO_MORE_FILES) {
+				// empty dir gives an empty listing (EOF below), not an error
+				lsdir_empty = true;
+			} else {
+				refresh_file_runtime_state();
+				if (send_resp_err(
+					client,
+					lsdir_probe_err,
+					"lsdir path=%S err=%lu flash2=%d/%lu",
+					foo,
+					lsdir_probe_err,
+					g_file_runtime.flash2_ready ? 1 : 0,
+					g_file_runtime.flash2_error)) {
+					closesocket(client);
+				}
+				break;
 			}
-			break;
 		}
 
 		// path length cap: matches the regenerated msg.pb.h field width
 		// (RespLsdir.path is char[300]; leave 1 byte for terminator).
 		#define LSDIR_PATH_CAP 298
 
-		bool lsdir_done = false;
+		bool lsdir_done = lsdir_empty;
 		bool lsdir_first = true;
 		while (!lsdir_done) {
 			if (!lsdir_first) {
@@ -680,7 +686,9 @@ static int op_16(SOCKET client, unsigned char* inbuf, int res, unsigned char* ou
 		} else if (safe_send(client, (unsigned char*)out, ostream.bytes_written)) {
 			closesocket(client);
 		}
-		FindClose(hFind);
+		if (!lsdir_empty) {
+			FindClose(hFind);
+		}
 		lsdir_done_label:;
 		}
 	break;
@@ -705,6 +713,13 @@ static int op_16(SOCKET client, unsigned char* inbuf, int res, unsigned char* ou
 					break;
 				}
 
+				DWORD start = msg.payload.rdfile.offset;
+				DWORD remaining = msg.payload.rdfile.length;
+				bool bounded = (remaining != 0);
+				if (start != 0) {
+					SetFilePointer(f, (LONG)start, NULL, FILE_BEGIN);
+				}
+
 				DWORD hFz = 0;
 				DWORD lowfz = GetFileSize(f, &hFz);
 				if (lowfz == INVALID_FILE_SIZE) {
@@ -723,10 +738,20 @@ static int op_16(SOCKET client, unsigned char* inbuf, int res, unsigned char* ou
 			  while(true) {
 				cnt = 0;
 
+				DWORD want = RDFILESZ - 50;
+				if (bounded) {
+					if (remaining == 0) {
+						break;
+					}
+					if (remaining < want) {
+						want = remaining;
+					}
+				}
+
 				resp.cmd = zunecom_CommandResp_ResType_RSP_RDFILE_DATA;
 				resp.which_payload = zunecom_CommandResp_rdfile_tag;
 
-				r = ReadFile(f, &resp.payload.rdfile.data.bytes[0], RDFILESZ-50, &cnt, NULL);
+				r = ReadFile(f, &resp.payload.rdfile.data.bytes[0], want, &cnt, NULL);
 				if (r == FALSE) {
 					DWORD read_err = GetLastError();
 					CloseHandle(f);
@@ -757,6 +782,10 @@ static int op_16(SOCKET client, unsigned char* inbuf, int res, unsigned char* ou
 				if (safe_send(client,(unsigned char*)out, ostream.bytes_written)){
 					closesocket(client);
 					break;
+				}
+
+				if (bounded) {
+					remaining -= cnt;
 				}
 
 			  }

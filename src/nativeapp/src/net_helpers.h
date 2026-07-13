@@ -17,6 +17,8 @@ DWORD compute_iface_signature();
 // no-ops SO_RCVTIMEO so select() is the only reliable timeout primitive.
 int wait_for_readable(SOCKET s, int timeout_ms);
 
+int wait_for_writable(SOCKET s, int timeout_ms);
+
 // Tracks residual bytes already pulled into inbuf by the outer recv().
 // Each request part consumes from the residual first, falling back to
 // recv() once dry.

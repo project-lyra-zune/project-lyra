@@ -24,6 +24,8 @@ message CommandReq {
 
   message PayloadRdfile {
     required string path = 1;
+    optional uint32 offset = 2;
+    optional uint32 length = 3;  // max bytes for this request; 0 = read to EOF
   }
 
   message PayloadKwrite32 {

@@ -1,0 +1,9 @@
+# Edit alongside msg.proto, then run ./regen-proto.sh to rebuild msg.pb.{h,c}.
+
+zunecom.CommandReq.PayloadLsdir.path    max_size:300
+zunecom.CommandReq.PayloadRdfile.path   max_size:300
+zunecom.CommandResp.RespErr.msg         max_size:128
+zunecom.CommandResp.RespLsdir.path      max_size:300
+
+# Keep >= RDFILESZ (nativeapp_common.h); the handler reads RDFILESZ-50 into this.
+zunecom.CommandResp.RespRdfile.data     max_size:49152

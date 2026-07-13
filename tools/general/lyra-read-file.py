@@ -31,7 +31,7 @@ def main():
     parser.add_argument(
         "--resume",
         action="store_true",
-        help="append to an existing .part file by re-reading from byte 0 and discarding the existing prefix",
+        help="append to an existing .part file, seeking on the device to resume from its current length",
     )
     args = parser.parse_args()
 
@@ -65,8 +65,8 @@ def main():
                         args.timeout,
                         args.max_bytes,
                         sink=sink,
+                        offset=resume_bytes,
                         progress_interval=args.progress_interval,
-                        resume_bytes=resume_bytes,
                     )
                 partial_path.replace(out_path)
                 print(f"path={path}")
