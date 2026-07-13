@@ -1,0 +1,23 @@
+<XuiCanvas version="000c" xur5CountHeader="0">
+<Properties>
+<Width>92.000000</Width>
+<Height>52.000000</Height>
+</Properties>
+<XuiScene>
+<Properties>
+<Id>scene</Id>
+<Width>92.000000</Width>
+<Height>52.000000</Height>
+</Properties>
+<XuiControl>
+<Properties>
+<Id>ModMetaFade</Id>
+<Width>92.000000</Width>
+<Height>52.000000</Height>
+<Hittable>false</Hittable>
+<DisableFocus>true</DisableFocus>
+<Visual>ModMetaFade</Visual>
+</Properties>
+</XuiControl>
+</XuiScene>
+</XuiCanvas>

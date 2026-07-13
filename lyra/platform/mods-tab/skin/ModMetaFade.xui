@@ -1,0 +1,47 @@
+<XuiCanvas version="000c" xur5CountHeader="0">
+<Properties>
+<Width>272.000000</Width>
+<Height>480.000000</Height>
+</Properties>
+<XuiVisual>
+<Properties>
+<Id>ModMetaFade</Id>
+<Width>92.000000</Width>
+<Height>52.000000</Height>
+</Properties>
+<XuiFigure>
+<Properties>
+<Id>Fade</Id>
+<Width>92.000000</Width>
+<Height>52.000000</Height>
+<Anchor>15</Anchor>
+<Stroke>
+<Properties>
+<StrokeColor>0xff0f0f80</StrokeColor>
+</Properties>
+</Stroke>
+<Fill>
+<Properties>
+<FillType>2</FillType>
+<FillColor>0xff000000</FillColor>
+<TextureFileName>images\pattern1.png</TextureFileName>
+<Gradient>
+<Properties>
+<NumStops>3</NumStops>
+<StopColor index="0">0x00000000</StopColor>
+<StopColor index="1">0xff000000</StopColor>
+<StopColor index="2">0x00000000</StopColor>
+<StopPos index="0">0.000000</StopPos>
+<StopPos index="1">0.500000</StopPos>
+<StopPos index="2">1.000000</StopPos>
+</Properties>
+</Gradient>
+<TransformVersion>1</TransformVersion>
+</Properties>
+</Fill>
+<Closed>true</Closed>
+<Points>4,0.000000,0.000000,0.000000,0.000000,68.000000,0.000000,0,68.000000,0.000000,68.000000,0.000000,68.000000,55.000000,0,68.000000,55.000000,68.000000,55.000000,0.000000,55.000000,0,0.000000,55.000000,0.000000,55.000000,0.000000,0.000000,0,</Points>
+</Properties>
+</XuiFigure>
+</XuiVisual>
+</XuiCanvas>

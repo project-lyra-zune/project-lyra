@@ -1,0 +1,12 @@
+[submodule "modkit/xuihelper-zune"]
+	path = modkit/xuihelper-zune
+	url = https://github.com/magicisinthehole/xuihelper-zune.git
+[submodule "wiki"]
+	path = wiki
+	url = https://github.com/project-lyra-zune/lyra-wiki.git
+[submodule "src/zlib"]
+	path = lyra/platform/mods-tab/src/reposd/deps/zlib
+	url = https://github.com/madler/zlib.git
+[submodule "src/ce-common/deps/wolfssl"]
+	path = src/ce-common/deps/wolfssl
+	url = https://github.com/wolfSSL/wolfssl.git

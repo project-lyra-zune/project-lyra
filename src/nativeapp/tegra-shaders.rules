@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<VisualStudioToolFile
+	Name="LyraTegraShaders"
+	Version="8.00"
+	>
+	<Rules>
+		<CustomBuildRule
+			Name="Fragment Program"
+			DisplayName="Fragment Program"
+			CommandLine="&quot;$(NV_WINCE_T2_PLAT)\host_bin\cgc.exe&quot; -profile ar20fp -ogles -o &quot;$(InputDir)$(InputName).cgbin&quot; &quot;$(InputPath)&quot; -po filename&#x0D;&#x0A;&quot;$(NV_WINCE_T2_PLAT)\host_bin\shaderfix.exe&quot; -o &quot;$(InputDir)$(InputName).nvbf&quot; &quot;$(InputDir)$(InputName).cgbin&quot;&#x0D;&#x0A;del &quot;$(InputDir)$(InputName).cgbin&quot;&#x0D;&#x0A;"
+			Outputs="$(InputDir)$(InputName).nvbf"
+			FileExtensions="*.glslf;*.frag;*.fs"
+			ExecutionDescription="Compiling fragment shader..."
+			>
+			<Properties>
+			</Properties>
+		</CustomBuildRule>
+		<CustomBuildRule
+			Name="Vertex Program"
+			DisplayName="Vertex Program"
+			CommandLine="&quot;$(NV_WINCE_T2_PLAT)\host_bin\cgc.exe&quot; -profile ar20vp -ogles -o &quot;$(InputDir)$(InputName).cgbin&quot; &quot;$(InputPath)&quot; -po filename&#x0D;&#x0A;&quot;$(NV_WINCE_T2_PLAT)\host_bin\shaderfix.exe&quot; -o &quot;$(InputDir)$(InputName).nvbv&quot; &quot;$(InputDir)$(InputName).cgbin&quot;&#x0D;&#x0A;del &quot;$(InputDir)$(InputName).cgbin&quot;&#x0D;&#x0A;"
+			Outputs="$(InputDir)$(InputName).nvbv"
+			FileExtensions="*.glslv;*.vert;*.vs"
+			ExecutionDescription="Compiling vertex shader..."
+			>
+			<Properties>
+			</Properties>
+		</CustomBuildRule>
+	</Rules>
+</VisualStudioToolFile>

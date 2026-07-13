@@ -1,0 +1,5 @@
+LIBRARY ce_dshow_scheme_plugin
+EXPORTS
+    RunDaemon
+    DllGetClassObject
+    DllCanUnloadNow

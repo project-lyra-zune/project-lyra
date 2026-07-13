@@ -1,0 +1,85 @@
+syntax = "proto2";
+
+package zunecom;
+
+message CommandReq {
+  required CommandType cmd = 1;
+  oneof payload {
+    PayloadLsdir lsdir = 2;
+    PayloadRdfile rdfile = 3;
+    PayloadKwrite32 kwrite32 = 4;
+    PayloadKread32 kread32 = 5;
+  };
+
+  enum CommandType {
+    CMD_LSDIR = 1;
+    CMD_RDFILE = 2;
+    CMD_KWRITE32 = 3;
+    CMD_KREAD32 = 4;
+  }
+
+  message PayloadLsdir {
+    required string path = 1;
+  }
+
+  message PayloadRdfile {
+    required string path = 1;
+  }
+
+  message PayloadKwrite32 {
+    required uint32 addr = 1;
+    required uint32 value = 2;
+  }
+
+  message PayloadKread32 {
+    required uint32 addr = 1;
+  }
+}
+
+message CommandResp {
+  required ResType cmd = 1;
+  oneof payload {
+    RespLsdir lsdir = 2;
+    RespRdfile rdfile = 3;
+    RespEof eof = 4;
+    RespErr err = 5;
+    RespKwrite32 kwrite32 = 6;
+    RespKread32 kread32 = 7;
+  };
+  
+  message RespErr {
+    required uint32 code = 1;
+    required string msg = 2;
+  }
+
+  // Single directory entry. The daemon emits one CommandResp per entry
+  // with cmd=RSP_LSDIR_ENT, then a final cmd=RSP_LSDIR_EOF (payload=eof)
+  // to terminate. Mirrors the RSP_RDFILE_DATA / RSP_RDFILE_EOF pattern;
+  // replaces the original fixed-array RespLsdir that truncated when the
+  // encoded array overflowed OBUFSZ.
+  message RespLsdir {
+    required bool is_dir = 1;
+    required string path = 2;
+  }
+
+  message RespRdfile {
+    required bytes data = 1;
+    required uint32 fullsz = 2;
+  }
+
+  message RespEof {}
+
+  message RespKwrite32 {}
+
+  message RespKread32 {
+    required uint32 value = 1;
+  }
+
+  enum ResType {
+    RSP_LSDIR_ENT = 1;
+    RSP_RDFILE_DATA = 2;
+    RSP_RDFILE_EOF = 3;
+    RESP_ERR = 4;
+    RSP_LSDIR_EOF = 5;
+  }
+}

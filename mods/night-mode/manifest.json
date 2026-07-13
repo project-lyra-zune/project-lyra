@@ -1,0 +1,31 @@
+{
+  "mod_id": "night-mode",
+  "name": "Night Mode",
+  "version": "0.3.1",
+  "author": "Project Lyra",
+  "category": "Appearance",
+  "description": "Tints the whole interface red for night viewing, toggled live from quick settings with the moon icon. A uniform colour multiply, so album art and icons red-shift too.",
+  "changelog": "Refreshed the store description. The moon quick-toggle and the live red tint are unchanged.",
+  "settings": [
+    {
+      "id": "night-mode",
+      "type": "bool",
+      "label": "Night mode",
+      "default": false,
+      "quick_toggle": true,
+      "quick_icon": "@asset/night-big.png"
+    }
+  ],
+  "status_icons": [
+    { "source": "setting/night-mode", "frames": [null, "@asset/night.png"] }
+  ],
+  "actions": [
+    {
+      "type": "tint_element",
+      "target_proc": "all",
+      "element": "@all",
+      "source": "setting/night-mode",
+      "color": "FF4040"
+    }
+  ]
+}

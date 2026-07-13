@@ -1,0 +1,53 @@
+# dockge stack for repo.zune.moe (Project Lyra mod repository).
+# Mirrors the lyra-wiki stack: internal-only port, Traefik label-driven routing,
+# Let's Encrypt TLS via the existing `le` resolver (TLS-ALPN-01), on the `proxy`
+# network. Static content (feed.json + mods/*.zmod) is baked into the image from
+# content/; redeploy to publish new packages.
+services:
+  lyra-repo:
+    build: .
+    image: lyra-repo
+    container_name: lyra-repo
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /run
+      - /var/cache/nginx
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
+    mem_limit: 128m
+    pids_limit: 100
+    networks:
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.lyra-repo.rule=Host("repo.zune.moe")
+      - traefik.http.routers.lyra-repo.entrypoints=websecure
+      - traefik.http.routers.lyra-repo.tls=true
+      - traefik.http.routers.lyra-repo.tls.certresolver=le
+      - traefik.http.routers.lyra-repo.middlewares=secure-headers@docker
+      - traefik.http.routers.lyra-repo.service=lyra-repo-svc
+      - traefik.http.services.lyra-repo-svc.loadbalancer.server.port=80
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - -qO-
+        - http://127.0.0.1/healthz
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+networks:
+  proxy:
+    external: true

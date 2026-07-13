@@ -1,0 +1,5 @@
+# Optional dependencies. The core device tools (general/, re/) are stdlib-only;
+# install these only for the tool groups that need them.
+capstone   # disasm/  (offline-disasm-any, xip-re, re-helper, scan-bl-callers)
+numpy      # capture/ (zune-screencap, zune-screencast)
+Pillow     # capture/ (zune-screencap, zune-screencast)

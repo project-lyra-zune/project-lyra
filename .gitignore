@@ -1,0 +1,44 @@
+# Visual Studio per-user / intermediate
+*.user
+*.ncb
+*.suo
+*.sdf
+*.opensdf
+
+# Build output
+/build/
+/dist/
+[Bb]in/
+[Oo]bj/
+out/
+*.obj
+*.pdb
+*.ilk
+
+# Build artifacts: regenerated from source, shipped via GitHub releases, never
+# committed. See BUILDING.md for how each is produced.
+# Device binaries (Win7 + VS2008/OpenZDK/Tegra) + exploiter (XNA)
+*.dll
+*.exe
+# Installer splash shaders (built next to nativeapp)
+*.nvbv
+*.nvbf
+# Compiled XUI scenes (.xui -> .xur, XUIHelper/.NET 8)
+*.xur
+# Gemstone class blobs (python -m modkit.build_*)
+class*.bin
+class*.reloc.json
+# Installer splash assets (bake-installer-assets.py)
+*.bgra
+
+# Python (modkit + tools)
+__pycache__/
+*.py[cod]
+
+# OS cruft
+.DS_Store
+Thumbs.db
+*:Zone.Identifier
+
+# Media Outputs
+*.mp4

@@ -1,0 +1,22 @@
+<XuiCanvas version="000c" xur5CountHeader="0">
+<Properties>
+<Width>64.000000</Width>
+<Height>64.000000</Height>
+</Properties>
+<XuiScene>
+<Properties>
+<Id>scene</Id>
+<Width>64.000000</Width>
+<Height>64.000000</Height>
+</Properties>
+<XuiButton>
+<Properties>
+<Id>ModQuickSettings</Id>
+<Width>64.000000</Width>
+<Height>64.000000</Height>
+<Visual>ModHudMenuButton</Visual>
+<Forgiveness>10</Forgiveness>
+</Properties>
+</XuiButton>
+</XuiScene>
+</XuiCanvas>

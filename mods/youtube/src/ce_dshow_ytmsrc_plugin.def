@@ -1,0 +1,6 @@
+LIBRARY ce_dshow_ytmsrc_plugin
+EXPORTS
+    RunDaemon
+    RunFile
+    DllGetClassObject
+    DllCanUnloadNow

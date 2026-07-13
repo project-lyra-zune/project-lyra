@@ -1,0 +1,189 @@
+{
+  "mod_id": "mods-tab",
+  "name": "Mods Tab: modkit reference mod",
+  "version": "0.1.0",
+  "author": "Project Lyra",
+  "category": "System",
+  "description": "Adds a Mods tile to the Start menu for browsing the repo, installing mods, and managing what is enabled.",
+  "depends_on": [],
+  "daemons": [
+    {
+      "binary": "@/reposd.exe"
+    }
+  ],
+  "actions": [
+    {
+      "type": "gem_add_entry",
+      "gem": "scenes_standard.gem",
+      "entry_name": "Mods.xur",
+      "content_blob_ref": "@/scenes/Mods.xur"
+    },
+    {
+      "type": "gem_add_entry",
+      "gem": "scenes_standard.gem",
+      "entry_name": "ManageMods.xur",
+      "content_blob_ref": "@/scenes/ManageMods.xur"
+    },
+    {
+      "type": "gem_add_entry",
+      "gem": "scenes_standard.gem",
+      "entry_name": "ManageModsContent.xur",
+      "content_blob_ref": "@/scenes/ManageModsContent.xur"
+    },
+    {
+      "type": "gem_add_entry",
+      "gem": "scenes_standard.gem",
+      "entry_name": "ManageModDetail.xur",
+      "content_blob_ref": "@/scenes/ManageModDetail.xur"
+    },
+    {
+      "type": "gem_add_entry",
+      "gem": "scenes_standard.gem",
+      "entry_name": "BrowseMods.xur",
+      "content_blob_ref": "@/scenes/BrowseMods.xur"
+    },
+    {
+      "type": "gem_add_entry",
+      "gem": "scenes_standard.gem",
+      "entry_name": "BrowseModsContent.xur",
+      "content_blob_ref": "@/scenes/BrowseModsContent.xur"
+    },
+    {
+      "type": "register_visuals",
+      "content_blob_ref": "@/skin/ModsCustomVisuals.xur",
+      "verify_visual_id": "ModsDisableButton"
+    },
+    {
+      "type": "xus_add_string",
+      "gem": "strings.gem",
+      "table": "Strings.xus",
+      "locale": "en",
+      "value": "mods",
+      "manifest_back_reference": "mods_label"
+    },
+    {
+      "type": "xus_add_string",
+      "gem": "strings.gem",
+      "table": "Strings.xus",
+      "locale": "en",
+      "value": "installed",
+      "manifest_back_reference": "installed_label"
+    },
+    {
+      "type": "xus_add_string",
+      "gem": "strings.gem",
+      "table": "Strings.xus",
+      "locale": "en",
+      "value": "archived",
+      "manifest_back_reference": "archived_label"
+    },
+    {
+      "type": "register_xui_class",
+      "target_proc": "gemstone",
+      "name": "GemModHub",
+      "parent_name": "GemBaseScene",
+      "class_ref": "@/class_hub.bin",
+      "reloc_ref": "@/class_hub.reloc.json"
+    },
+    {
+      "type": "register_xui_class",
+      "target_proc": "gemstone",
+      "name": "GemModManager",
+      "parent_name": "GemLibraryBaseScene",
+      "class_ref": "@/class.bin",
+      "reloc_ref": "@/class.reloc.json"
+    },
+    {
+      "type": "register_xui_class",
+      "target_proc": "gemstone",
+      "name": "GemModsListContentScene",
+      "parent_name": "GemBaseScene",
+      "class_ref": "@/class_content.bin",
+      "reloc_ref": "@/class_content.reloc.json"
+    },
+    {
+      "type": "register_xui_class",
+      "target_proc": "gemstone",
+      "name": "GemModDetail",
+      "parent_name": "GemBaseScene",
+      "class_ref": "@/class_detail.bin",
+      "reloc_ref": "@/class_detail.reloc.json"
+    },
+    {
+      "type": "register_xui_class",
+      "target_proc": "gemstone",
+      "name": "GemModBrowse",
+      "parent_name": "GemLibraryBaseScene",
+      "class_ref": "@/class_browse.bin",
+      "reloc_ref": "@/class_browse.reloc.json"
+    },
+    {
+      "type": "register_xui_class",
+      "target_proc": "gemstone",
+      "name": "GemModBrowseList",
+      "parent_name": "GemBaseScene",
+      "class_ref": "@/class_browse_list.bin",
+      "reloc_ref": "@/class_browse_list.reloc.json"
+    },
+    {
+      "type": "inject_menu_entry",
+      "label_id_or_ref": "$mods_label",
+      "scene_name": "Mods",
+      "section_id": -1,
+      "icon_id": 0,
+      "flags": 1
+    },
+    {
+      "type": "register_xui_class",
+      "target_proc": "servicesd",
+      "name": "ModQuickSettingsScene",
+      "parent_name": "HudActiveBaseScene",
+      "class_ref": "@/class_quicksettings_zhud.bin",
+      "reloc_ref": "@/class_quicksettings_zhud.reloc.json"
+    },
+    {
+      "type": "register_xui_class",
+      "target_proc": "servicesd",
+      "name": "ModContextListScene",
+      "parent_name": "HudActiveBaseScene",
+      "class_ref": "@/class_contextlist_zhud.bin",
+      "reloc_ref": "@/class_contextlist_zhud.reloc.json"
+    },
+    {
+      "type": "gem_add_entry",
+      "gem": "HudScenes.gem",
+      "entry_name": "QuickSettingsList.xur",
+      "content_blob_ref": "@/scenes/QuickSettingsList.xur"
+    },
+    {
+      "type": "gem_add_entry",
+      "gem": "HudScenes.gem",
+      "entry_name": "ContextList.xur",
+      "content_blob_ref": "@/scenes/ContextList.xur"
+    },
+    {
+      "type": "gem_add_entry",
+      "gem": "HudScenes.gem",
+      "entry_name": "ModQuickSettings.xur",
+      "content_blob_ref": "@/scenes/ModQuickSettings.xur"
+    },
+    {
+      "type": "gem_add_entry",
+      "gem": "HudScenes.gem",
+      "entry_name": "ModMetaFade.xur",
+      "content_blob_ref": "@/scenes/ModMetaFade.xur"
+    },
+    {
+      "type": "register_visuals",
+      "target_proc": "servicesd",
+      "content_blob_ref": "@/skin/ModHudMenuButton.xur",
+      "verify_visual_id": "ModHudMenuButton"
+    },
+    {
+      "type": "register_visuals",
+      "target_proc": "servicesd",
+      "content_blob_ref": "@/skin/ModMetaFade.xur",
+      "verify_visual_id": "ModMetaFade"
+    }
+  ]
+}
