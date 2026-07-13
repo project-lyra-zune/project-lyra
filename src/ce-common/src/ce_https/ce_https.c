@@ -13,6 +13,7 @@
 #include <stdio.h>
 
 #include <wolfssl/ssl.h>
+#include <wolfssl/wolfcrypt/error-crypt.h>
 
 #include "ce_tls_ctx.h"
 #include "ce_https.h"
@@ -25,6 +26,21 @@ static WOLFSSL_CTX *g_ctx    = NULL;
 static int          g_last_tls_err = 0;   /* wolfSSL_get_error of the last failed handshake */
 
 int ce_https_last_tls_error(void) { return g_last_tls_err; }
+
+static enum ce_https_result classify_handshake_error(WOLFSSL *ssl)
+{
+    g_last_tls_err = wolfSSL_get_error(ssl, -1);
+    switch (g_last_tls_err) {
+    case ASN_BEFORE_DATE_E:
+    case ASN_AFTER_DATE_E:
+    case ASN_SIG_CONFIRM_E:
+    case ASN_NO_SIGNER_E:
+    case DOMAIN_NAME_MISMATCH:
+        return CE_HTTPS_ERR_CERT;
+    default:
+        return CE_HTTPS_ERR_TLS;
+    }
+}
 
 /* ── per-host TLS session resumption ───────────────────────────────────────
  * The TLS handshake's asymmetric crypto (ECDHE + cert verify) is the dominant
@@ -309,8 +325,7 @@ enum ce_https_result ce_https_request(const char *host,
         int hs = wolfSSL_connect(ssl);
         g_t_tls = (int)(GetTickCount() - t0);
         if (hs != WOLFSSL_SUCCESS) {
-            g_last_tls_err = wolfSSL_get_error(ssl, -1);
-            rv = CE_HTTPS_ERR_TLS;
+            rv = classify_handshake_error(ssl);
             goto done;
         }
     }
@@ -537,8 +552,9 @@ enum ce_https_result ce_https_download_url(const char *url,
         wolfSSL_UseSNI(ssl, WOLFSSL_SNI_HOST_NAME, host, (unsigned short)strlen(host));
         wolfSSL_check_domain_name(ssl, host);
         if (wolfSSL_connect(ssl) != WOLFSSL_SUCCESS) {
+            enum ce_https_result terr = classify_handshake_error(ssl);
             wolfSSL_free(ssl); closesocket(sock); free(path); free(req);
-            return CE_HTTPS_ERR_TLS;
+            return terr;
         }
 
         _snprintf(req, 3072,
@@ -662,12 +678,12 @@ static enum ce_https_result conn_dial(struct ce_https_conn *c)
     wolfSSL_UseSNI(c->ssl, WOLFSSL_SNI_HOST_NAME, c->host, (unsigned short)strlen(c->host));
     wolfSSL_check_domain_name(c->ssl, c->host);
     if (wolfSSL_connect(c->ssl) != WOLFSSL_SUCCESS) {
-        g_last_tls_err = wolfSSL_get_error(c->ssl, -1);
+        enum ce_https_result terr = classify_handshake_error(c->ssl);
         wolfSSL_free(c->ssl);
         c->ssl = NULL;
         closesocket(c->sock);
         c->sock = INVALID_SOCKET;
-        return CE_HTTPS_ERR_TLS;
+        return terr;
     }
     return CE_HTTPS_OK;
 }
@@ -863,6 +879,7 @@ const char *ce_https_result_str(enum ce_https_result r)
     case CE_HTTPS_ERR_RESOLVE:  return "RESOLVE";
     case CE_HTTPS_ERR_CONNECT:  return "CONNECT";
     case CE_HTTPS_ERR_TLS:      return "TLS";
+    case CE_HTTPS_ERR_CERT:     return "CERT";
     case CE_HTTPS_ERR_SEND:     return "SEND";
     case CE_HTTPS_ERR_RECV:     return "RECV";
     case CE_HTTPS_ERR_PROTOCOL: return "PROTOCOL";

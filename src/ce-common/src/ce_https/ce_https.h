@@ -23,11 +23,14 @@ enum ce_https_result {
     CE_HTTPS_ERR_INIT,        /* WSAStartup / TLS context build failed */
     CE_HTTPS_ERR_RESOLVE,     /* getaddrinfo failed */
     CE_HTTPS_ERR_CONNECT,     /* TCP connect failed */
-    CE_HTTPS_ERR_TLS,         /* TLS handshake / cert verification failed */
+    CE_HTTPS_ERR_TLS,         /* TLS handshake failed (transport / protocol) */
     CE_HTTPS_ERR_SEND,        /* request write failed */
     CE_HTTPS_ERR_RECV,        /* response read failed */
     CE_HTTPS_ERR_PROTOCOL,    /* malformed status line */
-    CE_HTTPS_ERR_NOMEM
+    CE_HTTPS_ERR_NOMEM,
+    /* cert rejected: validity date / untrusted signer / hostname mismatch.
+       Keep last: earlier values are stored in reposd's IPC block. */
+    CE_HTTPS_ERR_CERT
 };
 
 /* A completed HTTP response. `body`/`headers` are heap buffers owned by the

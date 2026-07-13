@@ -1,7 +1,7 @@
 {
   "mod_id": "lyra",
   "name": "Lyra",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "author": "Project Lyra",
   "category": "Platform",
   "description": "The Lyra platform: the mod manager UI, zuxhook, nativeapp daemon, and its component mods (mods-tab, wifi-power) all wrapped in a pretty bow.",

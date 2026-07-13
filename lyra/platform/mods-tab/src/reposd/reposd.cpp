@@ -22,6 +22,7 @@
 #define MODS_DIR        L"\\flash2\\automation\\mods"
 #define TMP_ZMOD        L"\\flash2\\automation\\_repo_dl.zmod"
 #define LOG_PATH        L"\\flash2\\automation\\reposd.log"
+#define LOG_MAX_BYTES   (128u * 1024u)
 #define MAX_ZMOD_BYTES  (8u * 1024u * 1024u)   /* hard ceiling against a bad feed */
 
 static void L(const char* s) {
@@ -29,10 +30,27 @@ static void L(const char* s) {
                            NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     if (f == INVALID_HANDLE_VALUE) return;
     SetFilePointer(f, 0, NULL, FILE_END);
-    DWORD n; WriteFile(f, s, (DWORD)strlen(s), &n, NULL); WriteFile(f, "\r\n", 2, &n, NULL);
+    SYSTEMTIME t; GetLocalTime(&t);
+    char ts[24];
+    int m = _snprintf(ts, sizeof(ts), "[%04d-%02d-%02d %02d:%02d:%02d] ",
+                      t.wYear, t.wMonth, t.wDay, t.wHour, t.wMinute, t.wSecond);
+    DWORD n;
+    if (m > 0) WriteFile(f, ts, (DWORD)m, &n, NULL);
+    WriteFile(f, s, (DWORD)strlen(s), &n, NULL);
+    WriteFile(f, "\r\n", 2, &n, NULL);
     CloseHandle(f);
 }
 static void Lx(const char* t, long v) { char b[160]; _snprintf(b, sizeof(b), "%s=%ld", t, v); L(b); }
+
+static void log_rotate_if_large(void) {
+    WIN32_FILE_ATTRIBUTE_DATA fad;
+    if (GetFileAttributesExW(LOG_PATH, GetFileExInfoStandard, &fad) &&
+        fad.nFileSizeHigh == 0 && fad.nFileSizeLow > LOG_MAX_BYTES) {
+        HANDLE f = CreateFileW(LOG_PATH, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                               NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+        if (f != INVALID_HANDLE_VALUE) CloseHandle(f);
+    }
+}
 
 static void ascii_to_wide(const char* s, wchar_t* out, int cap) {
     int o = 0; for (int i = 0; s[i] && o < cap - 1; i++) out[o++] = (wchar_t)(unsigned char)s[i];
@@ -55,14 +73,37 @@ static void do_feed(RepoBlock* blk) {
     struct ce_https_response resp;
     enum ce_https_result hr = ce_https_request(REPO_HOST, REPO_FEED_PATH, "GET",
                                                NULL, NULL, 0, NULL, &resp);
-    if (hr != CE_HTTPS_OK) { blk->status = (long)hr; blk->count = 0; L(ce_https_result_str(hr)); return; }
-    if (resp.status != 200) { blk->status = 1000 + resp.status; blk->count = 0; ce_https_response_free(&resp); return; }
+    int ct = 0, tl = 0, rc = 0;
+    ce_https_last_timing(&ct, &tl, &rc);
+    char line[256];
+    if (hr != CE_HTTPS_OK) {
+        blk->status = (long)hr; blk->count = 0;
+        if (hr == CE_HTTPS_ERR_TLS || hr == CE_HTTPS_ERR_CERT)
+            _snprintf(line, sizeof(line), "feed %s%s -> %s (connect=%dms tls=%dms tls_err=%d)",
+                      REPO_HOST, REPO_FEED_PATH, ce_https_result_str(hr), ct, tl,
+                      ce_https_last_tls_error());
+        else
+            _snprintf(line, sizeof(line), "feed %s%s -> %s (connect=%dms)",
+                      REPO_HOST, REPO_FEED_PATH, ce_https_result_str(hr), ct);
+        line[sizeof(line) - 1] = 0; L(line);
+        return;
+    }
+    if (resp.status != 200) {
+        blk->status = 1000 + resp.status; blk->count = 0;
+        _snprintf(line, sizeof(line), "feed %s%s -> HTTP http=%d (connect=%dms tls=%dms)",
+                  REPO_HOST, REPO_FEED_PATH, resp.status, ct, tl);
+        line[sizeof(line) - 1] = 0; ce_https_response_free(&resp); L(line);
+        return;
+    }
     int trunc = 0;
     int n = repo_parse_feed(resp.body, blk->rows, REPO_MAX_ROWS, &trunc);
+    unsigned long blen = (unsigned long)resp.body_len;
     ce_https_response_free(&resp);
     blk->count = n; blk->truncated = trunc; blk->status = 0;
-    Lx("feed rows", n);
-    if (trunc) L("feed truncated (more mods than REPO_MAX_ROWS)");
+    _snprintf(line, sizeof(line),
+              "feed %s%s -> OK http=200 rows=%d%s (connect=%dms tls=%dms recv=%dms %luB)",
+              REPO_HOST, REPO_FEED_PATH, n, trunc ? " TRUNCATED" : "", ct, tl, rc, blen);
+    line[sizeof(line) - 1] = 0; L(line);
 }
 
 static int sha256_file(const wchar_t* path, char* hex_out) {
@@ -247,7 +288,7 @@ static void do_install(RepoBlock* blk, HANDLE done) {
     RepoRow* row = NULL;
     for (int i = 0; i < blk->count; i++) if (strcmp(blk->rows[i].id, id) == 0) { row = &blk->rows[i]; break; }
     if (!row || !row->url[0]) { blk->status = 1; blk->install_status = REPO_INSTALL_ERROR; L("install: unknown id"); return; }
-    L(id);
+    { char line[128]; _snprintf(line, sizeof(line), "install: start id=%s", id); line[sizeof(line) - 1] = 0; L(line); }
 
     blk->reboot_required = 0;
     blk->install_total = row->size; blk->install_done = 0;
@@ -257,7 +298,11 @@ static void do_install(RepoBlock* blk, HANDLE done) {
     enum ce_https_result hr = ce_https_download_url(row->url, NULL, TMP_ZMOD, MAX_ZMOD_BYTES, &st, &got);
     if (hr != CE_HTTPS_OK || st != 200 || got == 0) {
         DeleteFileW(TMP_ZMOD); blk->status = (long)hr; blk->install_status = REPO_INSTALL_ERROR;
-        Lx("install: download fail http", st); return;
+        char line[192];
+        _snprintf(line, sizeof(line), "install: download fail id=%s %s http=%d got=%lu",
+                  id, ce_https_result_str(hr), st, got);
+        line[sizeof(line) - 1] = 0; L(line);
+        return;
     }
     blk->install_done = got;
 
@@ -313,6 +358,7 @@ static void do_install(RepoBlock* blk, HANDLE done) {
 
 int WINAPI wWinMain(HINSTANCE a, HINSTANCE b, LPWSTR c, int d) {
     (void)a; (void)b; (void)c; (void)d;
+    log_rotate_if_large();
     L("=== reposd start ===");
     SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_LOWEST);
     { WSADATA w; WSAStartup(MAKEWORD(2, 2), &w); }
