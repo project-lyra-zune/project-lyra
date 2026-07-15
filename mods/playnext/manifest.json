@@ -1,0 +1,17 @@
+{
+  "mod_id": "playnext",
+  "name": "Play Next",
+  "version": "0.1.0",
+  "author": "Project Lyra",
+  "category": "Media",
+  "description": "Adds a Play Next item to the long-press menu on songs, albums, and artists. It drops the selection into the now-playing queue right after the current track instead of at the end.",
+  "depends_on": [],
+  "actions": [
+    {
+      "type": "load_module",
+      "target_proc": "gemstone",
+      "module_ref": "@/playnext.dll",
+      "init": "PlayNextInstall"
+    }
+  ]
+}
