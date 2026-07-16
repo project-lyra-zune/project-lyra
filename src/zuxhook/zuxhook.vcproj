@@ -306,6 +306,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\phase2\mods_phase2_settings_inject.c"
+				>
+			</File>
+			<File
 				RelativePath=".\phase2\mods_phase2_xui.c"
 				>
 			</File>

@@ -198,7 +198,7 @@ int ModActionGetString(const ModAction* a, const char* key,
     if (!dup) return -1;
     s = dup;
 
-    /* @/-prefixed blob reference → resolve against mod's source_dir. */
+    /* @/-prefixed blob reference: resolve against mod's source_dir. */
     if (s[0] == '@' && s[1] == '/') {
         if (!out_path_w || path_cap <= 0) return -1;
         join_path(out_path_w, path_cap, a->mod->source_dir, s);
@@ -434,6 +434,7 @@ int ModsCapabilityPhase(const char* type) {
         { "register_visuals",      2 },
         { "register_xui_class",    2 },
         { "inject_menu_entry",     2 },
+        { "inject_settings_row",   2 },
         { "suppress_scene",        2 },
         { "patch_bytes",           2 },
         { "kcall",                 2 },

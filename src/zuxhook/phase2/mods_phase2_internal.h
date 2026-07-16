@@ -22,11 +22,16 @@ int   patch_kernel_dword(DWORD va, DWORD value, const wchar_t* label);
 /* Menu family: core's Phase-2 worker drains the pending-menu table at end. */
 int   flush_menu_entries(void);
 
+/* Settings-row family: same shape as the menu family. Apply records pending
+   rows, the worker drains them into extended section arrays + detours at end. */
+int   flush_settings_rows(void);
+
 /* ── capability handlers (each defined in its family TU; dispatched from the
       core's dispatch_phase2_action table) ─────────────────────────────────── */
 int apply_register_visuals(ModAction* a, ModsArena* arena);
 int apply_register_xui_class(ModAction* a, ModsArena* arena);
 int apply_inject_menu_entry(ModAction* a, ModsArena* arena);
+int apply_inject_settings_row(ModAction* a, ModsArena* arena);
 int apply_patch_bytes(ModAction* a, ModsArena* arena);
 int apply_kcall(ModAction* a, ModsArena* arena);
 int apply_require_kernel_value(ModAction* a, ModsArena* arena);

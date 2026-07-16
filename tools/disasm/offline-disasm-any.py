@@ -40,6 +40,7 @@ MODS = {
     "accel":  NKXIP / "zaccelerometer.dll",
     "keypad": NKXIP / "zkeypad.dll",
     "core":   NKXIP / "coredll.dll",
+    "nk":     NKXIP / "nk.exe",
     "nvsrc":  NKXIP / "libnvsource_filter.dll",
     "nvaac":  NKXIP / "libnvaudio_transform_filter.dll",
     "nvarend":NKXIP / "libnvaudio_renderer.dll",

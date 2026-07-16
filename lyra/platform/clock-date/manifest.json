@@ -1,0 +1,43 @@
+{
+  "mod_id": "clock-date",
+  "name": "Clock: Set Date",
+  "version": "0.1.0",
+  "author": "Project Lyra",
+  "category": "System",
+  "description": "Adds a SET DATE option below SET TIME in Settings > Clock, with month/day/year pickers, so the date can be corrected on device.",
+  "depends_on": [],
+  "actions": [
+    {
+      "type": "gem_add_entry",
+      "gem": "scenes_standard.gem",
+      "entry_name": "Setting_SetDate.xur",
+      "content_blob_ref": "@/scenes/Setting_SetDate.xur"
+    },
+    {
+      "type": "register_visuals",
+      "target_proc": "gemstone",
+      "content_blob_ref": "@/skin/ClockDateVisuals.xur",
+      "verify_visual_id": "ClockYearList"
+    },
+    {
+      "type": "load_module",
+      "target_proc": "gemstone",
+      "module_ref": "@/clockdate.dll",
+      "init": "ClockDateInstall"
+    },
+    {
+      "type": "xus_add_string",
+      "gem": "strings.gem",
+      "table": "Strings.xus",
+      "locale": "en",
+      "value": "SET DATE",
+      "manifest_back_reference": "set_date_label"
+    },
+    {
+      "type": "inject_settings_row",
+      "section": 8,
+      "label_id_or_ref": "$set_date_label",
+      "scene": "Setting_SetDate"
+    }
+  ]
+}

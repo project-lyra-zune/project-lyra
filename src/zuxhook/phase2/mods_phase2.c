@@ -159,7 +159,7 @@ int patch_kernel_dword(DWORD va, DWORD value, const wchar_t* label) {
                  label, va, cur);
         return -1;
     }
-    ModsLogf(L"    patched %s @0x%08x → 0x%08x", label, va, value);
+    ModsLogf(L"    patched %s @0x%08x to 0x%08x", label, va, value);
     return 0;
 }
 
@@ -305,6 +305,7 @@ static int dispatch_phase2_action(ModAction* a, ModsArena* arena) {
     if (strcmp(t, "register_visuals")       == 0) return apply_register_visuals(a, arena);
     if (strcmp(t, "register_xui_class")     == 0) return apply_register_xui_class(a, arena);
     if (strcmp(t, "inject_menu_entry")      == 0) return apply_inject_menu_entry(a, arena);
+    if (strcmp(t, "inject_settings_row")    == 0) return apply_inject_settings_row(a, arena);
     if (strcmp(t, "suppress_scene")         == 0) return apply_suppress_scene(a, arena);
     /* Kernel-state caps (kerncore-backed; deferred from Phase 1): */
     if (strcmp(t, "patch_bytes")            == 0) return apply_patch_bytes(a, arena);
@@ -487,6 +488,9 @@ static DWORD WINAPI Phase2Worker(LPVOID lpParam) {
 
         if (flush_menu_entries() < 0)
             ModsLogf(L"  flush_menu_entries: failures detected");
+
+        if (flush_settings_rows() < 0)
+            ModsLogf(L"  flush_settings_rows: failures detected");
 
         ModsArenaFree(&arena);
     }

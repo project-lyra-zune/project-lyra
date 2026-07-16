@@ -274,11 +274,16 @@ def _deploy_mod_dirs(mods: list[Mod], ctx: ApplyContext) -> None:
     if not mods:
         return
     ctx.emit(f"\n== Deploy mod dirs to device ==")
-    # Make sure the mods root exists before any per-mod operations.
+    # Make sure both roots exist before any per-mod operations.
     _mkdir_p_on_device(ctx.device_ip, "\\flash2\\automation\\mods")
+    _mkdir_p_on_device(ctx.device_ip, "\\flash2\\automation\\platform")
 
     for m in mods:
-        remote_root = f"\\flash2\\automation\\mods\\{m.mod_id}"
+        # Platform components (dirs under lyra/platform/) mirror to
+        # \flash2\automation\platform\<id>; feature mods to \...\mods\<id>.
+        # Same split the packager/installer use (Content/platform vs Content/mods).
+        root = "platform" if m.source_dir.parent.name == "platform" else "mods"
+        remote_root = f"\\flash2\\automation\\{root}\\{m.mod_id}"
         _mkdir_p_on_device(ctx.device_ip, remote_root)
         for f in sorted(deployable_files(m)):
             rel = f.relative_to(m.source_dir)
@@ -308,9 +313,9 @@ def restart_gemstone(ctx: ApplyContext, *, timeout_s: float = 8.0) -> int:
     TERMINATE_PROCESS_VA = 0x4033309c   # coredll.dll!TerminateProcess (v4.5)
     sc = struct.pack('<6I',
         0xe52de004,                       # push {lr}
-        0xe59f000c,                       # ldr r0, [pc, #0x0c]  → pool[0] = pid
+        0xe59f000c,                       # ldr r0, [pc, #0x0c]  ; pool[0] = pid
         0xe3a01000,                       # mov r1, #0
-        0xe59f2008,                       # ldr r2, [pc, #0x08]  → pool[1] = TerminateProcess
+        0xe59f2008,                       # ldr r2, [pc, #0x08]  ; pool[1] = TerminateProcess
         0xe12fff32,                       # blx r2
         0xe49df004,                       # pop {pc}
     ) + struct.pack('<2I', old_pid, TERMINATE_PROCESS_VA)

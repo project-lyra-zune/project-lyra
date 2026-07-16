@@ -2,7 +2,7 @@
 """Recursively pull a device filesystem tree over the Lyra protocol: walk every
 reachable directory, hash and mirror every file.
 
-Output lives under dumps/snapshots/<timestamp>/:
+Output goes to --out (default: dumps/snapshots/<UTC timestamp>/):
   manifest.csv  path,is_dir,size,sha256,fetched,error
   files/        mirrored tree for fetched bytes
   walk.log      one line per lsdir call
