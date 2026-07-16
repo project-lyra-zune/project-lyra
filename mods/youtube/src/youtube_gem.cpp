@@ -25,6 +25,7 @@
 #include <stdio.h>
 
 #include "yt_search_ipc.h"
+#include "yt_queue.h"
 
 /* ── gemstone v4.5 absolute VAs (image base 0x00010000) ─────────────────── */
 #define ALLOCATOR            0x00084ee4   /* coredll ord1095 ("operator new") */
@@ -351,6 +352,8 @@ typedef int (*QGetSongAtFn)(int, void**);
 typedef int (*ZdkSetPropFn)(void*, DWORD, DWORD);
 #define ZDK_SETPROP ((ZdkSetPropFn)0x4198474c)   /* string props (title/artist/album/url) */
 #define ZDK_SETINT  ((ZdkSetPropFn)0x4198464c)   /* int props: what PlaySongFromFile uses for 0x10003 duration */
+typedef int (*CreateSongFn)(DWORD, DWORD*);
+#define CREATE_SONG ((CreateSongFn)0x4198484c)    /* create(kind, &out_id): kind 0xfd runtime song, registered by RPC */
 static PlaySongFromUrlFn g_play = NULL;
 static HMODULE g_zdk = NULL;
 
@@ -445,6 +448,88 @@ static void play_result(const YtSearchRow* r) {
     np_set_song_meta(r->artist, r->album, r->duration_ms, r->id);
 }
 
+/* Create a kind-0xfd runtime song and stamp its metadata (no art; the caller attaches art
+   after the queue is built so the per-song file copies do not delay it). The create RPC
+   registers the song in the content store; every setter here is id-based (the same id
+   PlaySongFromURL creates internally and GetSongAtIndex returns). Returns the id, 0 on failure. */
+static DWORD yt_create_song(const YtSearchRow* r) {
+    DWORD id = 0;
+    int rc = -1;
+    if (!r || !r->is_video || !r->id[0]) return 0;
+    __try { rc = CREATE_SONG(0xfd, &id); } __except (EXCEPTION_EXECUTE_HANDLER) { rc = -1; }
+    if (rc < 0 || !id) return 0;
+    wchar_t url[80]; const wchar_t* pfx = L"ytm://"; int o = 0;
+    while (pfx[o]) { url[o] = pfx[o]; o++; }
+    { int k = 0; while (r->id[k] && o < 78) url[o++] = (wchar_t)(unsigned char)r->id[k++]; }
+    url[o] = 0;
+    const wchar_t* title = r->title[0] ? r->title : L"YouTube";
+    __try { ZDK_SETPROP((void*)id, 0x20001, (DWORD)title); } __except (EXCEPTION_EXECUTE_HANDLER) {}
+    __try { ZDK_SETPROP((void*)id, 0x2000a, (DWORD)url);   } __except (EXCEPTION_EXECUTE_HANDLER) {}
+    if (r->artist[0]) __try { ZDK_SETPROP((void*)id, 0x20002, (DWORD)r->artist); } __except (EXCEPTION_EXECUTE_HANDLER) {}
+    if (r->album[0])  __try { ZDK_SETPROP((void*)id, 0x20003, (DWORD)r->album);  } __except (EXCEPTION_EXECUTE_HANDLER) {}
+    if (r->duration_ms > 0) __try { ZDK_SETINT((void*)id, 0x10003, (DWORD)r->duration_ms); } __except (EXCEPTION_EXECUTE_HANDLER) {}
+    return id;
+}
+
+/* Tapping a song plays it (the proven single-track path) and queues the rest of its
+   list after it: each following playable row becomes a kind-0xfd song whose id is
+   appended to the native now-playing queue. */
+static YtCatBuf* g_pl_buf = NULL;
+static int g_pl_start = 0;
+
+#define YT_QUEUE_MAX 128
+
+/* Runs off the UI thread: wait for the tapped head song to enter the runtime queue (it
+   lands at storage 0), then build the whole list into the queue in list order with the
+   tapped song at its play position, so prev reaches the songs before it. Each other
+   playable row is created and pushed to storage; the play order maps each list position
+   to its storage index. Doing this on the UI thread freezes the now-playing scene. */
+static DWORD WINAPI yt_append_worker(LPVOID p) {
+    YtCatBuf* buf = g_pl_buf;
+    int startIdx = g_pl_start, displayed, i, tries, hc = 0, m = 0, cur = 0, si, k = 0, j;
+    unsigned int order[YT_QUEUE_MAX], songid[YT_QUEUE_MAX];
+    int rowidx[YT_QUEUE_MAX];
+    (void)p;
+    if (!buf) return 0;
+    displayed = (int)buf->displayed;
+    for (tries = 0; tries < 80; tries++) { hc = yt_queue_count(); if (hc >= 1) break; Sleep(50); }
+    if (hc < 1) return 0;
+    for (i = 0; i < displayed && m < YT_QUEUE_MAX; i++) {
+        const YtSearchRow* r = &buf->rows[i];
+        DWORD id;
+        if (!r->is_video || !r->id[0]) continue;
+        if (i == startIdx) { order[m] = 0; cur = m; m++; continue; }
+        id = yt_create_song(r);
+        if (!id) continue;
+        si = yt_queue_push_id(id);
+        if (si < 0) continue;
+        order[m++] = (unsigned int)si;
+        songid[k] = (unsigned int)id; rowidx[k] = i; k++;
+    }
+    yt_queue_set_order(order, m, cur);
+    /* Sync the live play cursor to the tapped position; set_order only writes the seed. */
+    {
+        typedef int (*MoveToFn)(int);
+        HMODULE z = LoadLibraryW(L"zdksystem.dll");
+        MoveToFn mv = z ? (MoveToFn)GetProcAddress(z, L"ZDKMedia_Queue_MoveTo") : 0;
+        if (mv) mv(cur);
+    }
+    /* Deferred art: attach after the queue is navigable so the per-song file copies do not
+       widen the gap before the queue appears. */
+    for (j = 0; j < k; j++) yt_attach_art((void*)songid[j], buf->rows[rowidx[j]].id);
+    return 0;
+}
+
+static void yt_play_list_from(YtCatBuf* buf, int startIdx) {
+    HANDLE t;
+    if (!buf) return;
+    if (startIdx < 0 || startIdx >= (int)buf->displayed) return;
+    play_result(&buf->rows[startIdx]);
+    g_pl_buf = buf; g_pl_start = startIdx;
+    t = CreateThread(NULL, 0, yt_append_worker, NULL, 0, NULL);
+    if (t) CloseHandle(t);
+}
+
 /* Activate a tapped row. A song row (is_video) streams. A browseId row drills by its
  * entity type, matching the marketplace chain: an artist (UC…) opens the Albums/Songs
  * twist; an album (MPRE…) or playlist (VL…) opens its track list. Shared by every list
@@ -513,7 +598,9 @@ static int yt_list_pull(GemYtResultsInstance* self, void* msg,
         if (tapped >= 0 && tapped < displayed) {
             /* a drill navigation morphs the breadcrumb from the tapped list element */
             self->nav_source_elem = self->list_element;
-            yt_row_activate(&buf->rows[tapped]);
+            const YtSearchRow* row = &buf->rows[tapped];
+            if (row->is_video) yt_play_list_from(buf, tapped);
+            else               yt_row_activate(row);
         }
         __try { m[2] = 1; } __except (EXCEPTION_EXECUTE_HANDLER) {}
         return 1;

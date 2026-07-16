@@ -1,10 +1,11 @@
 {
   "mod_id": "youtube",
   "name": "YouTube",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "author": "Project Lyra",
   "category": "Media",
   "description": "Adds a YouTube tile to the Start menu: a marketplace-style landing (search + browse) and a search-results list whose rows stream YouTube Music through the native queue via the ytm:// source.",
+  "changelog": "Tapping a song in a list now plays it and queues the whole list, so next and previous move through the other tracks. Each track carries its own title, artist, and art.",
   "experimental": true,
   "depends_on": [],
   "daemons": [

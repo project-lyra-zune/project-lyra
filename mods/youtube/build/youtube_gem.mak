@@ -18,10 +18,11 @@ LINK = $(CE_LINK)
 PL_CFLAGS = $(CE_CFLAGS) \
 	/I"$(IPC_DIR)"
 
-LIBS = coredll.lib corelibc.lib
+LIBS = coredll.lib corelibc.lib toolhelp.lib
 
 ALL_OBJS = \
-	$(OBJ_DIR)\youtube_gem.obj
+	$(OBJ_DIR)\youtube_gem.obj \
+	$(OBJ_DIR)\yt_queue.obj
 
 all: makedirs $(DLL_OUT)
 	@copy /y "$(DLL_OUT)" "$(STAGED)" >nul
@@ -42,5 +43,8 @@ clean:
 # Depend on the IPC header so a yt_search_ipc.h layout/version change forces a
 # recompile; nmake does no implicit header tracking, and a stale relink once
 # shipped a mismatched (old-layout) DLL against an updated daemon.
-$(OBJ_DIR)\youtube_gem.obj: $(PL_ROOT)\youtube_gem.cpp $(IPC_DIR)\yt_search_ipc.h
+$(OBJ_DIR)\youtube_gem.obj: $(PL_ROOT)\youtube_gem.cpp $(IPC_DIR)\yt_search_ipc.h $(PL_ROOT)\yt_queue.h
 	$(CC) $(PL_CFLAGS) /Fo"$(OBJ_DIR)\youtube_gem.obj" /c $(PL_ROOT)\youtube_gem.cpp
+
+$(OBJ_DIR)\yt_queue.obj: $(PL_ROOT)\yt_queue.c $(PL_ROOT)\yt_queue.h
+	$(CC) $(PL_CFLAGS) /Fo"$(OBJ_DIR)\yt_queue.obj" /c $(PL_ROOT)\yt_queue.c
