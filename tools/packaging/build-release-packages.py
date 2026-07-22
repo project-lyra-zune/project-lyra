@@ -46,21 +46,34 @@ def _run_exe(exe, args):
     subprocess.run(cmd if _WINDOWS else ["mono", *cmd], check=True)
 
 
-# The class-blob builders read zuxhook.dll from this fixed path (they validate
-# every vtable extern_module fixup against its PE export table).
-_CLASSBLOB_ZUXHOOK = LYRA_ROOT / "src" / "zuxhook" / "bin" / "OpenZDK (ARMV4I)" / "Release" / "zuxhook.dll"
+# Canonical source-tree Release paths for the platform binaries. The class-blob builders
+# read zuxhook.dll from here (validating every vtable extern_module fixup against its PE
+# export table), and `mod-apply.py feed` reads both from here when packaging the platform
+# .zmod. Staging both keeps the deploykit and the published feed from ever diverging.
+_FEED_ZUXHOOK   = LYRA_ROOT / "src" / "zuxhook"   / "bin" / "OpenZDK (ARMV4I)" / "Release" / "zuxhook.dll"
+_FEED_NATIVEAPP = LYRA_ROOT / "src" / "nativeapp" / "bin" / "OpenZDK (ARMV4I)" / "Release" / "nativeapp.exe"
 _CLASSBLOB_BUILDERS = ("build_gemmod_manager", "build_quicksettings", "build_contextlist")
 _INSTALLER_DIR = LYRA_ROOT / "src" / "nativeapp" / "content" / "installer"
 
 
-def regenerate_source_artifacts(zuxhook):
-    """Regenerate the committed-free build artifacts from source: gemstone class
-    blobs (Python, validated against zuxhook.dll) and installer splash .bgra
+def _stage_binary(src, dst):
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    if Path(src).resolve() != dst.resolve():
+        shutil.copy2(src, dst)
+
+
+def stage_platform_binaries(zuxhook, nativeapp):
+    """Stage the prebuilt platform binaries into their source-tree Release paths, the one
+    location both the class-blob builders and `mod-apply.py feed` read them from."""
+    _stage_binary(zuxhook, _FEED_ZUXHOOK)
+    _stage_binary(nativeapp, _FEED_NATIVEAPP)
+
+
+def regenerate_source_artifacts():
+    """Regenerate the committed-free build artifacts from source: gemstone class blobs
+    (Python, validated against the staged zuxhook.dll) and installer splash .bgra
     (bake-installer-assets.py). Scene .xur are regenerated later by build_mods.
     Nothing here is committed; see .gitignore + BUILDING.md."""
-    _CLASSBLOB_ZUXHOOK.parent.mkdir(parents=True, exist_ok=True)
-    if Path(zuxhook).resolve() != _CLASSBLOB_ZUXHOOK.resolve():
-        shutil.copy2(zuxhook, _CLASSBLOB_ZUXHOOK)
     for mod in _CLASSBLOB_BUILDERS:
         subprocess.run([sys.executable, "-m", f"modkit.{mod}"],
                        cwd=LYRA_ROOT / "modkit", check=True)
@@ -238,8 +251,9 @@ def main():
     ap.add_argument("--out", default=str(LYRA_ROOT / "dist"))
     args = ap.parse_args()
 
+    stage_platform_binaries(args.zuxhook, args.nativeapp)
     if not args.skip_artifact_regen:
-        regenerate_source_artifacts(args.zuxhook)
+        regenerate_source_artifacts()
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
