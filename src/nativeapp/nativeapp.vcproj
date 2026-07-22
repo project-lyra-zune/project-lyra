@@ -54,7 +54,7 @@
 				ExecutionBucket="7"
 				AdditionalOptions="/QRfpe- /QRarch6"
 				Optimization="0"
-				AdditionalIncludeDirectories=".;.\khronos;..\kerncore;.\src"
+				AdditionalIncludeDirectories=".;.\khronos;..\kerncore;..\shared;.\src"
 				PreprocessorDefinitions="_DEBUG;_WIN32_WCE=$(CEVER);UNDER_CE;$(PLATFORMDEFINES);WINCE;DEBUG;_WINDOWS;$(ARCHFAM);$(_ARCHFAM_);_UNICODE;UNICODE;_CRT_SECURE_NO_WARNINGS"
 				MinimalRebuild="true"
 				RuntimeLibrary="1"
@@ -154,7 +154,7 @@
 				ExecutionBucket="7"
 				AdditionalOptions="/QRfpe- /QRarch6"
 				Optimization="2"
-				AdditionalIncludeDirectories=".;.\khronos;..\kerncore;.\src"
+				AdditionalIncludeDirectories=".;.\khronos;..\kerncore;..\shared;.\src"
 				PreprocessorDefinitions="NDEBUG;_WIN32_WCE=$(CEVER);UNDER_CE;$(PLATFORMDEFINES);WINCE;_WINDOWS;$(ARCHFAM);$(_ARCHFAM_);_UNICODE;UNICODE;_CRT_SECURE_NO_WARNINGS"
 				RuntimeLibrary="0"
 				EnableFunctionLevelLinking="true"
@@ -295,6 +295,14 @@
 				RelativePath=".\src\zlog.h"
 				>
 			</File>
+			<File
+				RelativePath="..\shared\title_name.h"
+				>
+			</File>
+			<File
+				RelativePath="..\shared\device_reboot.h"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="Resource Files"
@@ -317,6 +325,14 @@
 			</File>
 			<File
 				RelativePath=".\src\install_ui.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\shared\title_name.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\shared\device_reboot.cpp"
 				>
 			</File>
 			<File

@@ -44,17 +44,32 @@ profile (`Zune.v4.0.Beta`) and the same file layout as the Deploy Kit.
 ## What happens on the device
 
 1. The launched title shows the Lyra install splash screen with the
-   current step beneath it (**Preparing → Installing loader → Installing daemon → Installing mods**) as it copies the payload into
+   current step beneath it (**Preparing**, **Installing loader**, **Installing daemon**, **Installing mods**, in sequence) as it copies the payload into
    `\flash2\automation`. When the copy finishes it shows **"Rebooting..."** with a
    short countdown, then reboots the device automatically.
 2. On reboot, gemstone (the Zune HD UI) auto-loads `zuxhook` from
    `\flash2\automation`, which spawns the `nativeapp` daemon and applies the mods.
 3. Once on the homescreen, the **Mods** tab is present and the bundled system mods
-   are active.
+   are active. The Apps tile is renamed to **"Uninstall Project Lyra"**.
 
 To confirm, open the **Mods** tab and check that it loads, then trigger the playback
 HUD: a new quick-toggle button appears in the bottom right, where installed mods place
 their toggles. When the device is on Wi-Fi, the daemon answers on port `1337`.
+
+## Uninstalling Lyra
+
+Removal takes the device back to stock and reboots. The boot after removal clears
+`\flash2\automation` before any Lyra process starts, so every Lyra file deletes cleanly.
+There are two ways to trigger it:
+
+- **From the tile.** Relaunch the renamed **"Uninstall Project Lyra"** tile. It removes the
+  platform and renames the tile back to **"Install Project Lyra"**, so a later launch
+  reinstalls.
+- **From the Mods tab.** Open the Project Lyra row in the mod manager and tap **remove**,
+  then confirm. Use this when the XNA installer app has already been deleted.
+
+The XNA installer app is left in place so Lyra can be reinstalled from it. To remove it
+too, delete it from the homescreen the way you would any app.
 
 ## Troubleshooting
 

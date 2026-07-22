@@ -1,7 +1,6 @@
 #include "install_ui.h"
 
 #include <windows.h>
-#include <pm.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -10,6 +9,8 @@
 #include <GLES2/gl2ext.h>
 #include <zdkgl.h>
 #include <zdksystem.h>
+
+#include "device_reboot.h"
 
 // Tegra can't compile GLSL at runtime; shaders load as precompiled NV binaries.
 #ifndef GL_NVIDIA_PLATFORM_BINARY_NV
@@ -30,12 +31,12 @@ static const DWORD kRebootDelayMs = 3500;
 
 static volatile LONG g_stage = STAGE_PREPARE;
 
-void set_install_stage(InstallStage stage) {
+void set_install_stage(int stage) {
 	InterlockedExchange(&g_stage, (LONG)stage);
 }
 
-static InstallStage read_stage() {
-	return (InstallStage)g_stage;   // aligned 32-bit load: atomic, no lock
+static int read_stage() {
+	return (int)g_stage;   // aligned 32-bit load: atomic, no lock
 }
 
 static void (*g_work)(void) = NULL;
@@ -43,20 +44,6 @@ static void (*g_work)(void) = NULL;
 static DWORD WINAPI worker_thunk(LPVOID) {
 	if (g_work) g_work();
 	return 0;
-}
-
-// Arm the reboot power state, then request it; SetSystemPowerState does not return.
-static void reboot_device() {
-	HKEY key = NULL;
-	if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, L"System\\CurrentControlSet\\Control\\Power\\State\\Reboot",
-	                 0, 0, &key) == ERROR_SUCCESS) {
-		DWORD flags = 0x800000, def = 4;
-		RegSetValueEx(key, L"Flags", 0, REG_DWORD, (BYTE*)&flags, sizeof(DWORD));
-		RegSetValueEx(key, L"Default", 0, REG_DWORD, (BYTE*)&def, sizeof(DWORD));
-		RegFlushKey(key);
-		RegCloseKey(key);
-	}
-	SetSystemPowerState(NULL, POWER_STATE_RESET, POWER_FORCE);
 }
 
 // ── Asset loading ────────────────────────────────────────────────────────────
@@ -139,6 +126,16 @@ static const char* kLabelFiles[STAGE_COUNT] = {
 	CONTENT "\\status_done.bgra",
 };
 
+// Uninstall reuses this scene with its own two labels (see run_uninstall_ui).
+static const char* kUninstallLabelFiles[] = {
+	CONTENT "\\status_uninstalling.bgra",
+	CONTENT "\\status_done.bgra",
+};
+
+// Active label set + count, selected by run_install_ui / run_uninstall_ui before setup_gl.
+static const char* const* s_label_files = kLabelFiles;
+static int                 s_label_count = STAGE_COUNT;
+
 static bool setup_gl() {
 	s_prog = build_program(CONTENT "\\wash.nvbv", CONTENT "\\wash.nvbf");
 	if (!s_prog) return false;
@@ -158,8 +155,8 @@ static bool setup_gl() {
 	if (!s_mask.id) return false;
 	s_bar.id = load_bgra(CONTENT "\\bar.bgra", &s_bar.w, &s_bar.h);
 	if (!s_bar.id) return false;
-	for (int i = 0; i < STAGE_COUNT; ++i) {
-		s_labels[i].id = load_bgra(kLabelFiles[i], &s_labels[i].w, &s_labels[i].h);
+	for (int i = 0; i < s_label_count; ++i) {
+		s_labels[i].id = load_bgra(s_label_files[i], &s_labels[i].w, &s_labels[i].h);
 		if (!s_labels[i].id) return false;
 	}
 
@@ -241,8 +238,8 @@ static void render_loop(HANDLE worker) {
 	}
 }
 
-void run_install_ui(void (*work)(void)) {
-	// Start the copy now so it completes even if GL bring-up fails.
+static void run_ui(void (*work)(void), const wchar_t* fallback_msg) {
+	// Start the work now so it completes even if GL bring-up fails.
 	g_work = work;
 	HANDLE worker = CreateThread(NULL, 0, worker_thunk, NULL, 0, NULL);
 
@@ -253,13 +250,24 @@ void run_install_ui(void (*work)(void)) {
 		render_loop(worker);
 		ZDKGL_Cleanup();
 	} else {
-		// No GL surface: finish the copy, report modally.
+		// No GL surface: finish the work, report modally.
 		ZDKGL_Cleanup();
 		if (worker) WaitForSingleObject(worker, INFINITE);
-		ZDKSystem_ShowMessageBox(L"Lyra successfully installed. Rebooting.",
-		                         MESSAGEBOX_TYPE_OK);
+		ZDKSystem_ShowMessageBox(fallback_msg, MESSAGEBOX_TYPE_OK);
 	}
 
 	if (worker) CloseHandle(worker);
-	reboot_device();
+	RebootDevice();
+}
+
+void run_install_ui(void (*work)(void)) {
+	s_label_files = kLabelFiles;
+	s_label_count = STAGE_COUNT;
+	run_ui(work, L"Lyra successfully installed. Rebooting.");
+}
+
+void run_uninstall_ui(void (*work)(void)) {
+	s_label_files = kUninstallLabelFiles;
+	s_label_count = 2;
+	run_ui(work, L"Removing Project Lyra. Rebooting.");
 }

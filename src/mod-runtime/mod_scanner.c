@@ -578,3 +578,73 @@ void ModScanSweepPlatformOld(void) {
     } while (FindNextFileW(h, &fd));
     FindClose(h);
 }
+
+#define UNINSTALL_MARKER_PATH  L"\\flash2\\automation\\uninstall.pending"
+#define ZUXHOOK_PATH           L"\\flash2\\automation\\zuxhook.dll"
+#define ZUXHOOK_OLD_PATH       L"\\flash2\\automation\\zuxhook.dll.old"
+
+int ModScanUninstallArmed(void) {
+    return GetFileAttributesW(UNINSTALL_MARKER_PATH) != INVALID_FILE_ATTRIBUTES ? 1 : 0;
+}
+
+int ModScanUninstallArm(void) {
+    HANDLE h = CreateFileW(UNINSTALL_MARKER_PATH, GENERIC_WRITE, 0, NULL,
+                           CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (h == INVALID_HANDLE_VALUE) return 0;
+    CloseHandle(h);
+    return 1;
+}
+
+/* Delete `path`, or rename it aside to .old if it is locked. At uninstall-boot time no
+   Lyra process has started, so the fallback is only defensive. */
+static void delete_or_aside(const wchar_t* path) {
+    wchar_t oldp[MAX_PATH];
+    int k = 0;
+    if (DeleteFileW(path)) return;
+    for (; path[k] && k < MAX_PATH - 5; k++) oldp[k] = path[k];
+    oldp[k] = L'.'; oldp[k+1] = L'o'; oldp[k+2] = L'l'; oldp[k+3] = L'd'; oldp[k+4] = 0;
+    DeleteFileW(oldp);
+    MoveFileW(path, oldp);
+}
+
+void ModScanUninstall(void) {
+    wchar_t pattern[MAX_PATH];
+    WIN32_FIND_DATAW fd;
+    HANDLE h;
+
+    /* Everything under the automation root except zuxhook.dll and the marker, both
+       handled last. A stale zuxhook.dll.old from a prior update is deletable now and
+       falls in the general case. */
+    _snwprintf(pattern, MAX_PATH - 1, L"%s\\*", AUTOMATION_ROOT_PATH);
+    pattern[MAX_PATH - 1] = 0;
+    h = FindFirstFileW(pattern, &fd);
+    if (h != INVALID_HANDLE_VALUE) {
+        do {
+            wchar_t child[MAX_PATH];
+            if (fd.cFileName[0] == L'.' &&
+                (fd.cFileName[1] == 0 ||
+                 (fd.cFileName[1] == L'.' && fd.cFileName[2] == 0))) continue;
+            if (wide_eq_ascii(fd.cFileName, "zuxhook.dll")) continue;
+            if (wide_eq_ascii(fd.cFileName, "uninstall.pending")) continue;
+            _snwprintf(child, MAX_PATH - 1, L"%s\\%s", AUTOMATION_ROOT_PATH, fd.cFileName);
+            child[MAX_PATH - 1] = 0;
+            if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) rmtree(child);
+            else delete_or_aside(child);
+        } while (FindNextFileW(h, &fd));
+        FindClose(h);
+    }
+
+    /* The two stray flash-root logs. The XNA installer app (\gametitle\584E07D1\) is kept by
+       design: uninstall removes only the Lyra platform, not the app. */
+    DeleteFileW(L"\\flash2\\zpod-wk.log");
+    DeleteFileW(L"\\flash2\\zd-tee.pcm");
+
+    /* zuxhook.dll is mapped in this and sibling hosts for the boot's lifetime, so it can
+       only be renamed. Renamed aside, the firmware finds no zuxhook.dll to auto-load next
+       boot; zuxhook.dll.old is the one inert remnant. */
+    DeleteFileW(ZUXHOOK_OLD_PATH);
+    MoveFileW(ZUXHOOK_PATH, ZUXHOOK_OLD_PATH);
+
+    /* Marker last: sibling hosts keep short-circuiting on it until the wipe is done. */
+    DeleteFileW(UNINSTALL_MARKER_PATH);
+}

@@ -127,6 +127,17 @@
 <Text>install</Text>
 </Properties>
 </XuiButton>
+<XuiButton>
+<Properties>
+<Id>uninstallButton</Id>
+<Width>100.000000</Width>
+<Height>56.000000</Height>
+<Position>100.000000,0.000000,0.000000</Position>
+<Column>1</Column>
+<Visual>ClearButton</Visual>
+<Text>remove</Text>
+</Properties>
+</XuiButton>
 </XuiFlowPanel>
 </XuiGroup>
 <XuiLabel>

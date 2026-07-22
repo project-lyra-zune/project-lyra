@@ -1,10 +1,10 @@
 {
   "mod_id": "lyra",
   "name": "Lyra",
-  "version": "1.0.15",
+  "version": "1.1.0",
   "author": "Project Lyra",
   "category": "Platform",
   "description": "The Lyra platform: the mod manager UI, zuxhook, nativeapp daemon, and its component mods (mods-tab, wifi-power, clock-date) all wrapped in a pretty bow.",
-  "changelog": "Adds a SET DATE option in Settings, Clock so you can correct the date on a device whose clock has reset, which fixes HTTPS to the mod repo.",
+  "changelog": "Adds an uninstaller. Once installed, the tile reads Uninstall Project Lyra; relaunch it to remove Lyra and return the tile to the installer, so you can reinstall or delete it later.",
   "platform_files": ["zuxhook.dll", "nativeapp.exe"]
 }

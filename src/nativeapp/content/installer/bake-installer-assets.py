@@ -66,6 +66,8 @@ def main() -> None:
     bake_mask()
     for slug, text in STAGES:
         bake_label(slug, text)
+    # Uninstall splash reuses status_done ("Rebooting..."); only this label is new.
+    bake_label("uninstalling", "Uninstalling...")
     # Solid fill for the reboot countdown bar (the quad is scaled at draw time).
     write_bgra(HERE / "bar.bgra", Image.new("L", (16, 8), 255))
 

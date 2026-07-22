@@ -95,6 +95,16 @@ void ModScanSweepOld(void);
    only. Call once at boot alongside ModScanSweepOld, before daemons spawn. */
 void ModScanSweepPlatformOld(void);
 
+/* Uninstall: a two-step flow shared by both entry points. The trigger calls
+   ModScanUninstallArm() to drop a marker and reboots; at the top of the next boot
+   ZUxHookInit calls ModScanUninstall() (gated on ModScanUninstallArmed()), before the
+   daemon spawns, so every resident binary is still unstarted and deletes as a plain file.
+   It wipes \flash2\automation\ (renaming the mapped zuxhook.dll to zuxhook.dll.old) and the
+   stray root logs, and keeps the XNA installer app so a later launch reinstalls. */
+int  ModScanUninstallArmed(void);
+int  ModScanUninstallArm(void);
+void ModScanUninstall(void);
+
 #ifdef __cplusplus
 }
 #endif

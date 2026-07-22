@@ -8,6 +8,7 @@
 #include "mods_icon_host.h"
 #include "mods_state_event.h"
 #include "mods_wifi_awake.h"
+#include "mod_scanner.h"
 #include "gemstone/repo_client.h"
 #include "gemstone/gem_mod_detail.h"
 
@@ -168,6 +169,24 @@ extern "C" __declspec(dllexport) HRESULT ZUxHookInit(void* arg0, HANDLE* out_han
 	}
 	*out_handle = g_wait_event;
 
+	// Uninstall gate. A trigger wrote \flash2\automation\uninstall.pending and rebooted.
+	// Consume it here, before the daemon spawns or any mod applies: at this instant only
+	// zuxhook.dll itself is loaded, so nativeapp.exe / reposd.exe / the feature DLLs all
+	// delete as plain files. zuxhook.dll loads into several hosts per boot; the first wins
+	// the singleton and wipes, the rest wait on the done-event, and all return inert.
+	if (ModScanUninstallArmed()) {
+		HANDLE hDone  = CreateEventW(NULL, TRUE, FALSE, L"zune-zuxhook-uninstall-done");
+		HANDLE hMutex = CreateMutexW(NULL, TRUE, L"zune-zuxhook-uninstall-singleton");
+		if (hMutex != NULL && GetLastError() != ERROR_ALREADY_EXISTS) {
+			ModScanUninstall();
+			if (hDone != NULL) SetEvent(hDone);
+		} else {
+			if (hMutex != NULL) CloseHandle(hMutex);
+			if (hDone != NULL) WaitForSingleObject(hDone, 30000);
+		}
+		return S_OK;
+	}
+
 	// Spawn the nativeapp watchdog FIRST so the daemon's startup runs in
 	// parallel with the rest of ZUxHookInit. The thread self-gates via
 	// the `zune-nativeapp-singleton` mutex so only the compositor
@@ -270,7 +289,7 @@ extern "C" __declspec(dllexport) HRESULT ZUxHookInit(void* arg0, HANDLE* out_han
 				ModStateEventInstallConsumer(STATE_EVENT_MSGWAIT_IAT_SERVICESD,
 				                             L"zune-mod-state-q-svc");
 
-				// The on-screen volume publisher (ZAM-writer detour →
+				// The on-screen volume publisher (ZAM-writer detour to the
 				// zune-volume-state section) and the WiFi Awake authority
 				// activate on demand, not at boot: each starts when a mod
 				// declares `require_subsystem` (volume_state / wifi_awake,

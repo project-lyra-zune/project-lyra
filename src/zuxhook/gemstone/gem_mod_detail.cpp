@@ -14,7 +14,7 @@
  *   +0x28 title   +0x2c status   +0x30 version   +0x34 author   +0x38 description
  *   +0x3c enable  +0x40 disable  +0x44 delete    +0x48 install  +0x4c update
  *   +0x50 local_idx (ModScan index or -1)   +0x54 info   +0x58 infoTitle
- *   +0x5c changelog; class-blob allocates 0x60. */
+ *   +0x5c changelog   +0x60 uninstall (platform only); class-blob allocates 0x64. */
 
 extern "C" {
 #include "mod_scanner.h"
@@ -27,6 +27,8 @@ extern "C" {
 #include "gem_mod_detail.h"
 #include "repo_client.h"
 #include "repo_version.h"
+#include "title_name.h"
+#include "device_reboot.h"
 
 typedef HRESULT (*SetLabelTextFn)(void* elem, const wchar_t* text);
 #define SET_LABEL_TEXT  ((SetLabelTextFn)0x00038434)
@@ -78,6 +80,7 @@ struct GemModDetailInstance {
     DWORD info_elem;             /* +0x54 - experimental marker value */
     DWORD info_title_elem;       /* +0x58 - experimental marker "info:" caption */
     DWORD changelog_elem;        /* +0x5c - "what's new" block, shown on update */
+    DWORD uninstall_button_elem; /* +0x60 - platform row only, "remove Lyra" */
 };
 
 static GemModDetailInstance* g_active_detail = NULL;
@@ -238,6 +241,9 @@ static void render_all(GemModDetailInstance* self) {
     show_elem(self->enable_button_elem,  (!is_plat && present && !enabled) ? 1 : 0);
     show_elem(self->disable_button_elem, (!is_plat && present && enabled) ? 1 : 0);
     show_elem(self->delete_button_elem,  (!is_plat && present) ? 1 : 0);
+    /* The platform is removed via its own uninstall (wipe + reboot), never the
+       per-mod delete. Offer it only on the platform row. */
+    show_elem(self->uninstall_button_elem, is_plat ? 1 : 0);
 }
 
 extern "C" __declspec(dllexport)
@@ -251,6 +257,7 @@ HRESULT GemModDetail_OnInit(GemModDetailInstance* self) {
     self->enable_button_elem = 0; self->disable_button_elem = 0; self->delete_button_elem = 0;
     self->install_button_elem = 0; self->update_button_elem = 0;
     self->info_elem = 0; self->info_title_elem = 0; self->changelog_elem = 0;
+    self->uninstall_button_elem = 0;
     self->local_idx = -1;
 
     p = NULL; XUI_GET_DESC_BY_ID((void*)self->scene_handle, L"breadcrumb",    &p, 0); self->breadcrumb_elem     = (DWORD)p;
@@ -267,9 +274,64 @@ HRESULT GemModDetail_OnInit(GemModDetailInstance* self) {
     p = NULL; XUI_GET_DESC_BY_ID((void*)self->scene_handle, L"info",          &p, 0); self->info_elem           = (DWORD)p;
     p = NULL; XUI_GET_DESC_BY_ID((void*)self->scene_handle, L"infoTitle",     &p, 0); self->info_title_elem     = (DWORD)p;
     p = NULL; XUI_GET_DESC_BY_ID((void*)self->scene_handle, L"changelog",     &p, 0); self->changelog_elem      = (DWORD)p;
+    p = NULL; XUI_GET_DESC_BY_ID((void*)self->scene_handle, L"uninstallButton", &p, 0); self->uninstall_button_elem = (DWORD)p;
 
     g_active_detail = self;
     return 0;
+}
+
+/* ── Platform uninstall confirm (mods-tab "remove") ──────────────────────────────
+   The native shell's interactive "Are you sure" is a HUD-hosted dialog raised by gemstone
+   0x72db8 (ZHD0 method 0xe); the context-menu Delete flow at 0x31d34 is the reference. Show
+   it with the delete-confirm's button config (8,1), storing the dialog handle; the tapped
+   result returns as scene message 0x8000007 (payload[0]=handle, payload[1]=result, 3=OK).
+   The ZDKSystem message box does not receive taps from a gemstone scene, so it is not used. */
+typedef int (*HudConfirmShowFn)(void* host, const wchar_t* message, int cfg, int flag,
+                                int reserved, DWORD* out_handle);
+#define HUD_CONFIRM_SHOW  ((HudConfirmShowFn)0x00072db8)
+
+#define MSG_HUD_RESULT     0x8000007
+#define HUD_RESULT_CONFIRM 3
+#define HUD_CONFIRM_CFG    8   /* button config, verbatim from the native delete-confirm */
+#define HUD_CONFIRM_FLAG   1
+
+static volatile LONG g_uninstall_confirm_open = 0;
+static DWORD         g_confirm_handle = 0;
+
+/* On confirm: flip the tile back to the installer (no-ops if the XNA app was deleted), arm
+   the boot-time wipe, reboot. Mirrors the XNA path (main.cpp uninstall_work). Off the UI
+   thread because SetTitleName scans the content store and RebootDevice does not return. */
+static DWORD WINAPI uninstall_exec(LPVOID) {
+    SetTitleName(L"Install Project Lyra");
+    ModScanUninstallArm();
+    RebootDevice();   /* does not return */
+    InterlockedExchange(&g_uninstall_confirm_open, 0);
+    return 0;
+}
+
+static void request_platform_uninstall(GemModDetailInstance* self) {
+    int hr = -1;
+    if (InterlockedCompareExchange(&g_uninstall_confirm_open, 1, 0) != 0) return;
+    g_confirm_handle = 0;
+    __try {
+        hr = HUD_CONFIRM_SHOW((void*)self->scene_handle,
+                              L"Remove Project Lyra and restart the device?",
+                              HUD_CONFIRM_CFG, HUD_CONFIRM_FLAG, 0, &g_confirm_handle);
+    } __except (EXCEPTION_EXECUTE_HANDLER) { hr = -1; }
+    if (hr < 0) InterlockedExchange(&g_uninstall_confirm_open, 0);
+}
+
+/* HUD confirm result (scene msg 0x8000007): act only when the handle matches ours. */
+static void on_hud_confirm_result(DWORD* payload) {
+    DWORD h = 0, result = 0;
+    __try { if (payload) { h = payload[0]; result = payload[1]; } }
+    __except (EXCEPTION_EXECUTE_HANDLER) { return; }
+    if (!g_confirm_handle || h != g_confirm_handle) return;
+    g_confirm_handle = 0;
+    if (result != HUD_RESULT_CONFIRM) { InterlockedExchange(&g_uninstall_confirm_open, 0); return; }
+    HANDLE t = CreateThread(NULL, 0, uninstall_exec, NULL, 0, NULL);
+    if (t) CloseHandle(t);
+    else InterlockedExchange(&g_uninstall_confirm_open, 0);
 }
 
 extern "C" __declspec(dllexport)
@@ -287,7 +349,18 @@ HRESULT GemModDetail_OnMessage(GemModDetailInstance* self, void* msg) {
     if (msg_id == MSG_DETACHED) {
         DWORD ph = 0;
         __try { DWORD* p = (DWORD*)m[4]; if (p) ph = p[0]; } __except (EXCEPTION_EXECUTE_HANDLER) {}
-        if (ph == 1 && g_active_detail == self) g_active_detail = NULL;
+        if (ph == 1 && g_active_detail == self) {
+            g_active_detail = NULL;
+            g_confirm_handle = 0;
+            InterlockedExchange(&g_uninstall_confirm_open, 0);
+        }
+    }
+
+    if (msg_id == MSG_HUD_RESULT) {
+        DWORD* payload = NULL;
+        __try { payload = (DWORD*)m[4]; } __except (EXCEPTION_EXECUTE_HANDLER) { payload = NULL; }
+        on_hud_confirm_result(payload);
+        /* fall through to base: 0x8000007 is a general HUD notify. */
     }
 
     if (msg_id == MSG_DATA_SOURCE) {
@@ -319,6 +392,11 @@ HRESULT GemModDetail_OnMessage(GemModDetailInstance* self, void* msg) {
                 if (self->local_idx >= 0) { __try { result = ModScanDelete(self->local_idx); } __except (EXCEPTION_EXECUTE_HANDLER) { result = -1; } }
                 if (result == 1) { self->local_idx = -1; g_detail_target_id[0] = 0; }
                 render_all(self);
+                __try { m[2] = 1; } __except (EXCEPTION_EXECUTE_HANDLER) {}
+                return 0;
+            }
+            if (target == self->uninstall_button_elem) {
+                request_platform_uninstall(self);
                 __try { m[2] = 1; } __except (EXCEPTION_EXECUTE_HANDLER) {}
                 return 0;
             }

@@ -108,8 +108,10 @@ and `--skip-artifact-regen` reuses on-disk class blobs + `.bgra`.
 
 ## Layout note
 
-`src/` holds the Lyra platform (`nativeapp`, `zuxhook`, `exploiter`, `kerncore`) and the
-shared libraries any mod may use (`ce-common`, `mod-runtime`). Third-party deps are
+`src/` holds the Lyra platform (`nativeapp`, `zuxhook`, `exploiter`, `kerncore`, `shared`) and
+the shared libraries any mod may use (`ce-common`, `mod-runtime`). `kerncore` is the kernel
+R/W primitive and `shared` holds the small sources both platform binaries compile in
+(`title_name`, `device_reboot`). Third-party deps are
 vendored as submodules under their consumer's `deps/`: **wolfSSL** at
 `src/ce-common/deps/wolfssl` (ce-common's HTTPS/TLS), and **zlib** at
 `lyra/platform/mods-tab/src/reposd/deps/zlib` (reposd's `.zmod` unzip). So before a first
@@ -123,5 +125,5 @@ wolfSSL is built from source (`build.cmd` runs `src\ce-common\build\build_wolfss
 the lib is absent) rather than committed; the result caches under `src\ce-common\out\`
 (gitignored). A mod's own native source lives under the mod, e.g.
 `lyra/platform/mods-tab/src/reposd/`, and reaches the shared `src/` libraries via a
-relative `..\..\src` climb. The platform native projects reference the shared core via
-`..\kerncore`.
+relative `..\..\src` climb. The platform native projects reference the shared code via
+`..\kerncore` and `..\shared`.

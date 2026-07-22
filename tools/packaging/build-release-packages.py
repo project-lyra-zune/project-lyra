@@ -23,7 +23,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 LYRA_ROOT = HERE.parent.parent
 GAME_GUID = "584e07d1-0000-0000-0000-000000000000"
-GAME_NAME = "Lyra Installer"
+GAME_NAME = "Install Project Lyra"
 GAME_DESC = "Installs Lyra, a persistent mod framework and loader on the Zune HD."
 RUNTIME_PROFILE = "Zune.v4.0.Beta"
 

@@ -38,6 +38,24 @@ To install a release, see **[INSTALLING.md](INSTALLING.md)**. Both package forms
 3. From here XNA is no longer involved. The platform is persistent and the **Mods**
    tab is present on the homescreen.
 
+Installing also renames the Apps tile to **"Uninstall Project Lyra"**, so the same tile
+becomes the uninstaller.
+
+## Removing Lyra
+
+Lyra has two removal paths. Both take the device back to stock and reboot; the boot after
+removal clears `\flash2\automation` before any Lyra process starts, so even resident files
+delete cleanly.
+
+- **The tile.** Relaunch the renamed **"Uninstall Project Lyra"** tile. It removes the
+  platform and renames the tile back to **"Install Project Lyra"**, so a later launch
+  reinstalls.
+- **The Mods tab.** Open the Project Lyra row in the mod manager and tap **remove**, then
+  confirm. Use this when the XNA installer app has been deleted.
+
+The XNA installer app is kept so Lyra can be reinstalled. Delete it from the homescreen
+yourself if you want it gone.
+
 ## Credits
 
 Lyra is built on [zuneslayer](https://github.com/CUB3D/zuneslayer) by CUB3D. The
@@ -55,6 +73,7 @@ entrypoint (CVE-2019-1367), the alternative to Lyra's one-time XNA launch.
 | Path | What it is |
 | :--- | :--- |
 | `src/kerncore/` | Arbitrary kernel R/W primitive (shared by `nativeapp`, `zuxhook`, plugins) |
+| `src/shared/` | Small sources shared by `nativeapp` and `zuxhook`: `title_name` (the zmdb Apps-tile rename) and `device_reboot` |
 | `src/nativeapp/` | The native payload: kernel R/W daemon + Wi‑Fi RPC server |
 | `src/zuxhook/` | Auto-loaded hook DLL: persistence, gemstone UI hooks, **modkit runtime** |
 | `src/exploiter/` | XNA launcher that starts `nativeapp` on first run (vendored; see Credits) |

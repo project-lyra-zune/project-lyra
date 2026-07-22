@@ -2,6 +2,7 @@
 #include "kernel_helpers.h"
 #include "rpc_server.h"
 #include "install_ui.h"
+#include "title_name.h"
 
 wchar_t foo[256];
 bool dead = false;
@@ -160,6 +161,11 @@ bx r0
 	kwr(0x80060da0, base);
 	kwr(0x80060fa8, base);
 
+	// Verify the gadget before continuing: a dropped kwr write leaves it malformed. Return
+	// so the watchdog respawns a fresh process and retries, rather than serving on a dead
+	// gadget.
+	if (!kerncore_is_ready()) return 0;
+
 	// Plant the cross-process helpers (HELPER_V3/V4/V7 + TLB_FLUSH) in
 	// kernel scratch via the now-active gadget. zuxhook in gemstone uses
 	// them directly through kerncore, with no IPC. Idempotent.
@@ -261,11 +267,39 @@ static void install_work() {
 	t = GetTickCount(); set_install_stage(STAGE_MODS);
 	install_tree(L"platform");                                    hold(t);
 	install_tree(L"mods");                                        hold(t);
+	// Rename the Apps tile to self-describe as the uninstaller. Runs here (device fully
+	// booted, media service up), never on the daemon boot path: hax()'s kernel exploit
+	// requires a quiescent process.
+	SetTitleName(L"Uninstall Project Lyra");
 	set_install_stage(STAGE_DONE);
 }
 
 static void install() {
 	run_install_ui(install_work);
+}
+
+// The loader's presence in the automation dir is the install/uninstall switch.
+static bool lyra_is_installed() {
+	return GetFileAttributesW(L"\\flash2\\automation\\zuxhook.dll") != INVALID_FILE_ATTRIBUTES;
+}
+
+// Arm the boot-time wipe: drop the marker ZUxHookInit's gate consumes, then reboot. The
+// wipe runs before any Lyra process starts. Keep in sync with ModScanUninstall.
+static void uninstall_work() {
+	DWORD t = GetTickCount();
+	set_install_stage(UNINSTALL_WORKING);
+	// Uninstall removes only the Lyra platform, not the installer app: rename the tile back
+	// so a later launch reinstalls. Full app removal is the user's, via the shell.
+	SetTitleName(L"Install Project Lyra");
+	HANDLE h = CreateFileW(L"\\flash2\\automation\\uninstall.pending", GENERIC_WRITE, 0,
+	                       NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (h != INVALID_HANDLE_VALUE) CloseHandle(h);
+	hold(t);
+	set_install_stage(UNINSTALL_REBOOT);
+}
+
+static void uninstall() {
+	run_uninstall_ui(uninstall_work);
 }
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nShowCmd) {
@@ -275,11 +309,13 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
 		if (*p >= L'A' && *p <= L'Z') *p += 32;
 	}
 
-	// Exploiter-launched from the title's Content dir: install, then reboot (the
-	// splash reboots on completion, so install() does not return). The daemon
-	// comes up when the zuxhook watchdog spawns us from \flash2\automation.
+	// Exploiter-launched from the title's Content dir. First run installs Lyra; once
+	// installed, a later launch uninstalls it. Either path shows a splash and reboots
+	// (never returns). The daemon comes up when the zuxhook watchdog spawns us from
+	// \flash2\automation.
 	if (wcsstr(self, L"\\gametitle\\") != NULL) {
-		install();
+		if (lyra_is_installed()) uninstall();
+		else install();
 		return 0;
 	}
 
