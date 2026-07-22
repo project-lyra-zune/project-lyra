@@ -280,12 +280,17 @@ HRESULT GemModDetail_OnInit(GemModDetailInstance* self) {
     return 0;
 }
 
-/* ── Platform uninstall confirm (mods-tab "remove") ──────────────────────────────
+/* ── Confirm-then-reboot dialog (mods-tab "remove" + apply-after-change) ──────────
    The native shell's interactive "Are you sure" is a HUD-hosted dialog raised by gemstone
    0x72db8 (ZHD0 method 0xe); the context-menu Delete flow at 0x31d34 is the reference. Show
    it with the delete-confirm's button config (8,1), storing the dialog handle; the tapped
    result returns as scene message 0x8000007 (payload[0]=handle, payload[1]=result, 3=OK).
-   The ZDKSystem message box does not receive taps from a gemstone scene, so it is not used. */
+   The ZDKSystem message box does not receive taps from a gemstone scene, so it is not used.
+
+   One dialog, two outcomes, routed by the pending action so the confirm result decides on
+   structure rather than surrounding state: CONFIRM_UNINSTALL takes the device back to stock
+   (flip the installer tile, arm the boot wipe) then reboots; CONFIRM_RESTART just reboots to
+   apply an enable/disable/install/update the caller has already committed to disk. */
 typedef int (*HudConfirmShowFn)(void* host, const wchar_t* message, int cfg, int flag,
                                 int reserved, DWORD* out_handle);
 #define HUD_CONFIRM_SHOW  ((HudConfirmShowFn)0x00072db8)
@@ -295,43 +300,47 @@ typedef int (*HudConfirmShowFn)(void* host, const wchar_t* message, int cfg, int
 #define HUD_CONFIRM_CFG    8   /* button config, verbatim from the native delete-confirm */
 #define HUD_CONFIRM_FLAG   1
 
-static volatile LONG g_uninstall_confirm_open = 0;
+enum ConfirmAction { CONFIRM_NONE = 0, CONFIRM_RESTART, CONFIRM_UNINSTALL };
+
+static volatile LONG g_confirm_action = CONFIRM_NONE;
 static DWORD         g_confirm_handle = 0;
 
-/* On confirm: flip the tile back to the installer (no-ops if the XNA app was deleted), arm
-   the boot-time wipe, reboot. Mirrors the XNA path (main.cpp uninstall_work). Off the UI
-   thread because SetTitleName scans the content store and RebootDevice does not return. */
-static DWORD WINAPI uninstall_exec(LPVOID) {
-    SetTitleName(L"Install Project Lyra");
-    ModScanUninstallArm();
+/* Off the UI thread: RebootDevice does not return, and the uninstall branch's SetTitleName
+   scans the content store. Uninstall mirrors the XNA path (main.cpp uninstall_work). */
+static DWORD WINAPI confirm_exec(LPVOID param) {
+    if ((int)(INT_PTR)param == CONFIRM_UNINSTALL) {
+        SetTitleName(L"Install Project Lyra");
+        ModScanUninstallArm();
+    }
     RebootDevice();   /* does not return */
-    InterlockedExchange(&g_uninstall_confirm_open, 0);
+    InterlockedExchange(&g_confirm_action, CONFIRM_NONE);
     return 0;
 }
 
-static void request_platform_uninstall(GemModDetailInstance* self) {
+static void show_confirm(void* host, const wchar_t* message, int action) {
     int hr = -1;
-    if (InterlockedCompareExchange(&g_uninstall_confirm_open, 1, 0) != 0) return;
+    if (InterlockedCompareExchange(&g_confirm_action, action, CONFIRM_NONE) != CONFIRM_NONE) return;
     g_confirm_handle = 0;
     __try {
-        hr = HUD_CONFIRM_SHOW((void*)self->scene_handle,
-                              L"Remove Project Lyra and restart the device?",
-                              HUD_CONFIRM_CFG, HUD_CONFIRM_FLAG, 0, &g_confirm_handle);
+        hr = HUD_CONFIRM_SHOW(host, message, HUD_CONFIRM_CFG, HUD_CONFIRM_FLAG, 0, &g_confirm_handle);
     } __except (EXCEPTION_EXECUTE_HANDLER) { hr = -1; }
-    if (hr < 0) InterlockedExchange(&g_uninstall_confirm_open, 0);
+    if (hr < 0) InterlockedExchange(&g_confirm_action, CONFIRM_NONE);
 }
 
 /* HUD confirm result (scene msg 0x8000007): act only when the handle matches ours. */
 static void on_hud_confirm_result(DWORD* payload) {
     DWORD h = 0, result = 0;
+    int action;
+    HANDLE t;
     __try { if (payload) { h = payload[0]; result = payload[1]; } }
     __except (EXCEPTION_EXECUTE_HANDLER) { return; }
     if (!g_confirm_handle || h != g_confirm_handle) return;
     g_confirm_handle = 0;
-    if (result != HUD_RESULT_CONFIRM) { InterlockedExchange(&g_uninstall_confirm_open, 0); return; }
-    HANDLE t = CreateThread(NULL, 0, uninstall_exec, NULL, 0, NULL);
+    action = g_confirm_action;
+    if (result != HUD_RESULT_CONFIRM) { InterlockedExchange(&g_confirm_action, CONFIRM_NONE); return; }
+    t = CreateThread(NULL, 0, confirm_exec, (LPVOID)(INT_PTR)action, 0, NULL);
     if (t) CloseHandle(t);
-    else InterlockedExchange(&g_uninstall_confirm_open, 0);
+    else InterlockedExchange(&g_confirm_action, CONFIRM_NONE);
 }
 
 extern "C" __declspec(dllexport)
@@ -352,7 +361,7 @@ HRESULT GemModDetail_OnMessage(GemModDetailInstance* self, void* msg) {
         if (ph == 1 && g_active_detail == self) {
             g_active_detail = NULL;
             g_confirm_handle = 0;
-            InterlockedExchange(&g_uninstall_confirm_open, 0);
+            InterlockedExchange(&g_confirm_action, CONFIRM_NONE);
         }
     }
 
@@ -382,8 +391,10 @@ HRESULT GemModDetail_OnMessage(GemModDetailInstance* self, void* msg) {
                 return 0;
             }
             if (target == self->enable_button_elem || target == self->disable_button_elem) {
-                if (self->local_idx >= 0) { __try { ModScanToggleEnabled(self->local_idx); } __except (EXCEPTION_EXECUTE_HANDLER) {} }
+                int toggled = 0;
+                if (self->local_idx >= 0) { __try { toggled = ModScanToggleEnabled(self->local_idx); } __except (EXCEPTION_EXECUTE_HANDLER) { toggled = 0; } }
                 render_all(self);
+                if (toggled) show_confirm((void*)self->scene_handle, L"Restart now to apply?", CONFIRM_RESTART);
                 __try { m[2] = 1; } __except (EXCEPTION_EXECUTE_HANDLER) {}
                 return 0;
             }
@@ -396,7 +407,8 @@ HRESULT GemModDetail_OnMessage(GemModDetailInstance* self, void* msg) {
                 return 0;
             }
             if (target == self->uninstall_button_elem) {
-                request_platform_uninstall(self);
+                show_confirm((void*)self->scene_handle,
+                             L"Remove Project Lyra and restart the device?", CONFIRM_UNINSTALL);
                 __try { m[2] = 1; } __except (EXCEPTION_EXECUTE_HANDLER) {}
                 return 0;
             }
@@ -429,12 +441,17 @@ extern "C" void GemModDetailOnRepoDone(void) {
                 render_label((void*)d->status_elem, t);
             }
             if (st == REPO_INSTALL_DONE) {
-                /* The mod dir + enabled.json now reflect the install, but ModScan is
-                   only re-projected on Manage entry, so re-project here too - otherwise
-                   the detail can't see the mod on disk and shows no enable/disable/delete
-                   until a reboot. It applies at boot, so keep the restart hint. */
+                /* The mod dir + enabled.json now reflect the install, but ModScan is only
+                   re-projected on Manage entry; re-project here so the detail shows
+                   enable/disable/delete without waiting for the reboot. */
                 ModScanRebuild();
-                if (d) { render_all(d); render_label((void*)d->status_elem, L"installed. restart to apply."); }
+                if (d) {
+                    render_all(d);
+                    if (req == REPO_REQ_INSTALL) {
+                        render_label((void*)d->status_elem, L"installed. restart to apply.");
+                        show_confirm((void*)d->scene_handle, L"Restart now to apply?", CONFIRM_RESTART);
+                    }
+                }
             } else if (st == REPO_INSTALL_ERROR && d) {
                 render_all(d);
             }

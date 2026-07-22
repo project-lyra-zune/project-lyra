@@ -2,10 +2,9 @@ CodePug - Zune Web Server
 Source: https://www.codepug.com/wiki/zune-web-server
 
 Project Lyra's nativeapp descends from CodePug's "Zune Web Server" homebrew sample:
-its socket accept-loop scaffold was seeded from CodePug's httpd.h, and the
-SuppressReboot() helper in nativeapp/xutility.h is kept from it verbatim. The BSD
-2-Clause license below is CodePug's own, as stated in the source headers of its
-release (main.cpp / httpd.h), and is retained here per its terms.
+its socket accept-loop scaffold was seeded from CodePug's httpd.h. The BSD 2-Clause
+license below is CodePug's own, as stated in the source headers of its release
+(main.cpp / httpd.h), and is retained here per its terms.
 
 -------------------------------------------------------------------------------
 

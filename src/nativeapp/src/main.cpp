@@ -328,7 +328,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
 		return 0;
 	}
 
-	SuppressReboot();
 	hax();
 	return 0;
 }

@@ -1,10 +1,10 @@
 {
   "mod_id": "lyra",
   "name": "Lyra",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "author": "Project Lyra",
   "category": "Platform",
   "description": "The Lyra platform: the mod manager UI, zuxhook, nativeapp daemon, and its component mods (mods-tab, wifi-power, clock-date) all wrapped in a pretty bow.",
-  "changelog": "Adds an uninstaller. Once installed, the tile reads Uninstall Project Lyra; relaunch it to remove Lyra and return the tile to the installer, so you can reinstall or delete it later.",
+  "changelog": "Enabling, disabling, installing, or updating a mod now offers to restart the device so the change takes effect right away.",
   "platform_files": ["zuxhook.dll", "nativeapp.exe"]
 }

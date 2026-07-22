@@ -1,7 +1,5 @@
 # Installing Lyra
 
-TEMPORARY: When installing via zune-deploy, use this fork for now: https://github.com/magicisinthehole/zune-deploy
-
 Lyra installs through a one-time XNA launch. You deploy a package containing the
 exploiter plus the Lyra payload (`nativeapp.exe`, `zuxhook.dll`, and the bundled
 mods) to the device, launch it once, and the payload mirrors itself into

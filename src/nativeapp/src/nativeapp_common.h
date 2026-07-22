@@ -7,7 +7,6 @@
 #include <stdio.h>
 #include <psapi.h>
 #include <tlhelp32.h>
-#include "xutility.h"
 
 #include <assert.h>
 #include <compclient.h>
