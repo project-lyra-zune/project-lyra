@@ -24,10 +24,17 @@ int ModsApplyPhase2(const char* host);
    creates the control they intercept. */
 int ModsApplyHostInline(const char* host);
 
-/* 1 if `name` is a platform-provided capability (backed by the SUBSYSTEMS[]
-   table in mods_phase2.c). Both boot phases pass this into ModsResolve as its
+/* 1 if this platform satisfies required point capability `required` (`name` or
+   `name@r`), consulting the SUBSYSTEMS[] table here and the wired CAPS table (via
+   ModsCapabilityProvidedRange). Both boot phases pass this into ModsResolve as its
    platform-provides predicate. */
-int ModsPlatformProvides(const char* name);
+int ModsPlatformProvides(const char* required);
+
+/* The compatibility window [min_compat, cur] at which this platform provides `name`.
+   Returns 1 and fills the bounds if advertised; 0 if not (unknown, or a
+   classified-but-unwired primitive). The install gate compares a mod's used revision
+   against this window. */
+int ModsPlatformCapabilityRange(const char* name, int* cur, int* min_compat);
 
 #ifdef __cplusplus
 }

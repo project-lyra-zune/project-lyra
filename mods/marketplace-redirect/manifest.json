@@ -1,20 +1,20 @@
 {
   "mod_id": "marketplace-redirect",
   "name": "Marketplace Server Redirect",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": "Project Lyra",
   "category": "Network",
   "description": "Redirects the Zune Marketplace endpoints to the community zunes.me servers so catalog, images, social, commerce, and messaging work again. Live.com and Xbox passport endpoints are left alone.",
   "actions": [
-    { "type": "registry_write", "hive": "HKLM", "key": "Software\\Microsoft\\Zune\\Marketplace", "name": "SEID_Catalog",   "value_type": "MULTI_SZ", "value": "http://catalog.zunes.me/v3.0/en-US/" },
-    { "type": "registry_write", "hive": "HKLM", "key": "Software\\Microsoft\\Zune\\Marketplace", "name": "SEID_Image",     "value_type": "MULTI_SZ", "value": "http://image.catalog.zunes.me/v3.0/en-US/" },
-    { "type": "registry_write", "hive": "HKLM", "key": "Software\\Microsoft\\Zune\\Marketplace", "name": "SEID_Mix",       "value_type": "MULTI_SZ", "value": "http://mix.zunes.me/v3.0/" },
-    { "type": "registry_write", "hive": "HKLM", "key": "Software\\Microsoft\\Zune\\Marketplace", "name": "SEID_Lynx",      "value_type": "MULTI_SZ", "value": "http://social.zunes.me" },
-    { "type": "registry_write", "hive": "HKLM", "key": "Software\\Microsoft\\Zune\\Marketplace", "name": "SEID_Social",    "value_type": "MULTI_SZ", "value": "http://socialapi.zunes.me/members/" },
-    { "type": "registry_write", "hive": "HKLM", "key": "Software\\Microsoft\\Zune\\Marketplace", "name": "SEID_Stats",     "value_type": "MULTI_SZ", "value": "http://stats.zunes.me/v3.0/en-US/members/" },
-    { "type": "registry_write", "hive": "HKLM", "key": "Software\\Microsoft\\Zune\\Marketplace", "name": "SEID_UsageData", "value_type": "MULTI_SZ", "value": "https://stats.zunes.me/v3.0/usage" },
-    { "type": "registry_write", "hive": "HKLM", "key": "Software\\Microsoft\\Zune\\Marketplace", "name": "SEID_Commerce",  "value_type": "MULTI_SZ", "value": "https://commerce.zunes.me/" },
-    { "type": "registry_write", "hive": "HKLM", "key": "Software\\Microsoft\\Zune\\Marketplace", "name": "SEID_SignIn",    "value_type": "MULTI_SZ", "value": "https://commerce.zunes.me/account/signin" },
-    { "type": "registry_write", "hive": "HKLM", "key": "Software\\Microsoft\\Zune\\Marketplace", "name": "SEID_Messaging", "value_type": "MULTI_SZ", "value": "https://inbox.zunes.me/messaging" }
+    { "type": "lyra.registry_write", "hive": "HKLM", "key": "Software\\Microsoft\\Zune\\Marketplace", "name": "SEID_Catalog",   "value_type": "MULTI_SZ", "value": "http://catalog.zunes.me/v3.0/en-US/" },
+    { "type": "lyra.registry_write", "hive": "HKLM", "key": "Software\\Microsoft\\Zune\\Marketplace", "name": "SEID_Image",     "value_type": "MULTI_SZ", "value": "http://image.catalog.zunes.me/v3.0/en-US/" },
+    { "type": "lyra.registry_write", "hive": "HKLM", "key": "Software\\Microsoft\\Zune\\Marketplace", "name": "SEID_Mix",       "value_type": "MULTI_SZ", "value": "http://mix.zunes.me/v3.0/" },
+    { "type": "lyra.registry_write", "hive": "HKLM", "key": "Software\\Microsoft\\Zune\\Marketplace", "name": "SEID_Lynx",      "value_type": "MULTI_SZ", "value": "http://social.zunes.me" },
+    { "type": "lyra.registry_write", "hive": "HKLM", "key": "Software\\Microsoft\\Zune\\Marketplace", "name": "SEID_Social",    "value_type": "MULTI_SZ", "value": "http://socialapi.zunes.me/members/" },
+    { "type": "lyra.registry_write", "hive": "HKLM", "key": "Software\\Microsoft\\Zune\\Marketplace", "name": "SEID_Stats",     "value_type": "MULTI_SZ", "value": "http://stats.zunes.me/v3.0/en-US/members/" },
+    { "type": "lyra.registry_write", "hive": "HKLM", "key": "Software\\Microsoft\\Zune\\Marketplace", "name": "SEID_UsageData", "value_type": "MULTI_SZ", "value": "https://stats.zunes.me/v3.0/usage" },
+    { "type": "lyra.registry_write", "hive": "HKLM", "key": "Software\\Microsoft\\Zune\\Marketplace", "name": "SEID_Commerce",  "value_type": "MULTI_SZ", "value": "https://commerce.zunes.me/" },
+    { "type": "lyra.registry_write", "hive": "HKLM", "key": "Software\\Microsoft\\Zune\\Marketplace", "name": "SEID_SignIn",    "value_type": "MULTI_SZ", "value": "https://commerce.zunes.me/account/signin" },
+    { "type": "lyra.registry_write", "hive": "HKLM", "key": "Software\\Microsoft\\Zune\\Marketplace", "name": "SEID_Messaging", "value_type": "MULTI_SZ", "value": "https://inbox.zunes.me/messaging" }
   ]
 }

@@ -1,12 +1,12 @@
 {
   "mod_id": "screencast",
   "name": "Screen Share",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "author": "Project Lyra",
   "category": "Utilities",
   "description": "Streams the Zune's screen over WiFi to any browser. Turn it on from quick settings, then open the shown http:// address to watch live and tap to control. The zune-screencast.py desktop client works too.",
   "changelog": "Tweaked icon appearance.",
-  "requires": ["wifi_awake"],
+  "requires": ["lyra.wifi_awake"],
   "settings": [
     {
       "id": "screencast",
@@ -17,7 +17,7 @@
       "quick_toggle": true,
       "quick_icon": "@asset/screencast-big.png",
       "status": "sharing",
-      "holds": ["wifi_awake"],
+      "holds": ["lyra.wifi_awake"],
       "context": { "kind": "select" }
     }
   ],

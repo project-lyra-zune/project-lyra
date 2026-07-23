@@ -156,7 +156,7 @@ int ModsApplyPhase1(void) {
     ModSet       mods;
     ComposeState st;
     int i, j;
-    int total = 0, p1 = 0, p2 = 0, fail = 0;
+    int total = 0, p1 = 0, p2 = 0, skip = 0, fail = 0;
 
     /* Ensure the mods directory exists; create it lazily on first boot. */
     CreateDirectoryW(L"\\flash2\\automation\\mods", NULL);
@@ -207,10 +207,12 @@ int ModsApplyPhase1(void) {
             ModAction* a = &m->actions[j];
             total++;
             rc = ModsComposeApplyAction(&st, &arena, a);
-            if (rc == 0) {
+            if (rc == MODS_ACTION_APPLIED) {
                 p1++;
-            } else if (rc == 1) {
+            } else if (rc == MODS_ACTION_DEFERRED) {
                 p2++;          /* Phase 2 capability; not run here */
+            } else if (rc == MODS_ACTION_SKIPPED) {
+                skip++;        /* unknown capability; already logged */
             } else {
                 fail++;
                 ModsLogf(L"    action[%d] %S FAILED", j, a->type);
@@ -220,8 +222,8 @@ int ModsApplyPhase1(void) {
            can resolve back-refs assigned by Phase 1 capabilities. */
         ModsWriteBackRefs(m);
     }
-    ModsLogf(L"  %d total action(s): %d applied / %d phase2-deferred / %d failed",
-             total, p1, p2, fail);
+    ModsLogf(L"  %d total action(s): %d applied / %d phase2-deferred / %d skipped / %d failed",
+             total, p1, p2, skip, fail);
 
     if (ModsComposeFlushAll(&st, &arena) < 0)
         ModsLogf(L"  some flushes failed (see lines above)");

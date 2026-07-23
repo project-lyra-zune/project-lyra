@@ -8,25 +8,25 @@
   "depends_on": [],
   "actions": [
     {
-      "type": "gem_add_entry",
+      "type": "lyra.gem_add_entry",
       "gem": "scenes_standard.gem",
       "entry_name": "Setting_SetDate.xur",
       "content_blob_ref": "@/scenes/Setting_SetDate.xur"
     },
     {
-      "type": "register_visuals",
+      "type": "lyra.register_visuals",
       "target_proc": "gemstone",
       "content_blob_ref": "@/skin/ClockDateVisuals.xur",
       "verify_visual_id": "ClockYearList"
     },
     {
-      "type": "load_module",
+      "type": "lyra.load_module",
       "target_proc": "gemstone",
       "module_ref": "@/clockdate.dll",
       "init": "ClockDateInstall"
     },
     {
-      "type": "xus_add_string",
+      "type": "lyra.xus_add_string",
       "gem": "strings.gem",
       "table": "Strings.xus",
       "locale": "en",
@@ -34,7 +34,7 @@
       "manifest_back_reference": "set_date_label"
     },
     {
-      "type": "inject_settings_row",
+      "type": "lyra.inject_settings_row",
       "section": 8,
       "label_id_or_ref": "$set_date_label",
       "scene": "Setting_SetDate"

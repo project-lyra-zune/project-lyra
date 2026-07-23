@@ -24,6 +24,8 @@ RepoBlock* RepoClientBlock(void);
 /* Fire-and-forget requests: bump req_seq and wake the daemon. */
 void RepoClientRequestFeed(void);
 void RepoClientRequestInstall(const char* id);
+/* Install an ordered set (dependencies first, target last) in one request. */
+void RepoClientRequestInstallSet(const char (*ids)[REPO_ID_LEN], int n);
 void RepoClientRequestUninstall(const char* id);
 
 /* The scene layer's DONE handler; MsgWait_proxy calls it on the UI thread when

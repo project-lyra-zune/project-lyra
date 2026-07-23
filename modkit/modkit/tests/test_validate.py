@@ -79,6 +79,34 @@ class StructuralCheckTests(unittest.TestCase):
             {"source": "setting/missing", "frames": ["@/a.png"], "image": "@/a.png"}]})
         self.assertTrue(any("no matching setting" in e for e in errs), errs)
 
+    def test_requires_point_form_passes(self):
+        self.assertEqual(_check({"requires": ["lyra.inject_settings_row"]}), [])
+        self.assertEqual(_check({"requires": ["lyra.inject_settings_row@2"]}), [])
+
+    def test_requires_rejects_range_form(self):
+        errs = _check({"requires": ["fx.reverb@1:3"]})
+        self.assertTrue(any("requires[0]" in e for e in errs), errs)
+
+    def test_provides_range_form_passes(self):
+        self.assertEqual(_check({"provides": ["fx.reverb"]}), [])
+        self.assertEqual(_check({"provides": ["fx.reverb@1:3"]}), [])
+
+    def test_provides_rejects_single_number(self):
+        errs = _check({"provides": ["fx.reverb@3"]})
+        self.assertTrue(any("provides[0]" in e for e in errs), errs)
+
+    def test_provides_rejects_inverted_bounds(self):
+        errs = _check({"provides": ["fx.reverb@3:1"]})
+        self.assertTrue(any("provides[0]" in e for e in errs), errs)
+
+    def test_provides_rejects_reserved_lyra_namespace(self):
+        errs = _check({"provides": ["lyra.wifi_awake@1:1"]})
+        self.assertTrue(any("reserved lyra" in e for e in errs), errs)
+
+    def test_provides_requires_provenance_namespace(self):
+        errs = _check({"provides": ["reverb"]})
+        self.assertTrue(any("provenance" in e for e in errs), errs)
+
 
 class RepoManifestsTests(unittest.TestCase):
     """Every shipped manifest must pass the same check the packager enforces, so

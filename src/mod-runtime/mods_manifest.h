@@ -101,6 +101,21 @@ int ModsManifestLoadAll(ModsArena* arena, const wchar_t* mods_root,
 #define MODS_CAP_PHASE_NONE  (-1)
 int ModsCapabilityPhase(const char* type);
 
+/* The compatibility window [min_compat, cur] at which this platform build provides
+   `type`. Returns 1 and fills the bounds if advertised; 0 (bounds zeroed) if unknown or
+   a classified-but-unwired primitive. An older platform's shorter CAPS table returns 0
+   for a capability it predates. */
+int ModsCapabilityProvidedRange(const char* type, int* cur, int* min_compat);
+
+/* Action-dispatch outcome, shared by both phase dispatchers and their apply loops.
+   SKIPPED (unknown capability type) is distinct from FAILED (a known handler
+   failed): a too-new mod on an older platform reads as "some actions skipped",
+   not "failed", and never aborts the mod or the boot. */
+#define MODS_ACTION_APPLIED   0
+#define MODS_ACTION_DEFERRED  1    /* belongs to the other phase; not run here */
+#define MODS_ACTION_SKIPPED   2    /* unknown capability type; logged and skipped */
+#define MODS_ACTION_FAILED  (-1)
+
 /* Read an arg by key as a NUL-terminated arena-allocated string.
    Resolves "@/path" blob refs against the mod's source_dir, returning
    the joined UTF-16 absolute path in `out_path_w` (caller-supplied

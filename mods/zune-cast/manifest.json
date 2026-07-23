@@ -1,11 +1,11 @@
 {
   "mod_id": "zune-cast",
   "name": "Zune Cast",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "author": "Project Lyra",
   "category": "Media",
   "description": "Streams the Zune's live decoded audio to a Chromecast device over WiFi. Toggle it from quick settings; the daemon holds WiFi awake for the session and mirrors on-screen volume to the receiver. Long-press the toggle to pick the output device.",
-  "requires": ["wifi_awake", "volume_state"],
+  "requires": ["lyra.wifi_awake", "lyra.volume_state"],
   "persistent": ["target.txt"],
   "settings": [
     {
@@ -17,7 +17,7 @@
       "quick_toggle": true,
       "quick_icon": "@asset/cast-big.png",
       "status": "casting",
-      "holds": ["wifi_awake"],
+      "holds": ["lyra.wifi_awake"],
       "context": { "kind": "select" }
     }
   ],

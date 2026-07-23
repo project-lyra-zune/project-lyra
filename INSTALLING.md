@@ -21,7 +21,7 @@ deploy path does. [`Xune`](https://github.com/xune-software/xune-releases) will 
 ## Requirements
 
 - A Zune HD on firmware **v4.5**, connected over USB.
-- The release packages (from the [GitHub release](https://github.com/magicisinthehole/project-lyra/releases), or built locally, see [Building the packages](#building-the-packages)).
+- The release packages (from the [GitHub release](https://github.com/project-lyra-zune/project-lyra/releases), or built locally, see [Building the packages](#building-the-packages)).
 - For the Deploy Kit path: `zune-deploy` and its `~/.mtpz-data` MTP auth file.
 
 ## Method A: Deploy Kit (`zune-deploy`)
@@ -76,4 +76,4 @@ too, delete it from the homescreen the way you would any app.
 
 ## Building the packages
 
-Pre-built packages are available from the [GitHub release](https://github.com/magicisinthehole/project-lyra/releases). To build them yourself, see [BUILDING.md](BUILDING.md): the repo is source-only, and building a release is two steps: the device binaries on Windows 7 (`build.cmd`), then packaging on a .NET 8 machine (`tools/packaging/build-release.sh` or `.cmd`), which outputs `dist/lyra-hd-deploykit/` and `dist/lyra-hd.ccgame`.
+Pre-built packages are available from the [GitHub release](https://github.com/project-lyra-zune/project-lyra/releases). To build them yourself, see [BUILDING.md](BUILDING.md): the repo is source-only, and building a release is two steps: the device binaries on Windows 7 (`build.cmd`), then packaging on a .NET 8 machine (`tools/packaging/build-release.sh` or `.cmd`), which outputs `dist/lyra-hd-deploykit/` and `dist/lyra-hd.ccgame`.

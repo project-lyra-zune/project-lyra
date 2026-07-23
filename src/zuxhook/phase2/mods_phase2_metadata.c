@@ -202,7 +202,7 @@ int apply_register_setting(ModAction* a, ModsArena* arena) {
             while (*s) {
                 const char* e = s;
                 while (*e && *e != ',') e++;
-                if ((e - s) == 10 && strncmp(s, "wifi_awake", 10) == 0)
+                if ((e - s) == 15 && strncmp(s, "lyra.wifi_awake", 15) == 0)
                     WifiAwakeRegisterDemand(key);
                 s = (*e == ',') ? e + 1 : e;
             }

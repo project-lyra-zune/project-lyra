@@ -131,10 +131,10 @@ def build_detail_blob():
     """GemModDetail: the unified per-mod detail scene (ManageModDetail.xur). Keyed
     by mod_id (set by the list before navigating), it looks the mod up in both
     ModScan and the reposd feed and shows state-appropriate actions. instance_size
-    0x64: six buttons (enable / disable / delete / install / update / uninstall) plus
-    title/status/version/author/description and a local_idx, past the 0x50 the
-    three-button version used."""
-    b = ClassBlobBuilder("GemModDetail", instance_size=0x64)
+    0x6c: six buttons (enable / disable / delete / install / update / uninstall) plus
+    title/status/version/author/description, a local_idx, the info row, and the
+    requires row (+0x64/+0x68), past the 0x50 the three-button version used."""
+    b = ClassBlobBuilder("GemModDetail", instance_size=0x6c)
     b.add_factory(ctor_label="ctor")
     b.add_ctor(extra_init={})
     b.add_vtable(on_message=_ext("GemModDetail_OnMessage"),

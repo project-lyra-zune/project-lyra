@@ -559,23 +559,23 @@ int ModsComposeApplyAction(ComposeState* st, ModsArena* arena, ModAction* a) {
     const char* t = a->type;
     int phase = ModsCapabilityPhase(t);
     if (phase == MODS_CAP_PHASE_NONE) {
-        ModsLogf(L"    unknown capability: %S", t);
-        return -1;
+        ModsLogf(L"    unknown capability: %S (skipped)", t);
+        return MODS_ACTION_SKIPPED;
     }
     /* A Phase 2 cap needs kerncore (kreadu32, kcall, ...), bootstrapped by
        nativeapp's hax()+plant_helpers(), not ready until after compositor boot.
        Defer it to Phase 2 (gemstone/servicesd-side). */
     if (phase != 1) return 1;
     /* Phase 1 capabilities (compositor: file I/O, no kerncore). */
-    if (strcmp(t, "gem_add_entry")       == 0) return cap_gem_add_entry(st, arena, a);
-    if (strcmp(t, "gem_add_entry_bytes") == 0) return cap_gem_add_entry_bytes(st, arena, a);
-    if (strcmp(t, "gem_replace_entry")   == 0) return cap_gem_replace_entry(st, arena, a);
-    if (strcmp(t, "gem_remove_entry")    == 0) return cap_gem_remove_entry(st, arena, a);
-    if (strcmp(t, "xus_add_string")      == 0) return cap_xus_add_string(st, arena, a);
-    if (strcmp(t, "xus_set_string")      == 0) return cap_xus_set_string(st, arena, a);
-    if (strcmp(t, "spawn_daemon")        == 0) return cap_spawn_daemon(st, arena, a);
-    if (strcmp(t, "write_blob_bytes")    == 0) return cap_write_blob_bytes(st, arena, a);
-    if (strcmp(t, "registry_write")      == 0) return cap_registry_write(st, arena, a);
+    if (strcmp(t, "lyra.gem_add_entry")       == 0) return cap_gem_add_entry(st, arena, a);
+    if (strcmp(t, "lyra.gem_add_entry_bytes") == 0) return cap_gem_add_entry_bytes(st, arena, a);
+    if (strcmp(t, "lyra.gem_replace_entry")   == 0) return cap_gem_replace_entry(st, arena, a);
+    if (strcmp(t, "lyra.gem_remove_entry")    == 0) return cap_gem_remove_entry(st, arena, a);
+    if (strcmp(t, "lyra.xus_add_string")      == 0) return cap_xus_add_string(st, arena, a);
+    if (strcmp(t, "lyra.xus_set_string")      == 0) return cap_xus_set_string(st, arena, a);
+    if (strcmp(t, "lyra.spawn_daemon")        == 0) return cap_spawn_daemon(st, arena, a);
+    if (strcmp(t, "lyra.write_blob_bytes")    == 0) return cap_write_blob_bytes(st, arena, a);
+    if (strcmp(t, "lyra.registry_write")      == 0) return cap_registry_write(st, arena, a);
     ModsLogf(L"    capability %S classified Phase 1 but has no handler", t);
     return -1;
 }

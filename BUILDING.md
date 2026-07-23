@@ -11,7 +11,7 @@ XUIHelper, which targets **.NET 8** and does not run on Windows 7.
 The repository holds **source only**: no compiled binaries, scenes, class blobs, or
 splash assets are committed (see `.gitignore`). Phase 2 regenerates all of them. If you
 just want to run Lyra, grab the prebuilt packages from the latest
-[GitHub release](https://github.com/magicisinthehole/project-lyra/releases); you do not
+[GitHub release](https://github.com/project-lyra-zune/project-lyra/releases); you do not
 need to build anything.
 
 ## The device binaries

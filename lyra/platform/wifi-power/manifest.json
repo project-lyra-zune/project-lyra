@@ -5,7 +5,7 @@
   "author": "Project Lyra",
   "category": "Power",
   "description": "Keeps Wi-Fi associated on battery instead of letting it suspend. Toggle it from quick settings, or let any mod that needs the network hold it awake. The Wi-Fi icon tints to show when it is being held.",
-  "provides": ["wifi_awake"],
+  "provides": ["lyra.wifi_awake"],
   "settings": [
     {
       "id": "keep-wifi",
@@ -14,7 +14,7 @@
       "default": false,
       "quick_toggle": true,
       "quick_icon": "gemskin://images/thumb_wifistate_3.png",
-      "holds": ["wifi_awake"]
+      "holds": ["lyra.wifi_awake"]
     }
   ],
   "status": [
@@ -22,7 +22,7 @@
   ],
   "actions": [
     {
-      "type": "tint_element",
+      "type": "lyra.tint_element",
       "target_proc": "all",
       "element": "wifiIcon",
       "source": "status/keepalive",

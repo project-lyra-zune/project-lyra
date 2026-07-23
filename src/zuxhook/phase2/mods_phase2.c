@@ -11,6 +11,7 @@
 #include "mods_volume_state.h" /* VolumeStateInstall (subsystem activator) */
 #include "mods_settings.h"    /* ModSettingsLoad (restore persisted toggle state) */
 #include "mods_resolve.h"     /* ModsResolve + ModsCapabilityDemanded (dependency resolution) */
+#include "mods_capability.h"  /* ModsCapParse (revision-aware capability matching) */
 #include "mods_toggles.h"     /* register_setting declared-settings registry */
 #include "mods_icons.h"       /* add_status_icon registry */
 #include "mods_state_block.h" /* ModStateSeed (boot default), ModStateReapDeadOwners */
@@ -253,19 +254,37 @@ static int enable_debug_button_launch(void) {
 typedef void (*SubsystemActivateFn)(void);
 static const struct { const char* name; const char* host; SubsystemActivateFn activate; }
 SUBSYSTEMS[] = {
-    { "wifi_awake",  "servicesd", WifiAwake_EnsureActive },
-    { "volume_state", "servicesd", VolumeStateInstall },
+    { "lyra.wifi_awake",  "servicesd", WifiAwake_EnsureActive },
+    { "lyra.volume_state", "servicesd", VolumeStateInstall },
 };
 
-/* Single source of truth for "is this a platform-provided capability?" Passed
-   into ModsResolve as its platform-provides predicate so the resolver stays
-   independent of this table (declared in mods_phase2.h). */
-int ModsPlatformProvides(const char* name) {
+/* The compatibility window [min_compat, cur] at which this platform provides `name`.
+   Returns 1 and fills the bounds if advertised; 0 if not. A subsystem is [1,1]; wired
+   action capabilities come from CAPS. The two tables (SUBSYSTEMS here, CAPS in
+   mods_manifest.c) are the single source. */
+int ModsPlatformCapabilityRange(const char* name, int* cur, int* min_compat) {
     int i;
+    if (cur) *cur = 0;
+    if (min_compat) *min_compat = 0;
     if (!name) return 0;
     for (i = 0; i < (int)(sizeof(SUBSYSTEMS) / sizeof(SUBSYSTEMS[0])); i++)
-        if (strcmp(name, SUBSYSTEMS[i].name) == 0) return 1;
-    return 0;
+        if (strcmp(name, SUBSYSTEMS[i].name) == 0) {
+            if (cur) *cur = 1;
+            if (min_compat) *min_compat = 1;
+            return 1;
+        }
+    return ModsCapabilityProvidedRange(name, cur, min_compat);
+}
+
+/* Resolver and install-gate predicate: does this platform satisfy required capability
+   `required` (a point `name` or `name@r`)? Passed into ModsResolve as its
+   platform-provides predicate. */
+int ModsPlatformProvides(const char* required) {
+    char name[MODS_CAP_NAME_MAX];
+    int r = 1, cur, min_compat;
+    ModsCapParse(required, name, sizeof(name), &r);
+    if (!ModsPlatformCapabilityRange(name, &cur, &min_compat)) return 0;
+    return ModsCapRangeSatisfies(min_compat, cur, r);
 }
 
 /* Activate each platform subsystem demanded (via requires/provides) by an
@@ -292,34 +311,34 @@ static int dispatch_phase2_action(ModAction* a, ModsArena* arena) {
     const char* t = a->type;
     int phase = ModsCapabilityPhase(t);
     if (phase == MODS_CAP_PHASE_NONE) {
-        ModsLogf(L"    unknown capability: %S", t);
-        return -1;
+        ModsLogf(L"    unknown capability: %S (skipped)", t);
+        return MODS_ACTION_SKIPPED;
     }
     /* A Phase 1 cap already ran in the compositor - skip it here. */
-    if (phase != 2) return 1;
+    if (phase != 2) return MODS_ACTION_DEFERRED;
     /* Phase 2 capabilities. XUI / gemstone-side: */
-    if (strcmp(t, "register_setting")       == 0) return apply_register_setting(a, arena);
-    if (strcmp(t, "register_status")        == 0) return apply_register_status(a, arena);
-    if (strcmp(t, "add_status_icon")        == 0) return apply_add_status_icon(a, arena);
-    if (strcmp(t, "tint_element")           == 0) return apply_tint_element(a, arena);
-    if (strcmp(t, "register_visuals")       == 0) return apply_register_visuals(a, arena);
-    if (strcmp(t, "register_xui_class")     == 0) return apply_register_xui_class(a, arena);
-    if (strcmp(t, "inject_menu_entry")      == 0) return apply_inject_menu_entry(a, arena);
-    if (strcmp(t, "inject_settings_row")    == 0) return apply_inject_settings_row(a, arena);
-    if (strcmp(t, "suppress_scene")         == 0) return apply_suppress_scene(a, arena);
+    if (strcmp(t, "lyra.register_setting")       == 0) return apply_register_setting(a, arena);
+    if (strcmp(t, "lyra.register_status")        == 0) return apply_register_status(a, arena);
+    if (strcmp(t, "lyra.add_status_icon")        == 0) return apply_add_status_icon(a, arena);
+    if (strcmp(t, "lyra.tint_element")           == 0) return apply_tint_element(a, arena);
+    if (strcmp(t, "lyra.register_visuals")       == 0) return apply_register_visuals(a, arena);
+    if (strcmp(t, "lyra.register_xui_class")     == 0) return apply_register_xui_class(a, arena);
+    if (strcmp(t, "lyra.inject_menu_entry")      == 0) return apply_inject_menu_entry(a, arena);
+    if (strcmp(t, "lyra.inject_settings_row")    == 0) return apply_inject_settings_row(a, arena);
+    if (strcmp(t, "lyra.suppress_scene")         == 0) return apply_suppress_scene(a, arena);
     /* Kernel-state caps (kerncore-backed; deferred from Phase 1): */
-    if (strcmp(t, "patch_bytes")            == 0) return apply_patch_bytes(a, arena);
-    if (strcmp(t, "kcall")                  == 0) return apply_kcall(a, arena);
-    if (strcmp(t, "require_kernel_value")   == 0) return apply_require_kernel_value(a, arena);
-    if (strcmp(t, "read_kernel_va")         == 0) return apply_read_kernel_va(a, arena);
-    if (strcmp(t, "require_back_ref_range") == 0) return apply_require_back_ref_range(a, arena);
-    if (strcmp(t, "require_back_ref_equal") == 0) return apply_require_back_ref_equal(a, arena);
-    if (strcmp(t, "install_function_hook")  == 0) return apply_install_function_hook(a, arena);
-    if (strcmp(t, "load_module")            == 0) return apply_load_module(a, arena);
-    /* Classified Phase 2 but no handler wired (e.g. inject_shellcode, a reserved
-       Layer 1 primitive). Surface the gap rather than silently skip. */
-    ModsLogf(L"    capability %S classified Phase 2 but not yet implemented", t);
-    return -1;
+    if (strcmp(t, "lyra.patch_bytes")            == 0) return apply_patch_bytes(a, arena);
+    if (strcmp(t, "lyra.kcall")                  == 0) return apply_kcall(a, arena);
+    if (strcmp(t, "lyra.require_kernel_value")   == 0) return apply_require_kernel_value(a, arena);
+    if (strcmp(t, "lyra.read_kernel_va")         == 0) return apply_read_kernel_va(a, arena);
+    if (strcmp(t, "lyra.require_back_ref_range") == 0) return apply_require_back_ref_range(a, arena);
+    if (strcmp(t, "lyra.require_back_ref_equal") == 0) return apply_require_back_ref_equal(a, arena);
+    if (strcmp(t, "lyra.install_function_hook")  == 0) return apply_install_function_hook(a, arena);
+    if (strcmp(t, "lyra.load_module")            == 0) return apply_load_module(a, arena);
+    /* A Phase 2 CAPS entry with no handler wired breaks the entry-plus-handler
+       invariant; surface it loudly rather than silently skip. */
+    ModsLogf(L"    capability %S is classified Phase 2 but has no handler", t);
+    return MODS_ACTION_FAILED;
 }
 
 /* Does this action run in `host`? target_proc "all" runs in every host, an
@@ -393,7 +412,7 @@ static DWORD WINAPI Phase2Worker(LPVOID lpParam) {
         ModsArena arena;
         ModSet mods;
         int i, j;
-        int p2_applied = 0, deferred = 0, failed = 0;
+        int p2_applied = 0, deferred = 0, skipped = 0, failed = 0;
 
         /* The loader now parses every manifest on disk (to discover
            system mods), not just the enabled set, so the parse footprint
@@ -461,15 +480,16 @@ static DWORD WINAPI Phase2Worker(LPVOID lpParam) {
                     continue;
                 }
                 rc = dispatch_phase2_action(&m->actions[j], &arena);
-                if (rc == 0)      p2_applied++;
-                else if (rc == 1) deferred++;
+                if (rc == MODS_ACTION_APPLIED)       p2_applied++;
+                else if (rc == MODS_ACTION_DEFERRED) deferred++;
+                else if (rc == MODS_ACTION_SKIPPED)  skipped++;
                 else { failed++;
                     ModsLogf(L"    action[%d] %S FAILED", j, m->actions[j].type);
                 }
             }
         }
-        ModsLogf(L"  phase2: %d applied / %d skipped / %d failed",
-                 p2_applied, deferred, failed);
+        ModsLogf(L"  phase2: %d applied / %d deferred / %d skipped / %d failed",
+                 p2_applied, deferred, skipped, failed);
 
         /* Build the mods-tab row set on this boot thread, before the menu
            entry that makes the tab reachable is planted. We hand it the
@@ -576,7 +596,7 @@ int ModsApplyPhase2(const char* host) {
 int ModsApplyHostInline(const char* host) {
     ModsArena arena;
     ModSet mods;
-    int i, j, applied = 0, failed = 0;
+    int i, j, applied = 0, skipped = 0, failed = 0;
     if (host == NULL) return -1;
 
     ModsLogOpen(L"\\flash2\\automation\\mods\\phase2-inline.log");
@@ -611,15 +631,16 @@ int ModsApplyHostInline(const char* host) {
                 || tp == NULL || strcmp(tp, host) != 0)
                 continue;
             rc = dispatch_phase2_action(a, &arena);
-            if (rc == 0) applied++;
-            else if (rc != 1) {
+            if (rc == MODS_ACTION_APPLIED) applied++;
+            else if (rc == MODS_ACTION_SKIPPED) skipped++;
+            else if (rc != MODS_ACTION_DEFERRED) {
                 failed++;
                 ModsLogf(L"    %S action[%d] %S FAILED", m->mod_id, j, a->type);
             }
         }
     }
 
-    ModsLogf(L"  inline: %d applied / %d failed", applied, failed);
+    ModsLogf(L"  inline: %d applied / %d skipped / %d failed", applied, skipped, failed);
     ModsArenaFree(&arena);
     ModsLogClose();
     return failed == 0 ? 0 : -1;

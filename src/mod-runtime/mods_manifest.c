@@ -408,49 +408,69 @@ static int json_array_size(const ModsJson* j, int root, const char* key) {
     return j->toks[t].size;
 }
 
-/* The single source of truth for which phase owns each capability. Both phase
-   dispatchers consult this; neither enumerates the other phase's caps. Adding a
-   capability means one entry here plus its handler in the owning dispatcher;
-   forgetting either is a loud error, not a silent skip. */
+/* The capability table: the single source the phase dispatchers and the
+   platform-provides advertisement both consult. `phase` = which dispatcher owns it
+   (1 compositor, 2 servicesd/gemstone); neither enumerates the other phase's caps.
+   `[min_compat, cur]` = the compatibility window this platform advertises: it serves
+   any required revision r with min_compat <= r <= cur (revisions start at 1). A
+   backward-compatible change raises cur; a breaking change also raises min_compat to cut
+   off the revisions it no longer serves. Adding a capability means one entry here plus its
+   handler in the owning dispatcher; forgetting either is a loud error, not a silent skip. */
+static const struct { const char* name; int phase; int cur; int min_compat; } CAPS[] = {
+    /* Phase 1 - compositor: gem/xus composition, registry, blob + daemon
+       (file I/O / CreateProcess; no kerncore). */
+    { "lyra.gem_add_entry",          1, 1, 1 },
+    { "lyra.gem_add_entry_bytes",    1, 1, 1 },
+    { "lyra.gem_replace_entry",      1, 1, 1 },
+    { "lyra.gem_remove_entry",       1, 1, 1 },
+    { "lyra.xus_add_string",         1, 1, 1 },
+    { "lyra.xus_set_string",         1, 1, 1 },
+    { "lyra.registry_write",         1, 1, 1 },
+    { "lyra.write_blob_bytes",       1, 1, 1 },
+    { "lyra.spawn_daemon",           1, 1, 1 },
+    /* Phase 2 - servicesd/gemstone: XUI surfaces + kerncore-backed kernel
+       caps (kerncore isn't ready until after compositor boot). */
+    { "lyra.register_setting",       2, 1, 1 },
+    { "lyra.register_status",        2, 1, 1 },
+    { "lyra.add_status_icon",        2, 1, 1 },
+    { "lyra.tint_element",           2, 1, 1 },
+    { "lyra.register_visuals",       2, 1, 1 },
+    { "lyra.register_xui_class",     2, 1, 1 },
+    { "lyra.inject_menu_entry",      2, 1, 1 },
+    { "lyra.inject_settings_row",    2, 1, 1 },
+    { "lyra.suppress_scene",         2, 1, 1 },
+    { "lyra.patch_bytes",            2, 1, 1 },
+    { "lyra.kcall",                  2, 1, 1 },
+    { "lyra.require_kernel_value",   2, 1, 1 },
+    { "lyra.read_kernel_va",         2, 1, 1 },
+    { "lyra.require_back_ref_range", 2, 1, 1 },
+    { "lyra.require_back_ref_equal", 2, 1, 1 },
+    { "lyra.install_function_hook",  2, 1, 1 },
+    { "lyra.load_module",            2, 1, 1 },   /* in-process twin of spawn_daemon: LoadLibrary a mod DLL into target_proc */
+};
+#define NCAPS ((int)(sizeof(CAPS) / sizeof(CAPS[0])))
+
 int ModsCapabilityPhase(const char* type) {
-    static const struct { const char* name; int phase; } CAPS[] = {
-        /* Phase 1 - compositor: gem/xus composition, registry, blob + daemon
-           (file I/O / CreateProcess; no kerncore). */
-        { "gem_add_entry",         1 },
-        { "gem_add_entry_bytes",   1 },
-        { "gem_replace_entry",     1 },
-        { "gem_remove_entry",      1 },
-        { "xus_add_string",        1 },
-        { "xus_set_string",        1 },
-        { "registry_write",        1 },
-        { "write_blob_bytes",      1 },
-        { "spawn_daemon",          1 },
-        /* Phase 2 - servicesd/gemstone: XUI surfaces + kerncore-backed kernel
-           caps (kerncore isn't ready until after compositor boot). */
-        { "register_setting",      2 },
-        { "register_status",       2 },
-        { "add_status_icon",       2 },
-        { "tint_element",          2 },
-        { "register_visuals",      2 },
-        { "register_xui_class",    2 },
-        { "inject_menu_entry",     2 },
-        { "inject_settings_row",   2 },
-        { "suppress_scene",        2 },
-        { "patch_bytes",           2 },
-        { "kcall",                 2 },
-        { "require_kernel_value",  2 },
-        { "read_kernel_va",        2 },
-        { "require_back_ref_range",2 },
-        { "require_back_ref_equal",2 },
-        { "install_function_hook", 2 },
-        { "inject_shellcode",      2 },   /* reserved Layer 1 primitive; Phase 2 handler not yet wired */
-        { "load_module",           2 },   /* in-process twin of spawn_daemon: LoadLibrary a mod DLL into target_proc */
-    };
     int i;
     if (!type) return MODS_CAP_PHASE_NONE;
-    for (i = 0; i < (int)(sizeof(CAPS) / sizeof(CAPS[0])); i++)
+    for (i = 0; i < NCAPS; i++)
         if (strcmp(CAPS[i].name, type) == 0) return CAPS[i].phase;
     return MODS_CAP_PHASE_NONE;
+}
+
+int ModsCapabilityProvidedRange(const char* type, int* cur, int* min_compat) {
+    int i;
+    if (cur) *cur = 0;
+    if (min_compat) *min_compat = 0;
+    if (!type) return 0;
+    for (i = 0; i < NCAPS; i++)
+        if (strcmp(CAPS[i].name, type) == 0) {
+            if (CAPS[i].cur < 1) return 0;   /* guard: cur 0 is not advertised */
+            if (cur) *cur = CAPS[i].cur;
+            if (min_compat) *min_compat = CAPS[i].min_compat;
+            return 1;
+        }
+    return 0;
 }
 
 static int lowered_action_count(const ModsJson* j, int root) {
@@ -641,7 +661,7 @@ static int lower_settings(ModsArena* arena, Mod* m, int root, int* pos) {
             ModsLogf(L"  %S: settings[%d] duplicate id %S", m->mod_id, i, id_s);
             return -1;
         }
-        a = synth_action(arena, m, pos, "register_setting", 15);
+        a = synth_action(arena, m, pos, "lyra.register_setting", 15);
         if (!a) return -1;
         if (synth_arg_string(arena, a, "target_proc", "servicesd") != 0 ||
             synth_arg_string(arena, a, "value_type", "bool") != 0 ||
@@ -774,7 +794,7 @@ static int lower_daemons(ModsArena* arena, Mod* m, int root, int* pos) {
         bt = ModsJsonObjectFind(&m->json, obj, "binary");
         bin = json_strdup_req(arena, &m->json, bt, "daemons[].binary", m->mod_id);
         if (!bin) return -1;
-        a = synth_action(arena, m, pos, "spawn_daemon", 1);
+        a = synth_action(arena, m, pos, "lyra.spawn_daemon", 1);
         if (!a || synth_arg_string(arena, a, "binary_ref", bin) != 0) return -1;
         ModsLogf(L"  %S: lowered daemon %S -> spawn_daemon", m->mod_id, bin);
     }
@@ -819,10 +839,10 @@ static int emit_status_visual(ModsArena* arena, Mod* m, int* pos,
     visual_ref[sizeof(visual_ref) - 1] = 0;
     if (ModsBuildStatusIconVisualXur(arena, visual_id, image_url, &vis, &vis_len) != 0)
         return -1;
-    a = synth_action(arena, m, pos, "write_blob_bytes", 2);
+    a = synth_action(arena, m, pos, "lyra.write_blob_bytes", 2);
     if (!a || synth_arg_string(arena, a, "path_ref", visual_ref) != 0 ||
         synth_arg_bytes(arena, a, "content_bytes", vis, vis_len) != 0) return -1;
-    a = synth_action(arena, m, pos, "register_visuals", 3);
+    a = synth_action(arena, m, pos, "lyra.register_visuals", 3);
     if (!a || synth_arg_string(arena, a, "target_proc", "all") != 0 ||
         synth_arg_string(arena, a, "content_blob_ref", visual_ref) != 0 ||
         synth_arg_string(arena, a, "verify_visual_id", visual_id) != 0) return -1;
@@ -1002,17 +1022,17 @@ static int lower_status_icons(ModsArena* arena, Mod* m, int root, int* pos) {
             ModsLogf(L"  %S: status_icons[%d] fragment XUR gen failed", m->mod_id, i);
             return -1;
         }
-        a = synth_action(arena, m, pos, "gem_add_entry_bytes", 3);
+        a = synth_action(arena, m, pos, "lyra.gem_add_entry_bytes", 3);
         if (!a || synth_arg_string(arena, a, "gem", "scenes_standard.gem") != 0 ||
             synth_arg_string(arena, a, "entry_name", entry) != 0 ||
             synth_arg_bytes(arena, a, "content_bytes", frag, frag_len) != 0) return -1;
-        a = synth_action(arena, m, pos, "gem_add_entry_bytes", 3);
+        a = synth_action(arena, m, pos, "lyra.gem_add_entry_bytes", 3);
         if (!a || synth_arg_string(arena, a, "gem", "HudScenes.gem") != 0 ||
             synth_arg_string(arena, a, "entry_name", entry) != 0 ||
             synth_arg_bytes(arena, a, "content_bytes", frag, frag_len) != 0) return -1;
         pack_frame_map(frames_str, sizeof(frames_str), frame_of, nstates);
         pack_tint_map(tints_str, sizeof(tints_str), tint_of, nstates);
-        a = synth_action(arena, m, pos, "add_status_icon", 5);
+        a = synth_action(arena, m, pos, "lyra.add_status_icon", 5);
         if (!a || synth_arg_string(arena, a, "target_proc", "all") != 0 ||
             synth_arg_string(arena, a, "source", source) != 0 ||
             synth_arg_string(arena, a, "scene", entry) != 0 ||
@@ -1048,7 +1068,7 @@ static int lower_status(ModsArena* arena, Mod* m, int root, int* pos) {
             ModsLogf(L"  %S: status[%d] duplicate id %S", m->mod_id, i, id_s);
             return -1;
         }
-        a = synth_action(arena, m, pos, "register_status", 2);
+        a = synth_action(arena, m, pos, "lyra.register_status", 2);
         if (!a || synth_arg_string(arena, a, "target_proc", "all") != 0 ||
             synth_arg_string(arena, a, "id", id_s) != 0) return -1;
         ModsLogf(L"  %S: lowered status[%d] id=%S", m->mod_id, i, id_s);

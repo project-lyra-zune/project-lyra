@@ -24,19 +24,39 @@ void RepoClientRequestFeed(void) {
     SetEvent(g_wake);
 }
 
-static void set_install_id(const char* id) {
+static void copy_id(char* dst, const char* id) {
     int i = 0;
-    for (; id[i] && i < REPO_ID_LEN - 1; i++) g_repo->install_id[i] = id[i];
-    g_repo->install_id[i] = 0;
+    for (; id[i] && i < REPO_ID_LEN - 1; i++) dst[i] = id[i];
+    dst[i] = 0;
 }
 
-void RepoClientRequestInstall(const char* id) {
-    if (!g_repo || !g_wake || !id || !id[0]) return;
-    set_install_id(id);
+static void set_install_id(const char* id) { copy_id(g_repo->install_id, id); }
+
+/* Every install is an ordered set the daemon runs in one request; a plain install is a
+   set of one. */
+static void request_install_set(const char (*ids)[REPO_ID_LEN], int n) {
+    int i;
+    if (!g_repo || !g_wake || n < 1) return;
+    if (n > REPO_MAX_INSTALL_SET) n = REPO_MAX_INSTALL_SET;
+    for (i = 0; i < n; i++) copy_id(g_repo->install_set[i], ids[i]);
+    g_repo->install_set_count = n;
+    g_repo->install_set_index = 0;
+    set_install_id(ids[0]);
     g_repo->install_status = REPO_INSTALL_IDLE;
     g_repo->request = REPO_REQ_INSTALL;
     InterlockedIncrement(&g_repo->req_seq);
     SetEvent(g_wake);
+}
+
+void RepoClientRequestInstall(const char* id) {
+    char one[1][REPO_ID_LEN];
+    if (!id || !id[0]) return;
+    copy_id(one[0], id);
+    request_install_set(one, 1);
+}
+
+void RepoClientRequestInstallSet(const char (*ids)[REPO_ID_LEN], int n) {
+    request_install_set(ids, n);
 }
 
 void RepoClientRequestUninstall(const char* id) {

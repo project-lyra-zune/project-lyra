@@ -10,6 +10,34 @@ from __future__ import annotations
 
 from .manifest import Mod, LYRA_PLATFORM_ID
 
+
+def _cap_point_error(s: str) -> str | None:
+    """A required/used capability is a point: 'name' (revision 1) or 'name@r'."""
+    at = s.find("@")
+    if at < 0:
+        return None
+    suf = s[at + 1:]
+    if ":" in suf:
+        return f"'{s}' is a range; a required capability is a point ('name' or 'name@r')"
+    if not suf.isdigit() or int(suf) < 1:
+        return f"'{s}' revision must be a positive integer"
+    return None
+
+
+def _cap_range_error(s: str) -> str | None:
+    """A provided capability is a range: 'name' ([1,1]) or 'name@lo:hi'."""
+    at = s.find("@")
+    if at < 0:
+        return None
+    suf = s[at + 1:]
+    if ":" not in suf:
+        return (f"'{s}' needs both bounds; a provided range is 'name@lo:hi' "
+                f"(a single '@N' is a required-point form)")
+    lo, _, hi = suf.partition(":")
+    if not (lo.isdigit() and hi.isdigit()) or int(lo) < 1 or int(hi) < int(lo):
+        return f"'{s}' bounds must be positive integers with lo <= hi"
+    return None
+
 # Keys a settings[] object may carry. The runtime (zuxhook's lower_settings +
 # apply_register_setting) reads exactly these; anything else is an authoring typo
 # and is rejected here so it fails before a reboot rather than being silently
@@ -33,6 +61,7 @@ _TOP_LEVEL_KEYS = frozenset({
     "daemons", "persistent",
     "platform_files",   # the lyra platform manifest only
 })
+
 # The catalog row/detail render the description from a fixed device buffer
 # (REPO_DESC_LEN = 256 wide chars incl NUL, in reposd/repo_ipc.h), so 255 is the hard
 # ceiling. Keep it to a few sentences: a summary, not a spec.
@@ -85,6 +114,28 @@ def structural_check(mod: Mod, raw: dict) -> list[str]:
         v = raw.get(key)
         if v is not None and not (isinstance(v, list) and all(isinstance(x, str) for x in v)):
             errs.append(f"'{key}' must be a list of strings")
+    # Capability string form: a `requires` entry is a point ('name'/'name@r'); a
+    # `provides` entry is a range ('name'/'name@lo:hi'). The number count distinguishes
+    # them, so a range in requires or a single-number point in provides is caught here.
+    for i, c in enumerate(raw.get("requires") or []):
+        if isinstance(c, str) and (e := _cap_point_error(c)):
+            errs.append(f"requires[{i}]: {e}")
+    for i, c in enumerate(raw.get("provides") or []):
+        if isinstance(c, str) and (e := _cap_range_error(c)):
+            errs.append(f"provides[{i}]: {e}")
+    # `lyra.*` is the reserved platform capability namespace. Only the platform and its
+    # component mods (under lyra/platform/) may provide a lyra.* capability; a feature mod's
+    # provides must carry its own provenance ('author.name'), never a platform name.
+    is_platform_component = mod.is_platform or mod.source_dir.parent.name == "platform"
+    if not is_platform_component:
+        for i, c in enumerate(raw.get("provides") or []):
+            if not isinstance(c, str):
+                continue
+            base = c.split("@", 1)[0]
+            if base.startswith("lyra."):
+                errs.append(f"provides[{i}]: '{c}' claims the reserved lyra.* platform namespace")
+            elif "." not in base:
+                errs.append(f"provides[{i}]: '{c}' must be namespaced by provenance (e.g. myauthor.{base})")
     for arr in ("settings", "status_icons", "daemons"):
         v = raw.get(arr)
         if v is not None and not isinstance(v, list):
@@ -113,7 +164,7 @@ def structural_check(mod: Mod, raw: dict) -> list[str]:
             errs.append(f"settings[{i}]: unsupported type '{t}'")
         holds = s.get("holds")
         if holds is not None:
-            known = {"wifi_awake", "volume_state"}
+            known = {"lyra.wifi_awake", "lyra.volume_state"}
             if not isinstance(holds, list) or not all(isinstance(h, str) for h in holds):
                 errs.append(f"settings[{i}]: 'holds' must be a list of subsystem names")
             else:

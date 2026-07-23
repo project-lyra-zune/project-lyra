@@ -16,6 +16,9 @@
 #include <wolfssl/wolfcrypt/settings.h>
 #include <wolfssl/wolfcrypt/sha256.h>
 
+/* The pinned official platform channel: the authority for the Lyra update remedy
+   (version + provides), fetched here regardless of any feed a user might later
+   subscribe to for mods. A fork that runs its own platform points these at its repo. */
 #define REPO_HOST       "repo.zune.moe"
 #define REPO_FEED_PATH  "/feed.json"
 #define AUTOMATION_DIR  L"\\flash2\\automation"
@@ -95,11 +98,24 @@ static void do_feed(RepoBlock* blk) {
         line[sizeof(line) - 1] = 0; ce_https_response_free(&resp); L(line);
         return;
     }
-    int trunc = 0;
-    int n = repo_parse_feed(resp.body, blk->rows, REPO_MAX_ROWS, &trunc);
+    int trunc = 0, pp = 0;
+    int n = repo_parse_feed(resp.body, blk->rows, REPO_MAX_ROWS, &trunc,
+                            blk->plat_provides, REPO_PLAT_PROV_MAX, &pp);
     unsigned long blen = (unsigned long)resp.body_len;
     ce_https_response_free(&resp);
-    blk->count = n; blk->truncated = trunc; blk->status = 0;
+    blk->count = n; blk->truncated = trunc; blk->plat_provides_count = pp; blk->status = 0;
+    /* Hoist the official channel's Lyra version into the platform-authority field, so the
+       update remedy does not depend on a `lyra` row surviving in the browsable set. */
+    blk->plat_version[0] = 0;
+    for (int i = 0; i < n; i++) {
+        if (strcmp(blk->rows[i].id, LYRA_PLATFORM_ID) == 0) {
+            int k;
+            for (k = 0; blk->rows[i].version[k] && k < REPO_VERSION_LEN - 1; k++)
+                blk->plat_version[k] = blk->rows[i].version[k];
+            blk->plat_version[k] = 0;
+            break;
+        }
+    }
     _snprintf(line, sizeof(line),
               "feed %s%s -> OK http=200 rows=%d%s (connect=%dms tls=%dms recv=%dms %luB)",
               REPO_HOST, REPO_FEED_PATH, n, trunc ? " TRUNCATED" : "", ct, tl, rc, blen);
@@ -283,7 +299,7 @@ static void do_uninstall(RepoBlock* blk) {
     L("uninstall: done");
 }
 
-static void do_install(RepoBlock* blk, HANDLE done) {
+static void do_install_one(RepoBlock* blk, HANDLE done) {
     char id[REPO_ID_LEN]; strncpy(id, blk->install_id, REPO_ID_LEN - 1); id[REPO_ID_LEN - 1] = 0;
     RepoRow* row = NULL;
     for (int i = 0; i < blk->count; i++) if (strcmp(blk->rows[i].id, id) == 0) { row = &blk->rows[i]; break; }
@@ -356,6 +372,29 @@ static void do_install(RepoBlock* blk, HANDLE done) {
     L("install: done");
 }
 
+/* Install install_set[0..count-1] in order (dependencies first, target last). Only the last
+   member's DONE is surfaced as terminal (the main loop's done event); a member's ERROR aborts
+   the rest, leaving whatever fully installed before it. */
+static void do_install_set(RepoBlock* blk, HANDLE done) {
+    int n = blk->install_set_count, i;
+    if (n < 1 || n > REPO_MAX_INSTALL_SET) {
+        blk->status = 1; blk->install_status = REPO_INSTALL_ERROR; L("install set: bad count"); return;
+    }
+    for (i = 0; i < n; i++) {
+        blk->install_set_index = i;
+        strncpy(blk->install_id, blk->install_set[i], REPO_ID_LEN - 1);
+        blk->install_id[REPO_ID_LEN - 1] = 0;
+        do_install_one(blk, done);
+        if (blk->install_status == REPO_INSTALL_ERROR) {
+            char line[128];
+            _snprintf(line, sizeof(line), "install set: aborted at %d/%d id=%s",
+                      i + 1, n, blk->install_id);
+            line[sizeof(line) - 1] = 0; L(line);
+            return;
+        }
+    }
+}
+
 int WINAPI wWinMain(HINSTANCE a, HINSTANCE b, LPWSTR c, int d) {
     (void)a; (void)b; (void)c; (void)d;
     log_rotate_if_large();
@@ -376,7 +415,7 @@ int WINAPI wWinMain(HINSTANCE a, HINSTANCE b, LPWSTR c, int d) {
         long seq = blk->req_seq;
         long req = blk->request;
         if (req == REPO_REQ_FEED)           do_feed(blk);
-        else if (req == REPO_REQ_INSTALL)   do_install(blk, done);
+        else if (req == REPO_REQ_INSTALL)   do_install_set(blk, done);
         else if (req == REPO_REQ_UNINSTALL) do_uninstall(blk);
         blk->done_seq = seq;
         SetEvent(done);

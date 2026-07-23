@@ -318,6 +318,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\mod-runtime\mods_capability.c"
+				>
+			</File>
+			<File
 				RelativePath="..\mod-runtime\mod_scanner.c"
 				>
 			</File>

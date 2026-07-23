@@ -2,6 +2,7 @@
 
 #include "mods_json.h"
 #include "mods_log.h"
+#include "mods_capability.h"
 
 #include <string.h>
 
@@ -9,25 +10,61 @@
    root before the mod reaches a ModSet). */
 #define ROOT 0
 
-/* Does mod `m`'s top-level string array `key` contain the string `val`? */
-static int array_has(const Mod* m, const char* key, const char* val) {
-    int arr = ModsJsonObjectFind(&m->json, ROOT, key);
+/* A capability entry is `name@rev` at most; hold name + revision suffix. */
+#define CAP_ENTRY_MAX (MODS_CAP_NAME_MAX + 16)
+
+/* Copy a JSON string token's raw content into a bounded buffer. Capability names
+   are plain ASCII (no escapes), so a raw copy is exact. */
+static void cap_tok_copy(const ModsJson* j, int tok, char* out, int cap) {
+    int s, e, o = 0, k;
+    out[0] = 0;
+    if (tok < 0 || j->toks[tok].type != MODS_JSON_STRING) return;
+    s = j->toks[tok].start;
+    e = j->toks[tok].end;
+    for (k = s; k < e && o < cap - 1; k++) out[o++] = j->src[k];
+    out[o] = 0;
+}
+
+/* Does mod `m`'s provides[] satisfy required capability `required` (name@rev)? */
+static int mod_provides_cap(const Mod* m, const char* required) {
+    int arr = ModsJsonObjectFind(&m->json, ROOT, "provides");
     int i, n;
+    char prov[CAP_ENTRY_MAX];
     if (arr < 0 || m->json.toks[arr].type != MODS_JSON_ARRAY) return 0;
     n = m->json.toks[arr].size;
     for (i = 0; i < n; i++) {
         int e = ModsJsonArrayAt(&m->json, arr, i);
-        if (e >= 0 && ModsJsonStrEq(&m->json, e, val)) return 1;
+        if (e < 0) continue;
+        cap_tok_copy(&m->json, e, prov, sizeof(prov));
+        if (ModsCapSatisfies(prov, required)) return 1;
     }
     return 0;
 }
 
-/* Is `cap` provided by any currently-enabled mod's provides[]? */
-static int cap_provided_by_mod(const ModSet* s, const char* cap) {
+/* Does mod `m`'s array `key` contain a capability whose name equals `name`,
+   ignoring any @revision on either side? */
+static int array_has_name(const Mod* m, const char* key, const char* name) {
+    int arr = ModsJsonObjectFind(&m->json, ROOT, key);
+    int i, n;
+    char ent[CAP_ENTRY_MAX];
+    if (arr < 0 || m->json.toks[arr].type != MODS_JSON_ARRAY) return 0;
+    n = m->json.toks[arr].size;
+    for (i = 0; i < n; i++) {
+        int e = ModsJsonArrayAt(&m->json, arr, i);
+        if (e < 0) continue;
+        cap_tok_copy(&m->json, e, ent, sizeof(ent));
+        if (ModsCapNameEq(ent, name)) return 1;
+    }
+    return 0;
+}
+
+/* Is required capability `required` satisfied by any currently-enabled mod's
+   provides[]? */
+static int cap_provided_by_mod(const ModSet* s, const char* required) {
     int i;
     for (i = 0; i < s->count; i++) {
         if (s->mods[i].disabled) continue;
-        if (array_has(&s->mods[i], "provides", cap)) return 1;
+        if (mod_provides_cap(&s->mods[i], required)) return 1;
     }
     return 0;
 }
@@ -139,8 +176,8 @@ int ModsCapabilityDemanded(const ModSet* set, const char* cap) {
     if (!set || !cap) return 0;
     for (i = 0; i < set->count; i++) {
         if (set->mods[i].disabled) continue;
-        if (array_has(&set->mods[i], "requires", cap) ||
-            array_has(&set->mods[i], "provides", cap)) return 1;
+        if (array_has_name(&set->mods[i], "requires", cap) ||
+            array_has_name(&set->mods[i], "provides", cap)) return 1;
     }
     return 0;
 }
@@ -149,11 +186,11 @@ int ModsCapabilityDemanded(const ModSet* set, const char* cap) {
    is a depends_on[] target or an enabled mod whose provides[] satisfies one of
    i's mod-level requires[]. (Platform-provided requires impose no mod order.) */
 static int deps_satisfied(const ModSet* s, int i, const int* placed,
-                          ModsArena* arena,
                           ModsPlatformProvidesFn platform_provides) {
     const Mod* m = &s->mods[i];
     const ModsJson* j = &m->json;
     int arr, n, x, e, k, p;
+    char cap[CAP_ENTRY_MAX];
     arr = ModsJsonObjectFind(j, ROOT, "depends_on");
     if (arr >= 0 && j->toks[arr].type == MODS_JSON_ARRAY) {
         n = j->toks[arr].size;
@@ -167,13 +204,12 @@ static int deps_satisfied(const ModSet* s, int i, const int* placed,
     if (arr >= 0 && j->toks[arr].type == MODS_JSON_ARRAY) {
         n = j->toks[arr].size;
         for (x = 0; x < n; x++) {
-            char* cap;
             e = ModsJsonArrayAt(j, arr, x);
-            cap = ModsJsonStrdup(arena, j, e);
-            if (!cap || platform_provides(cap)) continue;
+            cap_tok_copy(j, e, cap, sizeof(cap));
+            if (!cap[0] || platform_provides(cap)) continue;
             for (p = 0; p < s->count; p++) {
                 if (p == i || s->mods[p].disabled) continue;
-                if (array_has(&s->mods[p], "provides", cap) && !placed[p]) return 0;
+                if (mod_provides_cap(&s->mods[p], cap) && !placed[p]) return 0;
             }
         }
     }
@@ -201,7 +237,7 @@ static void topo_order(ModSet* set, ModsArena* arena,
         progress = 0;
         for (i = 0; i < n; i++) {
             if (placed[i] || set->mods[i].disabled) continue;
-            if (deps_satisfied(set, i, placed, arena, platform_provides)) {
+            if (deps_satisfied(set, i, placed, platform_provides)) {
                 perm[np++] = i; placed[i] = 1; progress = 1;
             }
         }

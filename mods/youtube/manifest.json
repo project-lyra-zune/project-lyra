@@ -1,7 +1,7 @@
 {
   "mod_id": "youtube",
   "name": "YouTube",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "author": "Project Lyra",
   "category": "Media",
   "description": "Adds a YouTube tile to the Start menu: a marketplace-style landing (search + browse) and a search-results list whose rows stream YouTube Music through the native queue via the ytm:// source.",
@@ -13,61 +13,61 @@
   ],
   "actions": [
     {
-      "type": "gem_add_entry",
+      "type": "lyra.gem_add_entry",
       "gem": "scenes_standard.gem",
       "entry_name": "YouTube.xur",
       "content_blob_ref": "@/scenes/YouTube.xur"
     },
     {
-      "type": "gem_add_entry",
+      "type": "lyra.gem_add_entry",
       "gem": "scenes_standard.gem",
       "entry_name": "YtSearch.xur",
       "content_blob_ref": "@/scenes/YtSearch.xur"
     },
     {
-      "type": "gem_add_entry",
+      "type": "lyra.gem_add_entry",
       "gem": "scenes_standard.gem",
       "entry_name": "YtSearchSongs.xur",
       "content_blob_ref": "@/scenes/YtSearchSongs.xur"
     },
     {
-      "type": "gem_add_entry",
+      "type": "lyra.gem_add_entry",
       "gem": "scenes_standard.gem",
       "entry_name": "YtSearchAlbums.xur",
       "content_blob_ref": "@/scenes/YtSearchAlbums.xur"
     },
     {
-      "type": "gem_add_entry",
+      "type": "lyra.gem_add_entry",
       "gem": "scenes_standard.gem",
       "entry_name": "YtSearchArtists.xur",
       "content_blob_ref": "@/scenes/YtSearchArtists.xur"
     },
     {
-      "type": "gem_add_entry",
+      "type": "lyra.gem_add_entry",
       "gem": "scenes_standard.gem",
       "entry_name": "YtAlbum.xur",
       "content_blob_ref": "@/scenes/YtAlbum.xur"
     },
     {
-      "type": "gem_add_entry",
+      "type": "lyra.gem_add_entry",
       "gem": "scenes_standard.gem",
       "entry_name": "YtArtist.xur",
       "content_blob_ref": "@/scenes/YtArtist.xur"
     },
     {
-      "type": "gem_add_entry",
+      "type": "lyra.gem_add_entry",
       "gem": "scenes_standard.gem",
       "entry_name": "YtArtistAlbums.xur",
       "content_blob_ref": "@/scenes/YtArtistAlbums.xur"
     },
     {
-      "type": "gem_add_entry",
+      "type": "lyra.gem_add_entry",
       "gem": "scenes_standard.gem",
       "entry_name": "YtArtistSongs.xur",
       "content_blob_ref": "@/scenes/YtArtistSongs.xur"
     },
     {
-      "type": "xus_add_string",
+      "type": "lyra.xus_add_string",
       "gem": "strings.gem",
       "table": "Strings.xus",
       "locale": "en",
@@ -75,21 +75,21 @@
       "manifest_back_reference": "youtube_label"
     },
 
-    { "type": "registry_write", "hive": "HKCR", "key": "ytm", "name": "Source Filter", "value_type": "SZ", "value": "{C0FFEE06-2026-4A6E-B0DE-5965594A5959}" },
-    { "type": "registry_write", "hive": "HKCR", "key": "ytm", "name": "URL Protocol", "value_type": "SZ", "value": "" },
-    { "type": "registry_write", "hive": "HKCR", "key": "CLSID\\{C0FFEE06-2026-4A6E-B0DE-5965594A5959}", "value_type": "SZ", "value": "Xune YouTube Stream Source" },
-    { "type": "registry_write", "hive": "HKCR", "key": "CLSID\\{C0FFEE06-2026-4A6E-B0DE-5965594A5959}", "name": "Merit", "value_type": "DWORD", "value": "0x800002" },
-    { "type": "registry_write", "hive": "HKCR", "key": "CLSID\\{C0FFEE06-2026-4A6E-B0DE-5965594A5959}\\InprocServer32", "value_type": "SZ", "value": "@/ce_ytmstream.dll" },
-    { "type": "registry_write", "hive": "HKCR", "key": "CLSID\\{C0FFEE06-2026-4A6E-B0DE-5965594A5959}\\InprocServer32", "name": "ThreadingModel", "value_type": "SZ", "value": "Both" },
+    { "type": "lyra.registry_write", "hive": "HKCR", "key": "ytm", "name": "Source Filter", "value_type": "SZ", "value": "{C0FFEE06-2026-4A6E-B0DE-5965594A5959}" },
+    { "type": "lyra.registry_write", "hive": "HKCR", "key": "ytm", "name": "URL Protocol", "value_type": "SZ", "value": "" },
+    { "type": "lyra.registry_write", "hive": "HKCR", "key": "CLSID\\{C0FFEE06-2026-4A6E-B0DE-5965594A5959}", "value_type": "SZ", "value": "Xune YouTube Stream Source" },
+    { "type": "lyra.registry_write", "hive": "HKCR", "key": "CLSID\\{C0FFEE06-2026-4A6E-B0DE-5965594A5959}", "name": "Merit", "value_type": "DWORD", "value": "0x800002" },
+    { "type": "lyra.registry_write", "hive": "HKCR", "key": "CLSID\\{C0FFEE06-2026-4A6E-B0DE-5965594A5959}\\InprocServer32", "value_type": "SZ", "value": "@/ce_ytmstream.dll" },
+    { "type": "lyra.registry_write", "hive": "HKCR", "key": "CLSID\\{C0FFEE06-2026-4A6E-B0DE-5965594A5959}\\InprocServer32", "name": "ThreadingModel", "value_type": "SZ", "value": "Both" },
 
     {
-      "type": "load_module",
+      "type": "lyra.load_module",
       "target_proc": "gemstone",
       "module_ref": "@/youtube.dll",
       "init": "YtInstall"
     },
     {
-      "type": "inject_menu_entry",
+      "type": "lyra.inject_menu_entry",
       "label_id_or_ref": "$youtube_label",
       "scene_name": "YouTube",
       "section_id": -1,

@@ -7,7 +7,7 @@ terms.
 ## Upstream
 
 ### zuneslayer - by CUB3D
-<https://github.com/magicisinthehole/zuneslayer>
+<https://github.com/CUB3D/zuneslayer>
 
 Lyra's `nativeapp` is adapted from **zuneslayer**, the Zune kernel-exploit suite by
 **CUB3D**. CUB3D's work provides the arbitrary kernel read/write

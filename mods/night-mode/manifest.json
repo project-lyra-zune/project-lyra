@@ -1,7 +1,7 @@
 {
   "mod_id": "night-mode",
   "name": "Night Mode",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "author": "Project Lyra",
   "category": "Appearance",
   "description": "Tints the whole interface red for night viewing, toggled live from quick settings with the moon icon. A uniform colour multiply, so album art and icons red-shift too.",
@@ -21,7 +21,7 @@
   ],
   "actions": [
     {
-      "type": "tint_element",
+      "type": "lyra.tint_element",
       "target_proc": "all",
       "element": "@all",
       "source": "setting/night-mode",
