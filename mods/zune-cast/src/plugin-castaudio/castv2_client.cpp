@@ -536,6 +536,7 @@ static DWORD WINAPI reconcile_thread(LPVOID arg)
 
     int          loaded         = 0;
     int          play_paused    = -1;   // reconciled play/pause (0 playing, 1 paused)
+    int          last_cast_ps   = -1;   // last receiver playerState acted on (edge-gates cast->device)
     unsigned int rec_qid        = 0;    // live queue-object id (0x0e); changes on queue replacement
     int          prev_ci        = -1;   // device index at the previous poll (skip debounce)
     int          last_synced    = -1;   // device index the receiver currently mirrors
@@ -656,15 +657,19 @@ static DWORD WINAPI reconcile_thread(LPVOID arg)
             prev_ci = ci;
         }
 
-        // Reconciled play/pause across both controllers (acts only on a real
-        // difference, so each side's confirming echo is a no-op). cast_ps is set by
-        // the I/O thread from MEDIA_STATUS; zme_play_state is device truth, read
-        // fresh here so a cast→device change above isn't re-pushed back.
+        // cast -> device: act only on a real receiver-side transition (cast_ps
+        // moved). The receiver's echo of a device-initiated PLAY/PAUSE lags a poll or
+        // two, so a plain level-compare against play_paused re-drives the device from
+        // the stale echo (a finished album's PAUSED re-pausing the next album at 0:00).
+        // Edge-gated like the volume reconcile below.
         int cps = (int)L->cast_ps;
-        if (cps == 1 && play_paused != 1) {
-            zdk_set_play_state(2); play_paused = 1; cast_log("cast PAUSED -> zune pause");
-        } else if (cps == 0 && play_paused != 0) {
-            zdk_set_play_state(1); play_paused = 0; cast_log("cast PLAYING -> zune resume");
+        if (cps >= 0 && cps != last_cast_ps) {
+            last_cast_ps = cps;
+            if (cps == 1 && play_paused != 1) {
+                zdk_set_play_state(2); play_paused = 1; cast_log("cast PAUSED -> zune pause");
+            } else if (cps == 0 && play_paused != 0) {
+                zdk_set_play_state(1); play_paused = 0; cast_log("cast PLAYING -> zune resume");
+            }
         }
         if (msid > 0) {
             int zps = zme_play_state();
