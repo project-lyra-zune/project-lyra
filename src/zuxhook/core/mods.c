@@ -6,6 +6,7 @@
 #include "mods_json.h"
 #include "mods_resolve.h"
 #include "mod_scanner.h"
+#include "boot_state.h"
 #include "mods_phase2.h"     /* ModsPlatformProvides (platform-provides predicate for ModsResolve) */
 
 #include <windows.h>
@@ -163,6 +164,13 @@ int ModsApplyPhase1(void) {
 
     ModsLogOpen(L"\\flash2\\automation\\mods\\boot.log");
     ModsLogf("== ModsApplyPhase1 start ==");
+    {
+        BootState bs;
+        BootStateRead(&bs);
+        ModsLogf("  boot level: %s (failures %d, last %s phase %d)",
+                 BootLevelName(bs.level), bs.failures,
+                 bs.last_mod[0] ? bs.last_mod : "-", bs.last_phase);
+    }
 
     /* Clear rename-aside leftovers before daemons spawn: a *.old binary from a
      * prior update/remove is no longer held now, so delete it (and any mod dir

@@ -334,6 +334,14 @@
 				>
 			</File>
 			<File
+				RelativePath="..\mod-runtime\boot_state.c"
+				>
+			</File>
+			<File
+				RelativePath="..\mod-runtime\boot_state_file.c"
+				>
+			</File>
+			<File
 				RelativePath=".\hud\mods_xui_registry.c"
 				>
 			</File>
@@ -457,6 +465,10 @@
 			</File>
 			<File
 				RelativePath="..\mod-runtime\enabled_set.h"
+				>
+			</File>
+			<File
+				RelativePath="..\mod-runtime\boot_state.h"
 				>
 			</File>
 			<File

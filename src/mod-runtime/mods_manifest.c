@@ -2,6 +2,7 @@
 #include "mods_log.h"
 #include "mods_xur_builder.h"
 #include "enabled_set.h"
+#include "boot_state.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -1298,17 +1299,30 @@ static void load_root_all(ModsArena* arena, const wchar_t* root, ModSet* out) {
 
 int ModsManifestLoadAll(ModsArena* arena, const wchar_t* mods_root,
                         ModSet* out) {
-    const char** enabled;
-    int n_enabled, discovered_plat, i;
+    const char** enabled = NULL;
+    int n_enabled = 0, discovered_plat, i;
+    BootState boot;
 
     out->mods = NULL;
     out->count = 0;
     out->cap = 0;
 
+    /* The one gate for every apply site. mod_scanner walks the directories
+       itself, so the Manage UI still lists every mod at any level. */
+    BootStateRead(&boot);
+    if (boot.level >= BOOT_LEVEL_BARE) {
+        ModsLogf("  boot level %s: applying nothing", BootLevelName(boot.level));
+        return 0;
+    }
+    if (boot.level >= BOOT_LEVEL_SAFE)
+        ModsLogf("  boot level %s: platform components only", BootLevelName(boot.level));
+
     /* enabled.json is the user's feature selection only. Absent or malformed ->
        zero features; platform mods still apply unconditionally. */
-    n_enabled = load_enabled_list(arena, mods_root, &enabled);
-    if (n_enabled < 0) n_enabled = 0;
+    if (boot.level == BOOT_LEVEL_NORMAL) {
+        n_enabled = load_enabled_list(arena, mods_root, &enabled);
+        if (n_enabled < 0) n_enabled = 0;
+    }
 
     discovered_plat = count_mod_dirs(PLATFORM_ROOT);
     out->cap = discovered_plat + n_enabled;

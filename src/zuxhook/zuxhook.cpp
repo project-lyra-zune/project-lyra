@@ -10,6 +10,7 @@
 #include "mods_state_event.h"
 #include "mods_wifi_awake.h"
 #include "mod_scanner.h"
+#include "boot_state.h"
 #include "gemstone/repo_client.h"
 #include "gemstone/gem_mod_detail.h"
 
@@ -206,6 +207,7 @@ extern "C" __declspec(dllexport) HRESULT ZUxHookInit(void* arg0, HANDLE* out_han
 		HANDLE hMutex = CreateMutexW(NULL, TRUE,
 			L"zune-zuxhook-mods-phase1-singleton");
 		if (hMutex != NULL && GetLastError() != ERROR_ALREADY_EXISTS) {
+			BootStateBeginBoot();
 			ModsApplyPhase1();
 			if (hDone != NULL) SetEvent(hDone);
 		} else {

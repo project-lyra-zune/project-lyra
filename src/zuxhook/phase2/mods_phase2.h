@@ -14,7 +14,7 @@
 extern "C" {
 #endif
 
-/* host: "gemstone" | "servicesd" (NULL → "gemstone"). */
+/* host: "gemstone" | "servicesd" (NULL to "gemstone"). */
 int ModsApplyPhase2(const char* host);
 
 /* Synchronous in-process apply for hosts without an xuidll class registry or

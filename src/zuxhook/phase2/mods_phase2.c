@@ -10,6 +10,7 @@
 #include "mods_wifi_awake.h"  /* WifiAwake_EnsureActive (subsystem) + WifiAwake_Notify */
 #include "mods_volume_state.h" /* VolumeStateInstall (subsystem activator) */
 #include "mods_settings.h"    /* ModSettingsLoad (restore persisted toggle state) */
+#include "boot_state.h"       /* BootStateApplyComplete (arms the boot commit) */
 #include "mods_resolve.h"     /* ModsResolve + ModsCapabilityDemanded (dependency resolution) */
 #include "mods_capability.h"  /* ModsCapParse (revision-aware capability matching) */
 #include "mods_toggles.h"     /* register_setting declared-settings registry */
@@ -380,6 +381,7 @@ static DWORD WINAPI Phase2Worker(LPVOID lpParam) {
     if (is_sd && scratch_use_virtualalloc(0x1000) < 0) {
         ModsLogf("  phase2: VirtualAlloc RWX scratch failed");
         ModsLogClose();
+        BootStateApplyComplete();
         return 0;
     }
 
@@ -397,6 +399,7 @@ static DWORD WINAPI Phase2Worker(LPVOID lpParam) {
                  "(last_total=%d)", attempts, total);
         ModsLogf("== ModsApplyPhase2 aborted ==");
         ModsLogClose();
+        BootStateApplyComplete();
         return 0;
     }
 
@@ -544,6 +547,7 @@ static DWORD WINAPI Phase2Worker(LPVOID lpParam) {
 
     ModsLogf("== ModsApplyPhase2 done ==");
     ModsLogClose();
+    BootStateApplyComplete();
     return 0;
 }
 
