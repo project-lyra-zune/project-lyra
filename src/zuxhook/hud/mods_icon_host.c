@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 
+#include "ce_log.h"
 typedef HRESULT (*XuiGetDescByIdFn)(void* parent, const wchar_t* id,
                                     void** out, int flags);
 typedef int (*SetShowFn)(void* elem, int show);
@@ -92,14 +93,8 @@ static void build_w(wchar_t* out, int cap, const wchar_t* prefix, const char* as
 
 static DWORD fbits(float f) { union { float f; DWORD d; } u; u.f = f; return u.d; }
 
-#define ICON_HOST_LOG  L"\\flash2\\automation\\mods\\icon-host.log"
 
-static void ilog(const wchar_t* fmt, ...) {
-    va_list ap;
-    va_start(ap, fmt);
-    mods_vflashlog(ICON_HOST_LOG, fmt, ap);
-    va_end(ap);
-}
+CE_LOGGER(ilog, L"\\flash2\\automation\\mods\\icon-host.log")
 
 /* Set ONLY the Column byte (byte 0) of a child's tail-propblock packed cell word
    [pb+0x12c], preserving its Row/ColumnSpan/RowSpan. The stock icons carry real
@@ -512,7 +507,7 @@ static void ModStatusIconRegister(int is_sd) {
 
     hxui = GetModuleHandleW(L"xuidll.dll");
     fn = hxui ? (XuiRegisterClassFn2)GetProcAddress(hxui, L"XuiRegisterClass") : 0;
-    if (!fn) { ilog(L"  ModStatusIcon: XuiRegisterClass unresolved"); return; }
+    if (!fn) { ilog("  ModStatusIcon: XuiRegisterClass unresolved"); return; }
 
     ZeroMemory(g_msi_desc, sizeof(g_msi_desc));
     g_msi_desc[1] = (DWORD)g_msi_name;
@@ -522,12 +517,12 @@ static void ModStatusIconRegister(int is_sd) {
     g_msi_desc[7] = is_sd ? 0x419b9978u : 0x0002a7acu;   /* desc FIELD_1C */
 
     __try { hr = fn((void*)&g_msi_desc[1], (void*)&g_msi_desc[0]); }
-    __except (EXCEPTION_EXECUTE_HANDLER) { ilog(L"  ModStatusIcon: register faulted"); return; }
+    __except (EXCEPTION_EXECUTE_HANDLER) { ilog("  ModStatusIcon: register faulted"); return; }
     if (hr == 0 || (unsigned)hr == 0x80300005u) {        /* 0x80300005 = already registered */
         g_msi_registered = 1;
-        ilog(L"  ModStatusIcon registered (C, is_sd=%d, hr=0x%08x)", is_sd, (unsigned)hr);
+        ilog("  ModStatusIcon registered (C, is_sd=%d, hr=0x%08x)", is_sd, (unsigned)hr);
     } else {
-        ilog(L"  ModStatusIcon register FAILED hr=0x%08x", (unsigned)hr);
+        ilog("  ModStatusIcon register FAILED hr=0x%08x", (unsigned)hr);
     }
 }
 
@@ -933,12 +928,12 @@ static void inject_one(void* grid, const char* token, const char* key, const cha
 
     __try { screate = XUI_SCENE_CREATE(L"", uri, NULL, &scene); }
     __except (EXCEPTION_EXECUTE_HANDLER) { scene = NULL; }
-    if (!scene) { ilog(L"  inject: XuiSceneCreate(%s) failed hr=0x%08x", uri, (unsigned)screate); return; }
+    if (!scene) { ilog("  inject: XuiSceneCreate(%S) failed hr=0x%08x", uri, (unsigned)screate); return; }
     keep_scene_alive(scene);
 
     __try { g_get_desc(scene, elemId, &modElem, 0); }
     __except (EXCEPTION_EXECUTE_HANDLER) { modElem = NULL; }
-    if (!modElem) { ilog(L"  inject: %s not found", elemId); return; }
+    if (!modElem) { ilog("  inject: %S not found", elemId); return; }
 
     /* Detach from the fragment root so AddChild's [child+0x18]==0 gate passes. */
     __try { XUI_GET_PARENT((DWORD)modElem, &modParent); } __except (EXCEPTION_EXECUTE_HANDLER) {}
@@ -949,7 +944,7 @@ static void inject_one(void* grid, const char* token, const char* key, const cha
     front_map_put((DWORD)modElem, (DWORD)grid, key);
     __try { if (g_addchild) g_addchild(grid, modElem); } __except (EXCEPTION_EXECUTE_HANDLER) {}
     __try { g_set_show(modElem, 1); } __except (EXCEPTION_EXECUTE_HANDLER) {}
-    ilog(L"  inject ok: token=%S key=%S elem=0x%p grid=0x%p", token, key, modElem, grid);
+    ilog("  inject ok: token=%s key=%s elem=0x%p grid=0x%p", token, key, modElem, grid);
 }
 
 /* Expand + re-pin the grid for N injected mod icons, at CONSTRUCTION (before the
@@ -973,7 +968,7 @@ static void set_grid_for_n(void* grid, int n) {
     p.type = 5; p.str = cols;
     __try { XUI_OBJECT_SET_PROPERTY((DWORD)grid, COLUMNS_PROP_ID, &p, &p); } __except (EXCEPTION_EXECUTE_HANDLER) {}
     __try { if (g_setpos) g_setpos(grid, gpos); } __except (EXCEPTION_EXECUTE_HANDLER) {}
-    ilog(L"  grid set N=%d cols=%s KFREWRITE=%d", n, cols, rewrite_icongrid_x((DWORD)grid, n));
+    ilog("  grid set N=%d cols=%S KFREWRITE=%d", n, cols, rewrite_icongrid_x((DWORD)grid, n));
 }
 
 /* Inject every registered mod icon (add_status_icon) into this scene's iconGrid,
@@ -1036,12 +1031,12 @@ static void inject_qs_button(void* hudScene) {
 
     __try { screate = XUI_SCENE_CREATE(L"", L"gem://ModQuickSettings.xur", NULL, &frag); }
     __except (EXCEPTION_EXECUTE_HANDLER) { frag = NULL; }
-    if (!frag) { ilog(L"  qs: XuiSceneCreate(ModQuickSettings.xur) failed hr=0x%08x", (unsigned)screate); return; }
+    if (!frag) { ilog("  qs: XuiSceneCreate(ModQuickSettings.xur) failed hr=0x%08x", (unsigned)screate); return; }
     keep_scene_alive(frag);
 
     __try { g_get_desc(frag, L"ModQuickSettings", &btn, 0); }
     __except (EXCEPTION_EXECUTE_HANDLER) { btn = NULL; }
-    if (!btn) { ilog(L"  qs: button element not found"); return; }
+    if (!btn) { ilog("  qs: button element not found"); return; }
 
     /* Detach from the fragment root so AddChild's [child+0x18]==0 gate passes. */
     __try { XUI_GET_PARENT((DWORD)btn, &parent); } __except (EXCEPTION_EXECUTE_HANDLER) {}
@@ -1059,9 +1054,9 @@ static void inject_qs_button(void* hudScene) {
         void* dbg = NULL;
         __try { g_get_desc(hudScene, L"DebugButton", &dbg, 0); } __except (EXCEPTION_EXECUTE_HANDLER) { dbg = NULL; }
         if (dbg)
-            ilog(L"  qs-button fade retarget rewrote=%d", retarget_fade_to_button((DWORD)hudScene, (DWORD)dbg, (DWORD)btn));
+            ilog("  qs-button fade retarget rewrote=%d", retarget_fade_to_button((DWORD)hudScene, (DWORD)dbg, (DWORD)btn));
     }
-    ilog(L"  qs-button injected: btn=0x%p scene=0x%p", btn, hudScene);
+    ilog("  qs-button injected: btn=0x%p scene=0x%p", btn, hudScene);
 }
 
 /* Overlay a left->right transparent->black gradient over the right edge of one
@@ -1081,16 +1076,16 @@ static void inject_meta_fade_one(void* hudScene, const wchar_t* parentId) {
 
     __try { if (g_get_desc(hudScene, parentId, &dst, 0) != 0) dst = NULL; }
     __except (EXCEPTION_EXECUTE_HANDLER) { dst = NULL; }
-    if (!dst) { ilog(L"  meta-fade: parent %s not found", parentId); return; }
+    if (!dst) { ilog("  meta-fade: parent %S not found", parentId); return; }
 
     __try { screate = XUI_SCENE_CREATE(L"", L"gem://ModMetaFade.xur", NULL, &frag); }
     __except (EXCEPTION_EXECUTE_HANDLER) { frag = NULL; }
-    if (!frag) { ilog(L"  meta-fade: XuiSceneCreate(ModMetaFade.xur) failed hr=0x%08x", (unsigned)screate); return; }
+    if (!frag) { ilog("  meta-fade: XuiSceneCreate(ModMetaFade.xur) failed hr=0x%08x", (unsigned)screate); return; }
     keep_scene_alive(frag);
 
     __try { g_get_desc(frag, L"ModMetaFade", &fade, 0); }
     __except (EXCEPTION_EXECUTE_HANDLER) { fade = NULL; }
-    if (!fade) { ilog(L"  meta-fade: element not found"); return; }
+    if (!fade) { ilog("  meta-fade: element not found"); return; }
 
     __try { XUI_GET_PARENT((DWORD)fade, &parent); } __except (EXCEPTION_EXECUTE_HANDLER) {}
     if (parent) { __try { XUI_REMOVE_FROM_PARENT((DWORD)fade); } __except (EXCEPTION_EXECUTE_HANDLER) {} }
@@ -1099,7 +1094,7 @@ static void inject_meta_fade_one(void* hudScene, const wchar_t* parentId) {
     { float pos[3] = { 158.0f, 0.0f, 0.0f };   /* label-local; 92px band, black peak at its midpoint = label-local 204 (the clip edge), right half clipped away by the label's ClipChildren so the corner stays clear */
       __try { if (g_setpos) g_setpos(fade, pos); } __except (EXCEPTION_EXECUTE_HANDLER) {} }
     __try { if (g_set_show) g_set_show(fade, 1); } __except (EXCEPTION_EXECUTE_HANDLER) {}
-    ilog(L"  meta-fade injected under %s: fade=0x%p", parentId, fade);
+    ilog("  meta-fade injected under %S: fade=0x%p", parentId, fade);
 }
 
 /* Bound a metadata label's width and clip it, so a long song/artist physically
@@ -1119,12 +1114,12 @@ static void clip_label(void* hudScene, const wchar_t* id, float width) {
     PropVal w, c;
     __try { if (g_get_desc(hudScene, id, &lbl, 0) != 0) lbl = NULL; }
     __except (EXCEPTION_EXECUTE_HANDLER) { lbl = NULL; }
-    if (!lbl) { ilog(L"  meta-clip: label %s not found", id); return; }
+    if (!lbl) { ilog("  meta-clip: label %S not found", id); return; }
     w.type = 4; w.val = fbits(width);
     __try { XUI_OBJECT_SET_PROPERTY((DWORD)lbl, WIDTH_PROP_ID, &w, &w); } __except (EXCEPTION_EXECUTE_HANDLER) {}
     c.type = 3; c.val = 1;
     __try { XUI_OBJECT_SET_PROPERTY((DWORD)lbl, CLIPCHILDREN_PROP_ID, &c, &c); } __except (EXCEPTION_EXECUTE_HANDLER) {}
-    ilog(L"  meta-clip applied to %s (w=%d)", id, (int)width);
+    ilog("  meta-clip applied to %S (w=%d)", id, (int)width);
 }
 
 static void inject_meta_fade(void* hudScene) {
@@ -1240,7 +1235,7 @@ static void layout_list_overlay(DWORD overlay, int n) {
     kf = place_overlay_elem((void*)overlay, L"fade",  MENU_SENT_FADE,  top);
     kt = place_overlay_elem((void*)overlay, L"title", MENU_SENT_TITLE, top + 8.0f);
     kl = place_overlay_elem((void*)overlay, L"touch", MENU_SENT_TOUCH, top + 40.0f);
-    ilog(L"  layout overlay n=%d H=%d top=%d kf=%d/%d/%d", n, H, (int)top, kf, kt, kl);
+    ilog("  layout overlay n=%d H=%d top=%d kf=%d/%d/%d", n, H, (int)top, kf, kt, kl);
 }
 
 static DWORD raise_hud_list_overlay(const wchar_t* uri, int n) {
@@ -1248,12 +1243,12 @@ static DWORD raise_hud_list_overlay(const wchar_t* uri, int n) {
     void*   out  = NULL;
     HRESULT hr   = (HRESULT)-1;
     DWORD   ahr  = (DWORD)-1, slid = (DWORD)-1, act = (DWORD)-1;
-    if (!content_host) { ilog(L"  raise: no content host"); return 0; }
-    if (n <= 0)        { ilog(L"  raise: nothing to show (n=%d)", n); return 0; }
+    if (!content_host) { ilog("  raise: no content host"); return 0; }
+    if (n <= 0)        { ilog("  raise: nothing to show (n=%d)", n); return 0; }
 
     __try { hr = XUI_SCENE_CREATE(L"", uri, NULL, &out); }
     __except (EXCEPTION_EXECUTE_HANDLER) { hr = (HRESULT)0xDEAD0001; }
-    if (hr != 0 || !out) { ilog(L"  raise: create %s failed hr=0x%08x", uri, (unsigned)hr); return 0; }
+    if (hr != 0 || !out) { ilog("  raise: create %S failed hr=0x%08x", uri, (unsigned)hr); return 0; }
 
     /* Overlay as a CHILD of the live HUD content host (*(ctrl+8)); the HUD stays put
        underneath, unlike NAVIGATE_TO which plays the HUD's leave transition. */
@@ -1270,7 +1265,7 @@ static DWORD raise_hud_list_overlay(const wchar_t* uri, int n) {
     __try { act = (DWORD)ACTIVATE_SCENE((DWORD)out); }
     __except (EXCEPTION_EXECUTE_HANDLER) { act = 0xDEAD0004u; }
 
-    ilog(L"  raise %s: ahr=0x%08x slid=0x%08x act=0x%08x n=%d",
+    ilog("  raise %S: ahr=0x%08x slid=0x%08x act=0x%08x n=%d",
          uri, ahr, slid, act, n);
     return (DWORD)out;
 }
@@ -1368,13 +1363,13 @@ void ModsIconHostInstall(unsigned int iatSlot) {
         original = *(volatile DWORD*)slot;
         *(volatile DWORD*)slot = (DWORD)&XuiSceneCreateEx_proxy;
     } __except (EXCEPTION_EXECUTE_HANDLER) {
-        ilog(L"==== ModsIconHostInstall: IAT patch faulted @0x%08x ====", slot);
+        ilog("==== ModsIconHostInstall: IAT patch faulted @0x%08x ====", slot);
         return;
     }
     g_orig = (XuiSceneCreateExFn)original;
     verify = *(volatile DWORD*)slot;
-    ilog(L"==== ModsIconHostInstall (pid=%lu): IAT %s setpos=0x%p addchild=0x%p ====",
+    ilog("==== ModsIconHostInstall (pid=%lu): IAT %S setpos=0x%p addchild=0x%p ====",
          GetCurrentProcessId(),
-         verify == (DWORD)&XuiSceneCreateEx_proxy ? L"OK" : L"MISMATCH",
+         verify == (DWORD)&XuiSceneCreateEx_proxy ? "OK" : "MISMATCH",
          g_setpos, g_addchild);
 }

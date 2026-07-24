@@ -8,7 +8,7 @@ struct Op23Result {
 	u32 flips, bytes_captured, elapsed_ms, error_code;
 	// opcode-24 ENDPT drain diagnostic (low16 = ENDPTCOMPLETE-bit17
 	// observations, high16 = post-prime ENDPTSTAT-bit17-clear
-	// observations). Either nonzero ⇒ host issued iso-IN on EP 0x81.
+	// observations). Either nonzero means host issued iso-IN on EP 0x81.
 	u32 endpt_diag;
 };
 

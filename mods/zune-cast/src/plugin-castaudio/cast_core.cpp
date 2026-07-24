@@ -2,46 +2,11 @@
 #include "cast_core.h"
 #include "cast_keys.h"   // CAST_STATUS_KEY + status states
 #include "cast_channel.h" // cast_channel_set_sublabel (row sub-label on reconnect)
-#include <stdio.h>
+#include "ce_log.h"
 #include <stdlib.h>
 #include <stdarg.h>
 
-// Serializes log appends from the capture / HTTP / Cast-I/O / reconcile threads
-// so lines don't interleave. cast_log_init() runs before any thread exists.
-static CRITICAL_SECTION g_log_cs;
-static volatile LONG     g_log_ready = 0;
-
-void cast_log_init(void)
-{
-    if (InterlockedExchange(&g_log_ready, 1) == 0)
-        InitializeCriticalSection(&g_log_cs);
-}
-
-void cast_log(const char* fmt, ...)
-{
-    char body[256];
-    char line[320];
-    va_list ap;
-    va_start(ap, fmt);
-    int n = _vsnprintf(body, sizeof(body) - 1, fmt, ap);
-    va_end(ap);
-    if (n < 0) n = 0;
-    body[n] = '\0';
-
-    if (g_log_ready) EnterCriticalSection(&g_log_cs);
-    HANDLE h = CreateFileW(CAST_LOG_PATH, GENERIC_WRITE, FILE_SHARE_READ, NULL,
-                           OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-    if (h != INVALID_HANDLE_VALUE) {
-        SetFilePointer(h, 0, NULL, FILE_END);
-        int ln = _snprintf(line, sizeof(line), "[t=%lu] %s\r\n", GetTickCount(), body);
-        if (ln > 0 && ln < (int)sizeof(line)) {
-            DWORD w;
-            WriteFile(h, line, (DWORD)ln, &w, NULL);
-        }
-        CloseHandle(h);
-    }
-    if (g_log_ready) LeaveCriticalSection(&g_log_cs);
-}
+CE_LOGGER_PUBLIC(cast_log, L"\\flash2\\automation\\zune-cast.log")
 
 int cast_run_session(const char* target, unsigned short control_port,
                      unsigned short media_port, HANDLE session_stop)
@@ -86,18 +51,44 @@ int cast_run_session(const char* target, unsigned short control_port,
              target, control_port, media_port, CAST_USE_TEST_TONE);
 
     // The control client owns one wolfSSL lifetime across reconnects within the
-    // session; reconnect until session_stop (toggle off / shutdown).
+    // session; reconnect until session_stop (toggle off / shutdown). A receiver
+    // that is simply off stays unreachable for hours, so a failing attempt backs
+    // off and collapses its logging; both reset once a link actually comes up.
+    DWORD backoff       = CAST_RETRY_MIN_MS;
+    DWORD last_fail_log = 0;
+    int   fail_streak   = 0;
+    int   last_rc       = 1;                   // no rc yet; any real rc differs
     while (WaitForSingleObject(session_stop, 0) != WAIT_OBJECT_0) {
         // Dialing the receiver; reconcile_thread promotes this to connected/
         // casting once the link is live.
         mod_state_set_status(CAST_STATUS_KEY, CAST_STATUS_CONNECTING);
-        int rc = castv2_run(session_stop, target, control_port, media_port, hc.q, hc.ring);
+        int speak = (fail_streak == 0) ||
+                    (GetTickCount() - last_fail_log >= CAST_RETRY_LOG_MS);
+        int rc = castv2_run(session_stop, target, control_port, media_port,
+                            hc.q, hc.ring, speak);
         if (WaitForSingleObject(session_stop, 0) == WAIT_OBJECT_0) break;
         // Returned while still wanted: the connect attempt failed or a live link
         // dropped. Surface error, back off, retry.
         mod_state_set_status(CAST_STATUS_KEY, CAST_STATUS_ERROR);
-        cast_log("CTRL ended rc=%d; retry in 3s", rc);
-        WaitForSingleObject(session_stop, 3000);
+        if (rc == 0) {
+            backoff     = CAST_RETRY_MIN_MS;   // the link was up; treat as a fresh episode
+            fail_streak = 0;
+            cast_log("CTRL link ended; retry in %lums", backoff);
+            last_fail_log = GetTickCount();
+        } else {
+            fail_streak++;
+            if (speak || rc != last_rc) {
+                cast_log("CTRL setup failed rc=%d attempts=%d; retry in %lums",
+                         rc, fail_streak, backoff);
+                last_fail_log = GetTickCount();
+            }
+        }
+        last_rc = rc;
+        WaitForSingleObject(session_stop, backoff);
+        if (rc != 0 && backoff < CAST_RETRY_MAX_MS) {
+            backoff *= 2;
+            if (backoff > CAST_RETRY_MAX_MS) backoff = CAST_RETRY_MAX_MS;
+        }
     }
 
     if (hhttp) { WaitForSingleObject(hhttp, 3000); CloseHandle(hhttp); }

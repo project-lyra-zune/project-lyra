@@ -172,8 +172,6 @@ static int op_6(SOCKET client, unsigned char* inbuf, int res, unsigned char* out
 							write_u32(out + 17, tmp1);
 
 							break;
-						//default:
-						//	ContinueDebugEvent(evt.dwProcessId, evt.dwThreadId, DBG_CONTINUE);
 					}
 				}
 
@@ -343,7 +341,7 @@ static int op_12(SOCKET client, unsigned char* inbuf, int res, unsigned char* ou
 				//     [0]=12, [1-4]=bytes_written, [5-8]=GetLastError,
 				//     [9]=ret flag, [10-31]=reserved
 				//
-				// file_offset == 0 → CREATE_ALWAYS (truncate). Nonzero offset →
+				// file_offset == 0 to CREATE_ALWAYS (truncate). Nonzero offset
 				// OPEN_ALWAYS + seek; supports chunked writes for large files.
 				u32 path_length = read_u32(inbuf + 1);
 				u32 file_offset = read_u32(inbuf + 5);
@@ -564,7 +562,6 @@ u32 val = read_u32(inbuf + 9);
 							closesocket(client);
 							break;
 						}
-						//Sleep(100);
 					}
 				#endif
 	return OP_CONTINUE;
@@ -1227,8 +1224,8 @@ static int op_40(SOCKET client, unsigned char* inbuf, int res, unsigned char* ou
 static int op_23(SOCKET client, unsigned char* inbuf, int res, unsigned char* out) {
 
 				// AVP-ring content tee (writes \flash2\zd-tee.pcm)
-				// Request:  [1-4]=run_ms(0→8000) [5-8]=cap(0→0x300000)
-				//           [9-12]=phys_base (AVP-VA 0; 0→default)
+				// Request:  [1-4]=run_ms(0 to 8000) [5-8]=cap(0 to 0x300000)
+				//           [9-12]=phys_base (AVP-VA 0; 0 to default)
 				// Response: out[0]=23, then 10 LE u32:
 				//   ch(15) phys_base ctx0 blk_base blk_top? last_idx
 				//   blocks bytes elapsed_ms err

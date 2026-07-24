@@ -1,7 +1,7 @@
 {
   "mod_id": "clock-date",
   "name": "Clock: Set Date",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": "Project Lyra",
   "category": "System",
   "description": "Adds a SET DATE option below SET TIME in Settings > Clock, with month/day/year pickers, so the date can be corrected on device.",

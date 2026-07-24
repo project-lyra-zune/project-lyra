@@ -1,4 +1,5 @@
 #include <windows.h>
+#include <stdarg.h>
 #include <stdio.h>
 
 #include "mods.h"
@@ -12,6 +13,7 @@
 #include "gemstone/repo_client.h"
 #include "gemstone/gem_mod_detail.h"
 
+#include "ce_log.h"
 // gemstone treats *out_handle as a kernel waitable HANDLE: it lands in
 // state[0x40] and goes into slot 2 of a 9-element MsgWaitForMultipleObjectsEx
 // array each music-shell tick. A non-NULL non-handle (an HMODULE, a flag)
@@ -106,29 +108,19 @@ static DWORD WINAPI SpawnDaemonThread(LPVOID lpParam) {
 // MoveFileW or opcode 14 DeleteFileW). zuxhook itself does NOT load
 // plugin.dll automatically at startup - only on trigger - so a bad
 // plugin doesn't auto-brick subsequent boots.
-static void PluginAppendLog(const wchar_t* fmt, ...) {
-	wchar_t path[MAX_PATH];
-	va_list ap;
-	_snwprintf(path, MAX_PATH - 1, L"\\flash2\\automation\\plugin-result-%lu.log",
-	           GetCurrentProcessId());
-	path[MAX_PATH - 1] = 0;
-
-	va_start(ap, fmt);
-	mods_vflashlog(path, fmt, ap);
-	va_end(ap);
-}
+CE_LOGGER(PluginAppendLog, L"\\flash2\\automation\\plugin-result.log")
 
 static void LoadAndRunPlugin(void) {
 	HMODULE h = LoadLibraryW(L"\\flash2\\automation\\plugin.dll");
 	if (h == NULL) {
-		PluginAppendLog(L"LoadLibrary failed err=%lu", GetLastError());
+		PluginAppendLog("LoadLibrary failed err=%lu", GetLastError());
 		return;
 	}
 
 	typedef int (*ActivateFn)(void);
 	ActivateFn fn = (ActivateFn)GetProcAddress(h, L"Activate");
 	if (fn == NULL) {
-		PluginAppendLog(L"GetProcAddress(Activate) failed err=%lu", GetLastError());
+		PluginAppendLog("GetProcAddress(Activate) failed err=%lu", GetLastError());
 		FreeLibrary(h);
 		return;
 	}
@@ -137,12 +129,12 @@ static void LoadAndRunPlugin(void) {
 	__try {
 		rc = fn();
 	} __except (EXCEPTION_EXECUTE_HANDLER) {
-		PluginAppendLog(L"Activate threw exception code=0x%lx", GetExceptionCode());
+		PluginAppendLog("Activate threw exception code=0x%lx", GetExceptionCode());
 		FreeLibrary(h);
 		return;
 	}
 
-	PluginAppendLog(L"Activate returned rc=%d", rc);
+	PluginAppendLog("Activate returned rc=%d", rc);
 	FreeLibrary(h);
 }
 

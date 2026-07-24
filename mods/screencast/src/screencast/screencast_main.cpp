@@ -108,15 +108,15 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrev, LPWSTR lpCmdLine, int 
     mod_channel_init(SC_TOGGLE_KEY);
 
     WSADATA wsa;
-    if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) { sc_log("screencastd: WSA-STARTUP-FAIL\n"); return 1; }
-    if (!mod_state_change_event()) { sc_log("screencastd: STATE-EVT-FAIL\n"); WSACleanup(); return 1; }
+    if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) { sc_log("screencastd: WSA-STARTUP-FAIL"); return 1; }
+    if (!mod_state_change_event()) { sc_log("screencastd: STATE-EVT-FAIL"); WSACleanup(); return 1; }
     publish_modes();
-    sc_log("screencastd: start\n");
+    sc_log("screencastd: start");
 
     for (;;) {
         while (mod_state_get_state(SC_TOGGLE_KEY) != 1) wait_change();
 
-        if (!sc_engine_ready()) { sc_log("screencastd: kerncore not ready\n"); wait_change(); continue; }
+        if (!sc_engine_ready()) { sc_log("screencastd: kerncore not ready"); wait_change(); continue; }
         sc_engine_init();
 
         int mode = read_mode();
@@ -127,14 +127,14 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrev, LPWSTR lpCmdLine, int 
 
         g_serve_stop = CreateEventW(NULL, TRUE, FALSE, NULL);   /* manual reset */
         if (!g_serve_stop) {
-            sc_log("screencastd: SERVE-EVT-FAIL\n");
+            sc_log("screencastd: SERVE-EVT-FAIL");
             mod_state_set_status(SC_STATUS_KEY, SC_STATUS_OFF);
             wait_change();
             continue;
         }
         HANDLE st = CreateThread(NULL, 0, serve_thread, NULL, 0, NULL);
-        sc_log(mode == SC_MODE_DESKTOP ? "screencastd: serving (desktop)\n"
-                                       : "screencastd: serving (browser)\n");
+        sc_log(mode == SC_MODE_DESKTOP ? "screencastd: serving (desktop)"
+                                       : "screencastd: serving (browser)");
 
         /* Hold until the toggle goes off or the picker switches the mode. */
         for (;;) {
@@ -151,7 +151,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrev, LPWSTR lpCmdLine, int 
         if (mod_state_get_state(SC_TOGGLE_KEY) != 1) {
             mod_state_set_status(SC_STATUS_KEY, SC_STATUS_OFF);
             mod_channel_set_sublabel(L"");
-            sc_log("screencastd: stopped\n");
+            sc_log("screencastd: stopped");
         }
         /* else: mode switched while on; the loop re-serves with the new frontend. */
     }

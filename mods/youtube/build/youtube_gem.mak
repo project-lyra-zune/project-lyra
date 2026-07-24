@@ -5,6 +5,7 @@
 # does no networking: it talks to the daemon over the yt_search_ipc.h shared
 # section + named events. Output staged to mods/youtube/youtube.dll.
 
+CEC      = ..\..\..\src\ce-common
 PL_ROOT  = ..\src
 IPC_DIR  = ..\src\ytsearchd
 OUT_DIR  = ..\out\youtube_gem
@@ -16,13 +17,15 @@ CC   = $(CE_CC)
 LINK = $(CE_LINK)
 
 PL_CFLAGS = $(CE_CFLAGS) \
-	/I"$(IPC_DIR)"
+	/I"$(IPC_DIR)" \
+	/I"$(CEC)\src\ce_log"
 
 LIBS = coredll.lib corelibc.lib toolhelp.lib
 
 ALL_OBJS = \
 	$(OBJ_DIR)\youtube_gem.obj \
-	$(OBJ_DIR)\yt_queue.obj
+	$(OBJ_DIR)\yt_queue.obj \
+	$(OBJ_DIR)\ce_log.obj
 
 all: makedirs $(DLL_OUT)
 	@copy /y "$(DLL_OUT)" "$(STAGED)" >nul
@@ -48,3 +51,6 @@ $(OBJ_DIR)\youtube_gem.obj: $(PL_ROOT)\youtube_gem.cpp $(IPC_DIR)\yt_search_ipc.
 
 $(OBJ_DIR)\yt_queue.obj: $(PL_ROOT)\yt_queue.c $(PL_ROOT)\yt_queue.h
 	$(CC) $(PL_CFLAGS) /Fo"$(OBJ_DIR)\yt_queue.obj" /c $(PL_ROOT)\yt_queue.c
+
+$(OBJ_DIR)\ce_log.obj: $(CEC)\src\ce_log\ce_log.c
+	$(CC) $(PL_CFLAGS) /Fo"$(OBJ_DIR)\ce_log.obj" /c $(CEC)\src\ce_log\ce_log.c

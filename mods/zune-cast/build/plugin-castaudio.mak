@@ -24,7 +24,7 @@ LINK = $(CE_LINK)
 
 # Base flags for C++ TUs that don't touch wolfSSL.
 BASE_CFLAGS = $(CE_CFLAGS) /EHsc /GR- /D_CRT_SECURE_NO_WARNINGS /D_CRT_SECURE_NO_DEPRECATE \
-	/I"$(KC)" /I"$(MR)" /I"$(PL_ROOT)"
+	/I"$(KC)" /I"$(MR)" /I"$(PL_ROOT)" /I"$(CEC)\src\ce_log"
 
 # wolfSSL-consuming TUs additionally force-include user_settings.h and the
 # wolfSSL headers (config must match how the lib was built). Also the ce_image
@@ -32,9 +32,9 @@ BASE_CFLAGS = $(CE_CFLAGS) /EHsc /GR- /D_CRT_SECURE_NO_WARNINGS /D_CRT_SECURE_NO
 TLS_CFLAGS = $(BASE_CFLAGS) /DWOLFSSL_USER_SETTINGS /FI"user_settings.h" \
 	/I"$(CEC)\deps" /I"$(CEC)\deps\wolfssl" /I"$(CEC)\deps\ce_image"
 
-# Plain-C TUs (no C++ EH): mod_state.c (shared), cast_channel.c and kerncore.c.
+# Plain-C TUs (no C++ EH): mod_state.c (shared), cast_channel.c, kerncore.c, ce_log.c.
 C_CFLAGS = $(CE_CFLAGS) /D_CRT_SECURE_NO_WARNINGS /D_CRT_SECURE_NO_DEPRECATE \
-	/I"$(KC)" /I"$(MR)" /I"$(PL_ROOT)"
+	/I"$(KC)" /I"$(MR)" /I"$(PL_ROOT)" /I"$(CEC)\src\ce_log"
 
 LIBS = \
 	$(CEC)\out\wolfssl\wolfssl_ce_arm.lib \
@@ -54,6 +54,7 @@ CORE_OBJS = \
 	$(OBJ_DIR)\mod_state.obj \
 	$(OBJ_DIR)\mod_list_channel.obj \
 	$(OBJ_DIR)\cast_channel.obj \
+	$(OBJ_DIR)\ce_log.obj \
 	$(OBJ_DIR)\kerncore.obj
 
 DLL_OBJS = $(CORE_OBJS) $(OBJ_DIR)\plugin-castaudio.obj
@@ -117,3 +118,6 @@ $(OBJ_DIR)\zme.obj: $(PL_ROOT)\zme.cpp
 
 $(OBJ_DIR)\kerncore.obj: $(KC)\kerncore.c
 	$(CC) $(C_CFLAGS) /Fo"$(OBJ_DIR)\kerncore.obj" /c $(KC)\kerncore.c
+
+$(OBJ_DIR)\ce_log.obj: $(CEC)\src\ce_log\ce_log.c
+	$(CC) $(C_CFLAGS) /Fo"$(OBJ_DIR)\ce_log.obj" /c $(CEC)\src\ce_log\ce_log.c

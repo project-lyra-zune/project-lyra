@@ -89,9 +89,9 @@ enum ce_innertube_result ce_innertube_browse(const char *browse_id,
 /* Browse an artist channel (UC… browseId) for one of its two drill tabs. A single
  * /browse response carries both, so the raw body is cached for the artist: the first
  * call (either tab) fetches it, the second is served from cache (no second request).
- *   want_albums != 0 → the artist's albums + singles (musicTwoRowItemRenderer cards
+ *   want_albums != 0 to the artist's albums + singles (musicTwoRowItemRenderer cards
  *                      with MPRE browseIds; `is_video`=0, drill into each via browse).
- *   want_albums == 0 → the artist's "Top songs" (musicResponsiveListItemRenderer;
+ *   want_albums == 0 to the artist's "Top songs" (musicResponsiveListItemRenderer;
  *                      `is_video`=1, playable). */
 enum ce_innertube_result ce_innertube_artist(const char *browse_id, int want_albums,
                                              struct ce_innertube_track *tracks,

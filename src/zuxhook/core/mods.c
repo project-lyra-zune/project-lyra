@@ -53,7 +53,7 @@ int ModsWriteBackRefs(Mod* m) {
     h = CreateFileW(path, GENERIC_WRITE, 0, NULL,
                     CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     if (h == INVALID_HANDLE_VALUE) {
-        ModsLogf(L"    backrefs write: cannot create %s (err=0x%lx)",
+        ModsLogf("    backrefs write: cannot create %S (err=0x%lx)",
                  path, GetLastError());
         return -1;
     }
@@ -62,7 +62,7 @@ int ModsWriteBackRefs(Mod* m) {
         return -1;
     }
     CloseHandle(h);
-    ModsLogf(L"    backrefs written: %S (%d bytes, %d refs)",
+    ModsLogf("    backrefs written: %s (%d bytes, %d refs)",
              m->mod_id, len, m->scope.count);
     return 0;
 }
@@ -142,7 +142,7 @@ int ModsLoadBackRefs(Mod* m, ModsArena* arena) {
         remaining -= 2;
     }
     if (loaded > 0)
-        ModsLogf(L"    backrefs loaded: %S (%d refs)", m->mod_id, loaded);
+        ModsLogf("    backrefs loaded: %s (%d refs)", m->mod_id, loaded);
     return 0;
 }
 
@@ -162,7 +162,7 @@ int ModsApplyPhase1(void) {
     CreateDirectoryW(L"\\flash2\\automation\\mods", NULL);
 
     ModsLogOpen(L"\\flash2\\automation\\mods\\boot.log");
-    ModsLogf(L"== ModsApplyPhase1 start ==");
+    ModsLogf("== ModsApplyPhase1 start ==");
 
     /* Clear rename-aside leftovers before daemons spawn: a *.old binary from a
      * prior update/remove is no longer held now, so delete it (and any mod dir
@@ -172,7 +172,7 @@ int ModsApplyPhase1(void) {
     ModScanSweepPlatformOld();
 
     if (ModsArenaInit(&arena, MODS_ARENA_BYTES) < 0) {
-        ModsLogf(L"  arena init (%lu bytes) failed",
+        ModsLogf("  arena init (%lu bytes) failed",
                  (unsigned long)MODS_ARENA_BYTES);
         ModsLogClose();
         return -1;
@@ -182,25 +182,25 @@ int ModsApplyPhase1(void) {
     memset(&st,   0, sizeof(st));
 
     if (ModsManifestLoadAll(&arena, L"\\flash2\\automation\\mods", &mods) < 0) {
-        ModsLogf(L"  manifest load fatal");
+        ModsLogf("  manifest load fatal");
         goto done;
     }
     if (mods.count == 0) {
-        ModsLogf(L"  no enabled mods");
+        ModsLogf("  no enabled mods");
         goto done;
     }
 
     ModsResolve(&mods, &arena, ModsPlatformProvides);
 
-    ModsLogf(L"  applying %d mod(s) in priority order", mods.count);
+    ModsLogf("  applying %d mod(s) in priority order", mods.count);
     for (i = 0; i < mods.count; i++) {
         Mod* m = &mods.mods[i];
         if (m->disabled) {
-            ModsLogf(L"  [%d/%d] %S - skipped (resolver disabled)",
+            ModsLogf("  [%d/%d] %s - skipped (resolver disabled)",
                      i + 1, mods.count, m->mod_id);
             continue;
         }
-        ModsLogf(L"  [%d/%d] %S v%S - %d action(s)",
+        ModsLogf("  [%d/%d] %s v%s - %d action(s)",
                  i + 1, mods.count, m->mod_id, m->version, m->actions_count);
         for (j = 0; j < m->actions_count; j++) {
             int rc;
@@ -215,21 +215,21 @@ int ModsApplyPhase1(void) {
                 skip++;        /* unknown capability; already logged */
             } else {
                 fail++;
-                ModsLogf(L"    action[%d] %S FAILED", j, a->type);
+                ModsLogf("    action[%d] %s FAILED", j, a->type);
             }
         }
         /* Persist this mod's back-ref scope so Phase 2 (in gemstone)
            can resolve back-refs assigned by Phase 1 capabilities. */
         ModsWriteBackRefs(m);
     }
-    ModsLogf(L"  %d total action(s): %d applied / %d phase2-deferred / %d skipped / %d failed",
+    ModsLogf("  %d total action(s): %d applied / %d phase2-deferred / %d skipped / %d failed",
              total, p1, p2, skip, fail);
 
     if (ModsComposeFlushAll(&st, &arena) < 0)
-        ModsLogf(L"  some flushes failed (see lines above)");
+        ModsLogf("  some flushes failed (see lines above)");
 
 done:
-    ModsLogf(L"== ModsApplyPhase1 done (arena used: %lu / %lu) ==",
+    ModsLogf("== ModsApplyPhase1 done (arena used: %lu / %lu) ==",
              (unsigned long)arena.used, (unsigned long)arena.size);
     ModsArenaFree(&arena);
     ModsLogClose();

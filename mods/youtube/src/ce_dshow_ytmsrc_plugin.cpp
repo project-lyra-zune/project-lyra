@@ -13,6 +13,8 @@
 // filter's AAC-into-native-decoder machinery.
 
 #include <windows.h>
+#include <stdarg.h>
+#include "ce_log.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -57,13 +59,7 @@ static int g_hit_dllgco=0, g_hit_createinst=0, g_hit_load=0, g_hit_connect=0;
 // Per-line open-append-close log: never holds the handle, so the file is always
 // readable even while the COM source lives inside long-running servicesd. Each
 // process logs to its own pid-named file.
-static void L(const char*s){
-    wchar_t p[MAX_PATH]; _snwprintf(p,MAX_PATH-1,L"\\flash2\\automation\\plugin-result-%lu.log",GetCurrentProcessId()); p[MAX_PATH-1]=0;
-    HANDLE f=CreateFileW(p,GENERIC_WRITE,FILE_SHARE_READ|FILE_SHARE_WRITE,NULL,OPEN_ALWAYS,FILE_ATTRIBUTE_NORMAL,NULL);
-    if(f==INVALID_HANDLE_VALUE)return; SetFilePointer(f,0,NULL,FILE_END);
-    DWORD n; WriteFile(f,s,(DWORD)strlen(s),&n,NULL); WriteFile(f,"\r\n",2,&n,NULL); CloseHandle(f);
-}
-static void Lx(const char*t,HRESULT hr){char b[160];_snprintf(b,sizeof(b),"%s hr=0x%08x",t,hr);L(b);}
+CE_LOGGER(L, L"\\flash2\\automation\\plugin-result.log")
 static int geq(const GUID*a,const GUID*b){return memcmp(a,b,16)==0;}
 #define VT(o) (*(void***)(o))
 static unsigned rd32(const unsigned char*p){return ((unsigned)p[0]<<24)|((unsigned)p[1]<<16)|((unsigned)p[2]<<8)|p[3];}
@@ -119,18 +115,18 @@ static HRESULT __stdcall P_Connect(void*o,void*recv,const AM_MEDIA_TYPE*pmt){
     Pin*p=(Pin*)o; HRESULT hr; (void)pmt; g_hit_connect=1;
     L("Pin::Connect offering AAC type to downstream");
     hr=((HRESULT(__stdcall*)(void*,void*,const AM_MEDIA_TYPE*))VT(recv)[4])(recv,&p->v,&p->mt); // ReceiveConnection
-    Lx("  ReceiveConnection",hr); if(hr) return hr;
+    L("  ReceiveConnection hr=0x%08x", hr); if(hr) return hr;
     p->peer=recv;
     hr=((HRESULT(__stdcall*)(void*,const GUID*,void**))VT(recv)[0])(recv,&IID_IMemInputPin_,&p->meminput); // QI IMemInputPin
-    Lx("  QI(IMemInputPin)",hr); if(hr||!p->meminput) return hr?hr:0x80004002;
+    L("  QI(IMemInputPin) hr=0x%08x", hr); if(hr||!p->meminput) return hr?hr:0x80004002;
     { void* a=NULL; ALLOC_PROPS props; ALLOC_PROPS act;
-      hr=((HRESULT(__stdcall*)(void*,void**))VT(p->meminput)[3])(p->meminput,&a); Lx("  GetAllocator",hr);
+      hr=((HRESULT(__stdcall*)(void*,void**))VT(p->meminput)[3])(p->meminput,&a); L("  GetAllocator hr=0x%08x", hr);
       if(hr||!a){ L("  no allocator"); return hr?hr:0x80004005; }
       p->alloc=a;
       memset(&props,0,sizeof(props)); props.cBuffers=8; props.cbBuffer=16384; props.cbAlign=1; props.cbPrefix=0;
-      hr=((HRESULT(__stdcall*)(void*,ALLOC_PROPS*,ALLOC_PROPS*))VT(a)[3])(a,&props,&act); Lx("  SetProperties",hr);
-      hr=((HRESULT(__stdcall*)(void*,void*,int))VT(p->meminput)[4])(p->meminput,a,0); Lx("  NotifyAllocator",hr);
-      hr=((HRESULT(__stdcall*)(void*))VT(a)[5])(a); Lx("  Commit",hr);
+      hr=((HRESULT(__stdcall*)(void*,ALLOC_PROPS*,ALLOC_PROPS*))VT(a)[3])(a,&props,&act); L("  SetProperties hr=0x%08x", hr);
+      hr=((HRESULT(__stdcall*)(void*,void*,int))VT(p->meminput)[4])(p->meminput,a,0); L("  NotifyAllocator hr=0x%08x", hr);
+      hr=((HRESULT(__stdcall*)(void*))VT(a)[5])(a); L("  Commit hr=0x%08x", hr);
     }
     L("Pin::Connect OK");
     return 0;
@@ -281,7 +277,7 @@ static DWORD WINAPI push_worker(LPVOID param){
         { DWORD target=t_start+(DWORD)(((unsigned long long)k*1024*1000)/44100); DWORD now=GetTickCount();
           if((long)(target-now)>2) WaitForSingleObject(f->hStop,(target-now)); }
         hr=((HRESULT(__stdcall*)(void*,void**,LONGLONG*,LONGLONG*,DWORD))VT(p->alloc)[7])(p->alloc,&samp,NULL,NULL,0); // GetBuffer
-        if(hr||!samp){ Lx("push GetBuffer",hr); break; }
+        if(hr||!samp){ L("push GetBuffer hr=0x%08x", hr); break; }
         ((HRESULT(__stdcall*)(void*,unsigned char**))VT(samp)[3])(samp,&ptr);
         SetFilePointer(f->srcf,(LONG)off,NULL,FILE_BEGIN); ReadFile(f->srcf,ptr,f->sizes[k],&rd,NULL);
         ((HRESULT(__stdcall*)(void*,unsigned long))VT(samp)[12])(samp,(unsigned long)f->sizes[k]);
@@ -292,7 +288,7 @@ static DWORD WINAPI push_worker(LPVOID param){
         hr=((HRESULT(__stdcall*)(void*,void*))VT(p->meminput)[6])(p->meminput,samp); // Receive
         if(k<3){ char b[96]; _snprintf(b,sizeof(b),"  Receive[%u] hr=0x%08x size=%lu",k,hr,(unsigned long)f->sizes[k]); L(b); }
         ((ULONG(__stdcall*)(void*))VT(samp)[2])(samp);
-        if(hr){ Lx("push Receive",hr); break; }
+        if(hr){ L("push Receive hr=0x%08x", hr); break; }
         off+=f->sizes[k]; t+=dur; pushed++;
         if((k%400)==0){ _snprintf(line,sizeof(line),"  pushed %d/%u t=%ldms",pushed,f->nsamp,(long)(t/10000)); L(line); }
     }

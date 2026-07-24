@@ -16,7 +16,11 @@
 #define CAST_CONTROL_PORT         8009             // CASTV2 control channel (TLS)
 #define CAST_MEDIA_PORT_DEFAULT   8010             // on-device HTTP media server (audio)
 #define CAST_RECEIVER_APP_ID      "CC1AD845"       // Default Media Receiver
-#define CAST_LOG_PATH             L"\\flash2\\automation\\zune-cast.log"
+// Reconnect backoff while the receiver is unreachable: doubles from MIN to MAX.
+#define CAST_RETRY_MIN_MS         3000
+#define CAST_RETRY_MAX_MS         30000
+// A repeated setup failure logs once per this interval, not once per attempt.
+#define CAST_RETRY_LOG_MS         300000
 
 // Live audio is tagged at the PER-TRACK rate read from CAR (CaptureRing.sample_rate
 // is 44.1k OR 48k per the source track, never fixed; tagging the wrong rate plays
@@ -81,10 +85,11 @@ DWORD WINAPI   http_media_thread(LPVOID arg);   // arg = HttpMediaCtx*
 // Connects the CASTV2 control client, launches the receiver, points it at
 // http://<local-ip>:<media_port>/a.wav, services heartbeats until stop_event.
 // Returns 0 on clean stop, negative on a setup/connection error (caller may
-// retry). wolfSSL_Init/Cleanup are owned by the caller.
+// retry). wolfSSL_Init/Cleanup are owned by the caller. log_setup_failure is the
+// retry loop's throttle: it owns how often a repeated failure is worth a line.
 int            castv2_run(HANDLE stop_event, const char* target_ip,
                           unsigned short control_port, unsigned short media_port,
-                          CastQueue* q, CaptureRing* ring);
+                          CastQueue* q, CaptureRing* ring, int log_setup_failure);
 
 // On-screen device volume, published by the servicesd ZAM-writer detour
 // (zuxhook mods_volume_state) into a named shared section. The reconcile thread

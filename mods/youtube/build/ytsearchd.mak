@@ -23,6 +23,7 @@ PL_CFLAGS = $(CE_CFLAGS) \
 	/I"$(CEC)\deps\wolfssl" \
 	/I"$(HTTPS_DIR)" \
 	/I"$(CEC)\src" \
+	/I"$(CEC)\src\ce_log" \
 	/I"$(IT_DIR)" \
 	/I"$(PL_ROOT)"
 
@@ -35,12 +36,13 @@ ALL_OBJS = \
 	$(OBJ_DIR)\ce_innertube.obj \
 	$(OBJ_DIR)\ce_https.obj \
 	$(OBJ_DIR)\ce_tls_ctx.obj \
-	$(OBJ_DIR)\ce_ca_bundle.obj
+	$(OBJ_DIR)\ce_ca_bundle.obj \
+	$(OBJ_DIR)\ce_log.obj
 
 # Project headers: every obj depends on them so a header-only change (e.g. the
 # yt_search_ipc.h layout/version, or ce_innertube.h) forces recompilation. nmake
 # has no implicit header tracking; without this a header edit silently relinks
-# stale objs (it shipped a truncated-id build before this was added).
+# stale objs.
 HDRS = \
 	$(PL_ROOT)\yt_search_ipc.h \
 	$(IT_DIR)\ce_innertube.h \
@@ -76,3 +78,6 @@ $(OBJ_DIR)\ce_tls_ctx.obj: $(HTTPS_DIR)\ce_tls_ctx.c $(HDRS)
 
 $(OBJ_DIR)\ce_ca_bundle.obj: $(CEC)\src\ce_ca_bundle.c $(HDRS)
 	$(CC) $(PL_CFLAGS) /Fo"$(OBJ_DIR)\ce_ca_bundle.obj" /c $(CEC)\src\ce_ca_bundle.c
+
+$(OBJ_DIR)\ce_log.obj: $(CEC)\src\ce_log\ce_log.c $(HDRS)
+	$(CC) $(PL_CFLAGS) /Fo"$(OBJ_DIR)\ce_log.obj" /c $(CEC)\src\ce_log\ce_log.c

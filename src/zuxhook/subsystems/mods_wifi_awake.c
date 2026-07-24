@@ -8,6 +8,7 @@
 #include <stdarg.h>
 #include <string.h>
 
+#include "ce_log.h"
 /* The device-proven on-battery keepalive patch set (servicesd .text;
    znet_serv.dll + zam_serv.dll). Applied as a unit while keepalive is
    demanded, restored to stock when it is not. */
@@ -20,7 +21,6 @@ static const WifiPatch WIFI_PATCHES[] = {
 #define WIFI_PATCH_N ((int)(sizeof(WIFI_PATCHES) / sizeof(WIFI_PATCHES[0])))
 
 #define WIFI_AWAKE_EVENT   L"zune-wifi-awake-evt"   /* authority wake (Notify signals it) */
-#define WIFI_AWAKE_LOG     L"\\flash2\\automation\\mods\\wifi-awake.log"
 /* The effective-status output this authority publishes: keepalive demanded by
    any registered demand source. The wifiIcon tint binds here, so it reflects
    "Wi-Fi is being kept awake", not just the manual toggle. */
@@ -39,17 +39,7 @@ static int  g_demand_n = 0;
 
 /* ── logging (independent of mods_log's single global handle) ─────────── */
 
-/* Prepends a monotonic tick stamp so keepalive timing is readable across the
-   authority's reconcile passes. */
-static void WAlogf(const wchar_t* fmt, ...) {
-    wchar_t msg[480];
-    va_list ap;
-    va_start(ap, fmt);
-    _vsnwprintf(msg, sizeof(msg)/sizeof(msg[0]) - 1, fmt, ap);
-    va_end(ap);
-    msg[sizeof(msg)/sizeof(msg[0]) - 1] = 0;
-    mods_flashlog(WIFI_AWAKE_LOG, L"[t=%lu] %s", (unsigned long)GetTickCount(), msg);
-}
+CE_LOGGER(WAlogf, L"\\flash2\\automation\\mods\\wifi-awake.log")
 
 /* ── keepalive demand registry ────────────────────────────────────────── */
 
@@ -64,13 +54,13 @@ void WifiAwakeRegisterDemand(const char* state_key) {
     for (i = 0; i < g_demand_n; i++)
         if (strncmp(g_demand[i], state_key, MOD_STATE_ID_LEN) == 0) return;   /* already registered */
     if (g_demand_n >= WIFI_DEMAND_MAX) {
-        WAlogf(L"demand registry full; dropped %S", state_key);
+        WAlogf("demand registry full; dropped %s", state_key);
         return;
     }
     for (j = 0; j < MOD_STATE_ID_LEN && state_key[j]; j++) g_demand[g_demand_n][j] = state_key[j];
     g_demand[g_demand_n][j] = 0;
     g_demand_n++;
-    WAlogf(L"demand registered: %S", state_key);
+    WAlogf("demand registered: %s", state_key);
     wa_signal_authority();   /* re-evaluate now that a demand source exists */
 }
 
@@ -101,27 +91,27 @@ static int wa_patch_site(const WifiPatch* p, DWORD target, DWORD proc) {
     DWORD bytes[1];
     __try { cur = *(volatile DWORD*)p->va; }
     __except (EXCEPTION_EXECUTE_HANDLER) {
-        WAlogf(L"patch %s @0x%08x: read faulted (module not mapped?)", p->label, p->va);
+        WAlogf("patch %S @0x%08x: read faulted (module not mapped?)", p->label, p->va);
         return -1;
     }
     if (cur == target) return 0;
     if (cur != other) {
-        WAlogf(L"patch %s @0x%08x: unexpected 0x%08x (expected 0x%08x) - skip",
+        WAlogf("patch %S @0x%08x: unexpected 0x%08x (expected 0x%08x) - skip",
                p->label, p->va, cur, other);
         return -1;
     }
     bytes[0] = target;
     if (kerncore_patch_code(proc, p->va, bytes, 4) != 0) {
-        WAlogf(L"patch %s @0x%08x: kerncore_patch_code failed", p->label, p->va);
+        WAlogf("patch %S @0x%08x: kerncore_patch_code failed", p->label, p->va);
         return -1;
     }
     FlushInstructionCache(GetCurrentProcess(), (void*)p->va, 4);
     __try { cur = *(volatile DWORD*)p->va; } __except (EXCEPTION_EXECUTE_HANDLER) { cur = 0; }
     if (cur != target) {
-        WAlogf(L"patch %s @0x%08x: write didn't stick (0x%08x)", p->label, p->va, cur);
+        WAlogf("patch %S @0x%08x: write didn't stick (0x%08x)", p->label, p->va, cur);
         return -1;
     }
-    WAlogf(L"patch %s @0x%08x -> 0x%08x", p->label, p->va, target);
+    WAlogf("patch %S @0x%08x -> 0x%08x", p->label, p->va, target);
     return 0;
 }
 
@@ -131,16 +121,16 @@ static int wa_keepalive_set(int on) {
     DWORD proc;
     int i, ok = 0;
     if (!kerncore_is_ready() || !kerncore_ensure_helpers()) {
-        WAlogf(L"keepalive %s: kerncore not ready - defer", on ? L"apply" : L"restore");
+        WAlogf("keepalive %S: kerncore not ready - defer", on ? L"apply" : L"restore");
         return -1;
     }
     proc = wa_proc();
-    if (proc == 0) { WAlogf(L"keepalive: no servicesd proc-struct"); return -1; }
+    if (proc == 0) { WAlogf("keepalive: no servicesd proc-struct"); return -1; }
     for (i = 0; i < WIFI_PATCH_N; i++) {
         DWORD target = on ? WIFI_PATCHES[i].fix : WIFI_PATCHES[i].stock;
         if (wa_patch_site(&WIFI_PATCHES[i], target, proc) != 0) ok = -1;
     }
-    WAlogf(L"keepalive %s: %s", on ? L"apply" : L"restore", ok == 0 ? L"OK" : L"incomplete");
+    WAlogf("keepalive %S: %S", on ? L"apply" : L"restore", ok == 0 ? L"OK" : L"incomplete");
     return ok;
 }
 
@@ -179,14 +169,14 @@ static void wa_cancel_armed_timer(void) {
     __try { prologue = *(volatile DWORD*)ZNET_TIMER_CANCEL_VA; }
     __except (EXCEPTION_EXECUTE_HANDLER) { return; }
     if (prologue != ZNET_TIMER_CANCEL_FIRST) {
-        WAlogf(L"cancel-timer: wrapper prologue 0x%08x unexpected - skip", prologue);
+        WAlogf("cancel-timer: wrapper prologue 0x%08x unexpected - skip", prologue);
         return;
     }
     __try {
         ((ZnetTimerCancelFn)ZNET_TIMER_CANCEL_VA)(ZNET_CONN_CTX_VA);
-        WAlogf(L"cancel-timer: cancelled armed retry timer (id=0x%08x)", id);
+        WAlogf("cancel-timer: cancelled armed retry timer (id=0x%08x)", id);
     } __except (EXCEPTION_EXECUTE_HANDLER) {
-        WAlogf(L"cancel-timer: wrapper call faulted");
+        WAlogf("cancel-timer: wrapper call faulted");
     }
 }
 
@@ -199,7 +189,7 @@ DWORD WINAPI WifiAwakeAuthorityThread(LPVOID param) {
     (void)param;
 
     evt = CreateEventW(NULL, FALSE, FALSE, WIFI_AWAKE_EVENT);
-    WAlogf(L"== authority start (evt=%p) ==", evt);
+    WAlogf("== authority start (evt=%p) ==", evt);
 
     for (;;) {
         int wanted;
@@ -215,7 +205,7 @@ DWORD WINAPI WifiAwakeAuthorityThread(LPVOID param) {
             ModStateSetState(WIFI_AWAKE_STATUS_KEY, wanted, 0);
             ModStateEventPublish();   /* wake gemstone + servicesd icons to re-tint */
             last_published = wanted;
-            WAlogf(L"keepalive status published=%d", wanted);
+            WAlogf("keepalive status published=%d", wanted);
         }
 
         /* Apply (or restore) the patch set on a demand transition. The patches
@@ -224,7 +214,7 @@ DWORD WINAPI WifiAwakeAuthorityThread(LPVOID param) {
            so the next wake retries. */
         if (wanted != last_applied && wa_keepalive_set(wanted) == 0) {
             last_applied = wanted;
-            WAlogf(L"demand=%d reconciled", wanted);
+            WAlogf("demand=%d reconciled", wanted);
         }
 
         /* Pull, every tick while keepalive is applied: cancel any battery retry
@@ -256,7 +246,7 @@ void WifiAwake_EnsureActive(void) {
     if (InterlockedExchange(&g_authority_started, 1) == 0) {
         HANDLE h = CreateThread(NULL, 0, WifiAwakeAuthorityThread, NULL, 0, NULL);
         if (h) CloseHandle(h);
-        WAlogf(L"== EnsureActive: authority spawned ==");
+        WAlogf("== EnsureActive: authority spawned ==");
     }
 }
 

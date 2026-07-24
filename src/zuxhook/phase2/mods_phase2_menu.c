@@ -71,20 +71,20 @@ int apply_inject_menu_entry(ModAction* a, ModsArena* arena) {
     int name_chars, i;
 
     if (g_pending_menu_count >= MAX_PENDING_MENU) {
-        ModsLogf(L"    inject_menu_entry: pending list full (%d)",
+        ModsLogf("    inject_menu_entry: pending list full (%d)",
                  MAX_PENDING_MENU);
         return -1;
     }
 
     if (ModActionGetInt(a, "label_id_or_ref", -1, &label_id) < 0 || label_id < 0) {
         if (ModActionGetInt(a, "label_id", -1, &label_id) < 0 || label_id < 0) {
-            ModsLogf(L"    inject_menu_entry: missing label_id");
+            ModsLogf("    inject_menu_entry: missing label_id");
             return -1;
         }
     }
     if (ModActionGetString(a, "scene_name", arena, &scene_name, NULL, 0) != 0
         || scene_name == NULL) {
-        ModsLogf(L"    inject_menu_entry: missing scene_name");
+        ModsLogf("    inject_menu_entry: missing scene_name");
         return -1;
     }
     (void)ModActionGetInt(a, "section_id", -2, &section_id);
@@ -96,7 +96,7 @@ int apply_inject_menu_entry(ModAction* a, ModsArena* arena) {
        the manifest can just say "Mods" and stay short. */
     name_chars = (int)strlen(scene_name);
     if (name_chars + 4 + 1 > (int)(sizeof(name_w)/sizeof(name_w[0]))) {
-        ModsLogf(L"    inject_menu_entry: scene_name %S too long", scene_name);
+        ModsLogf("    inject_menu_entry: scene_name %s too long", scene_name);
         return -1;
     }
     for (i = 0; i < name_chars; i++)
@@ -108,11 +108,11 @@ int apply_inject_menu_entry(ModAction* a, ModsArena* arena) {
     name_w[name_chars + 4] = 0;
     name_va = scratch_alloc((name_chars + 4 + 1) * 2);
     if (!name_va) {
-        ModsLogf(L"    inject_menu_entry: scratch exhausted for name");
+        ModsLogf("    inject_menu_entry: scratch exhausted for name");
         return -1;
     }
     if (scratch_write(name_va, name_w, (name_chars + 4 + 1) * 2) < 0) {
-        ModsLogf(L"    inject_menu_entry: name write @0x%08x faulted", name_va);
+        ModsLogf("    inject_menu_entry: name write @0x%08x faulted", name_va);
         return -1;
     }
 
@@ -123,8 +123,8 @@ int apply_inject_menu_entry(ModAction* a, ModsArena* arena) {
     g_pending_menu[g_pending_menu_count].flags         = flags;
     g_pending_menu_count++;
 
-    ModsLogf(L"    inject_menu_entry: label=%d scene=%S.xur section=%d "
-             L"(name_va=0x%08x)",
+    ModsLogf("    inject_menu_entry: label=%d scene=%s.xur section=%d "
+             "(name_va=0x%08x)",
              label_id, scene_name, section_id, name_va);
     return 0;
 }
@@ -154,7 +154,7 @@ static int ensure_nav_helper(void) {
     /* Plant base URI L"gem://" (7 wchars incl. NUL, pad to 8 for align). */
     g_base_uri_va = scratch_alloc(8 * 2);
     if (!g_base_uri_va || scratch_write(g_base_uri_va, base_uri, 8 * 2) < 0) {
-        ModsLogf(L"    nav_helper: base URI plant failed");
+        ModsLogf("    nav_helper: base URI plant failed");
         return -1;
     }
 
@@ -259,7 +259,7 @@ static int ensure_nav_helper(void) {
             int tgt = fixups[i].pool_idx * 4;
             int imm = tgt - pc;
             if (imm < 0 || imm > 0xFFF) {
-                ModsLogf(L"    nav_helper: ldr offset out of range");
+                ModsLogf("    nav_helper: ldr offset out of range");
                 return -1;
             }
             code[fixups[i].code_idx] |= (DWORD)imm;
@@ -268,16 +268,16 @@ static int ensure_nav_helper(void) {
 
     helper_va = scratch_alloc(k * 4);
     if (!helper_va) {
-        ModsLogf(L"    nav_helper: scratch exhausted");
+        ModsLogf("    nav_helper: scratch exhausted");
         return -1;
     }
     if (scratch_write(helper_va, code, k * 4) < 0) {
-        ModsLogf(L"    nav_helper: write faulted @0x%08x", helper_va);
+        ModsLogf("    nav_helper: write faulted @0x%08x", helper_va);
         return -1;
     }
     FlushInstructionCache(GetCurrentProcess(), (void*)helper_va, (DWORD)(k * 4));
     g_nav_helper_va = helper_va;
-    ModsLogf(L"    nav_helper planted @0x%08x (%d words, base_uri @0x%08x)",
+    ModsLogf("    nav_helper planted @0x%08x (%d words, base_uri @0x%08x)",
              helper_va, k, g_base_uri_va);
     return 0;
 }
@@ -311,7 +311,7 @@ int flush_menu_entries(void) {
 
     if (g_pending_menu_count == 0) return 0;
     n = g_pending_menu_count;
-    ModsLogf(L"  flushing menu chain: %d entries → trampoline @0x%08x",
+    ModsLogf("  flushing menu chain: %d entries -> trampoline @0x%08x",
              n, TRAMP_BASE);
 
     /* Plant the shared name-nav helper once. Each per-entry handler
@@ -331,7 +331,7 @@ int flush_menu_entries(void) {
 
         handler_va = scratch_alloc(12);
         if (!handler_va) {
-            ModsLogf(L"    menu chain: scratch exhausted for handler %d", i);
+            ModsLogf("    menu chain: scratch exhausted for handler %d", i);
             return -1;
         }
         /* ldr r0, [pc, #0]; b nav_helper; .word scene_name_va */
@@ -357,8 +357,8 @@ int flush_menu_entries(void) {
         if (scratch_write(desc_va, desc_words, 28) < 0) return -1;
 
         descriptor_vas[i] = desc_va;
-        ModsLogf(L"    entry[%d]: handler=0x%08x desc=0x%08x label=%d "
-                 L"scene_name_va=0x%08x",
+        ModsLogf("    entry[%d]: handler=0x%08x desc=0x%08x label=%d "
+                 "scene_name_va=0x%08x",
                  i, handler_va, desc_va, g_pending_menu[i].label_id,
                  scene_name_va);
     }
@@ -367,7 +367,7 @@ int flush_menu_entries(void) {
     n_code_words = 1 + n * 4 + 1 + 1 + 1;  /* push, n*{mov,ldr,ldr,blx}, pop, add, b */
     total_words  = n_code_words + 1 + n;   /* + AddItem pool + n desc pool */
     if (total_words > (int)(sizeof(tramp)/sizeof(tramp[0]))) {
-        ModsLogf(L"    menu chain: trampoline too large (%d words)", total_words);
+        ModsLogf("    menu chain: trampoline too large (%d words)", total_words);
         return -1;
     }
 
@@ -401,7 +401,7 @@ int flush_menu_entries(void) {
         int off_r1 = desc_word_idx * 4 - pc_r1;
         int off_r2 = addit_word_idx * 4 - pc_r2;
         if (off_r1 < 0 || off_r2 < 0 || off_r1 > 0xFFF || off_r2 > 0xFFF) {
-            ModsLogf(L"    menu chain: ldr offset out of range (r1=%d r2=%d)",
+            ModsLogf("    menu chain: ldr offset out of range (r1=%d r2=%d)",
                      off_r1, off_r2);
             return -1;
         }
@@ -417,14 +417,14 @@ int flush_menu_entries(void) {
 
     /* Plant the trampoline. */
     if (scratch_write(TRAMP_BASE, tramp, total_words * 4) < 0) {
-        ModsLogf(L"    menu chain: trampoline write FAULTED");
+        ModsLogf("    menu chain: trampoline write FAULTED");
         return -1;
     }
     /* Force I-cache invalidate for the trampoline range so the CPU
        fetches our freshly-planted instructions. */
     FlushInstructionCache(GetCurrentProcess(), (void*)TRAMP_BASE,
                           (DWORD)(total_words * 4));
-    ModsLogf(L"    trampoline planted (%d code words + %d pool words)",
+    ModsLogf("    trampoline planted (%d code words + %d pool words)",
              n_code_words, 1 + n);
 
     /* PT-flip patch the populate-insert site. */
@@ -435,6 +435,6 @@ int flush_menu_entries(void) {
                             L"populate-insert") < 0)
         return -1;
 
-    ModsLogf(L"    flush_menu_entries: COMPLETE");
+    ModsLogf("    flush_menu_entries: COMPLETE");
     return 0;
 }

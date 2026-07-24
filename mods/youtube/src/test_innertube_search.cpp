@@ -8,14 +8,11 @@
 #include <windows.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdarg.h>
 #include "ce_innertube.h"
+#include "ce_log.h"
 
-#define LOG_PATH L"\\flash2\\automation\\itsearch.log"
-static void L(const char*s){
-    HANDLE f=CreateFileW(LOG_PATH,GENERIC_WRITE,FILE_SHARE_READ|FILE_SHARE_WRITE,NULL,OPEN_ALWAYS,FILE_ATTRIBUTE_NORMAL,NULL);
-    if(f==INVALID_HANDLE_VALUE)return; SetFilePointer(f,0,NULL,FILE_END);
-    DWORD n; WriteFile(f,s,(DWORD)strlen(s),&n,NULL); WriteFile(f,"\r\n",2,&n,NULL); CloseHandle(f);
-}
+CE_LOGGER(L, L"\\flash2\\automation\\reposd.log")
 
 extern "C" __declspec(dllexport) int RunDaemon(const void *arg, int arg_len, HANDLE stop_event){
     struct ce_innertube_track tracks[12];

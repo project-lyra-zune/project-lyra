@@ -88,7 +88,7 @@ const char *ce_innertube_result_str(enum ce_innertube_result r){
 /* Session visitorData, cached for the process. Without it ANDROID_VR /player
  * bot-gates many videoIds with playabilityStatus=LOGIN_REQUIRED (no streamingData);
  * sending it in the client context clears the gate. A gated response still carries
- * responseContext.visitorData, so the first resolve self-bootstraps: try → harvest →
+ * responseContext.visitorData, so the first resolve self-bootstraps: try to harvest
  * retry once with it; later resolves send the cached value on the first call. */
 static char g_visitor[640] = {0};   /* visitorData is ~520 bytes (URL-encoded) */
 
@@ -170,7 +170,7 @@ static int subtitle_artist_run(int category){
 }
 
 /* Each row carries musicThumbnailRenderer.thumbnail.thumbnails[], ordered
- * small→large. Copy the last (largest) url before the array closes so the 128px
+ * small to large. Copy the last (largest) url before the array closes so the 128px
  * row art is sourced from the highest-res available. */
 #define THUMBS_ANCHOR  "\"thumbnails\":[{\"url\":\""
 static void extract_largest_thumb(const char *row, const char *row_end,

@@ -1,9 +1,11 @@
 #include <windows.h>
 #include <string.h>
+#include <stdarg.h>
 #include "screencast_engine.h"
 
 extern "C" {
 #include "kerncore.h"
+#include "ce_log.h"
 }
 
 typedef unsigned char  u8;
@@ -109,15 +111,7 @@ static DWORD  g_last_move_tick = 0;          /* GetTickCount of the last down/mo
 
 int sc_held(void) { return g_held; }
 
-void sc_log(const char* msg) {
-    HANDLE f = CreateFileW(L"\\flash2\\automation\\screencast.log", GENERIC_WRITE,
-                           FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_ALWAYS,
-                           FILE_ATTRIBUTE_NORMAL, NULL);
-    if (f == INVALID_HANDLE_VALUE) return;
-    SetFilePointer(f, 0, NULL, FILE_END);
-    DWORD w; WriteFile(f, msg, (DWORD)strlen(msg), &w, NULL);
-    CloseHandle(f);
-}
+CE_LOGGER_PUBLIC(sc_log, L"\\flash2\\automation\\screencast.log")
 
 /* Read a kernel-resident wide string, lowercased into an ASCII buffer. */
 static void kread_name(DWORD wstr_va, char* out, int cap) {
@@ -223,7 +217,7 @@ void sc_engine_init(void) {
 
 void sc_inject(u8 action, u32 dx, u32 dy) {
     if (!targets_alive()) resolve_targets();   /* cheap PID check; full walk only on restart */
-    if (!g_gem_proc || !g_svc_h || !g_ring_base) { sc_log("inject: targets not found\n"); return; }
+    if (!g_gem_proc || !g_svc_h || !g_ring_base) { sc_log("inject: targets not found"); return; }
     kerncore_ensure_helpers();
     int x = (int)dx, y = (int)dy;
     switch (action) {

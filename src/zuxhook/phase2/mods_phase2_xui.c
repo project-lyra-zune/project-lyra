@@ -96,21 +96,21 @@ static int read_blob_file(const wchar_t* path, ModsArena* arena,
     h = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, NULL,
                     OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (h == INVALID_HANDLE_VALUE) {
-        ModsLogf(L"      blob read: cannot open %s (err=0x%lx)",
+        ModsLogf("      blob read: cannot open %S (err=0x%lx)",
                  path, GetLastError());
         return -1;
     }
     size = GetFileSize(h, NULL);
     if (size == INVALID_FILE_SIZE || size == 0) {
         CloseHandle(h);
-        ModsLogf(L"      blob read: bad size %lu for %s", size, path);
+        ModsLogf("      blob read: bad size %lu for %S", size, path);
         return -1;
     }
     buf = (unsigned char*)ModsArenaAlloc(arena, size);
     if (!buf) { CloseHandle(h); return -1; }
     if (!ReadFile(h, buf, size, &got, NULL) || got != size) {
         CloseHandle(h);
-        ModsLogf(L"      blob read: short %lu/%lu for %s", got, size, path);
+        ModsLogf("      blob read: short %lu/%lu for %S", got, size, path);
         return -1;
     }
     CloseHandle(h);
@@ -124,7 +124,7 @@ static int json_str_is(const ModsJson* j, int tok_idx, const char* s) {
     return ModsJsonStrEq(j, tok_idx, s);
 }
 
-/* ASCII → arena-allocated UTF-16LE NUL-terminated wstring. Returns NULL
+/* ASCII to arena-allocated UTF-16LE NUL-terminated wstring. Returns NULL
    on OOM or if any byte is non-ASCII. Used for module + symbol names
    in extern_module fixups (both are ASCII identifiers / DLL names). */
 static const wchar_t* arena_ascii_to_w(ModsArena* arena,
@@ -218,30 +218,30 @@ static int parse_class_reloc(ModsArena* arena, const char* src, DWORD srclen,
     ClassFixup* fxs;
 
     if (ModsJsonParse(arena, src, srclen, &j) < 0) {
-        ModsLogf(L"      reloc parse: JSON parse failed");
+        ModsLogf("      reloc parse: JSON parse failed");
         return -1;
     }
     if (j.ntoks == 0 || j.toks[0].type != MODS_JSON_OBJECT) {
-        ModsLogf(L"      reloc parse: root not object");
+        ModsLogf("      reloc parse: root not object");
         return -1;
     }
     root = 0;
 
     fo_idx = ModsJsonObjectFind(&j, root, "factory_offset");
     if (fo_idx < 0 || ModsJsonInt(&j, fo_idx, &fv) < 0) {
-        ModsLogf(L"      reloc parse: missing/bad factory_offset");
+        ModsLogf("      reloc parse: missing/bad factory_offset");
         return -1;
     }
     *out_factory_offset = fv;
 
     fx_arr_idx = ModsJsonObjectFind(&j, root, "fixups");
     if (fx_arr_idx < 0 || j.toks[fx_arr_idx].type != MODS_JSON_ARRAY) {
-        ModsLogf(L"      reloc parse: missing/bad fixups array");
+        ModsLogf("      reloc parse: missing/bad fixups array");
         return -1;
     }
     n = j.toks[fx_arr_idx].size;
     if (n < 0 || n > 4096) {
-        ModsLogf(L"      reloc parse: unreasonable fixup count %d", n);
+        ModsLogf("      reloc parse: unreasonable fixup count %d", n);
         return -1;
     }
     fxs = (ClassFixup*)ModsArenaAlloc(arena, (n > 0 ? n : 1) * sizeof(ClassFixup));
@@ -249,11 +249,11 @@ static int parse_class_reloc(ModsArena* arena, const char* src, DWORD srclen,
     for (i = 0; i < n; i++) {
         int it = ModsJsonArrayAt(&j, fx_arr_idx, i);
         if (it < 0 || j.toks[it].type != MODS_JSON_OBJECT) {
-            ModsLogf(L"      reloc parse: fixup[%d] not object", i);
+            ModsLogf("      reloc parse: fixup[%d] not object", i);
             return -1;
         }
         if (parse_one_fixup(&j, it, arena, &fxs[i]) < 0) {
-            ModsLogf(L"      reloc parse: fixup[%d] malformed", i);
+            ModsLogf("      reloc parse: fixup[%d] malformed", i);
             return -1;
         }
     }
@@ -284,13 +284,13 @@ static int apply_one_fixup(DWORD plant_va, const ClassFixup* fx) {
             HMODULE mod = GetModuleHandleW(fx->module_w);
             FARPROC proc;
             if (mod == NULL) {
-                ModsLogf(L"      extern_module: GetModuleHandle(%s) → NULL",
+                ModsLogf("      extern_module: GetModuleHandle(%S) -> NULL",
                          fx->module_w);
                 return -1;
             }
             proc = GetProcAddress(mod, fx->symbol_w);
             if (proc == NULL) {
-                ModsLogf(L"      extern_module: GetProcAddress(%s, %s) → NULL",
+                ModsLogf("      extern_module: GetProcAddress(%S, %S) -> NULL",
                          fx->module_w, fx->symbol_w);
                 return -1;
             }
@@ -324,14 +324,14 @@ static int apply_class_fixups(DWORD plant_va,
     __try {
         for (i = 0; i < n; i++) {
             if (apply_one_fixup(plant_va, &fxs[i]) < 0) {
-                ModsLogf(L"      fixup[%d] @0x%x kind=%d failed",
+                ModsLogf("      fixup[%d] @0x%x kind=%d failed",
                          i, fxs[i].at, fxs[i].kind);
                 ok = -1;
                 break;
             }
         }
     } __except (EXCEPTION_EXECUTE_HANDLER) {
-        ModsLogf(L"      fixup pass: access violation");
+        ModsLogf("      fixup pass: access violation");
         return -1;
     }
     return ok;
@@ -356,12 +356,12 @@ static int plant_class_blob(ModAction* a, ModsArena* arena,
 
     if (ModActionGetString(a, "class_ref", arena, NULL,
                             class_path, MODS_MAX_PATH) != 1) {
-        ModsLogf(L"      class blob: class_ref required");
+        ModsLogf("      class blob: class_ref required");
         return -1;
     }
     if (ModActionGetString(a, "reloc_ref", arena, NULL,
                             reloc_path, MODS_MAX_PATH) != 1) {
-        ModsLogf(L"      class blob: reloc_ref required");
+        ModsLogf("      class blob: reloc_ref required");
         return -1;
     }
 
@@ -375,14 +375,14 @@ static int plant_class_blob(ModAction* a, ModsArena* arena,
         return -1;
 
     if (factory_offset < 0 || (DWORD)factory_offset >= class_len) {
-        ModsLogf(L"      class blob: factory_offset %d out of range (len=%lu)",
+        ModsLogf("      class blob: factory_offset %d out of range (len=%lu)",
                  factory_offset, class_len);
         return -1;
     }
 
     plant_va = scratch_alloc((int)class_len);
     if (!plant_va) {
-        ModsLogf(L"      class blob: scratch exhausted (%lu bytes requested)",
+        ModsLogf("      class blob: scratch exhausted (%lu bytes requested)",
                  class_len);
         return -1;
     }
@@ -393,12 +393,12 @@ static int plant_class_blob(ModAction* a, ModsArena* arena,
         copy_ok = -1;
     }
     if (copy_ok < 0) {
-        ModsLogf(L"      class blob: memcpy to 0x%08x faulted", plant_va);
+        ModsLogf("      class blob: memcpy to 0x%08x faulted", plant_va);
         return -1;
     }
 
     if (apply_class_fixups(plant_va, fxs, nfx) < 0) {
-        ModsLogf(L"      class blob: fixup pass failed");
+        ModsLogf("      class blob: fixup pass failed");
         return -1;
     }
 
@@ -407,8 +407,8 @@ static int plant_class_blob(ModAction* a, ModsArena* arena,
     FlushInstructionCache(GetCurrentProcess(), (void*)plant_va, class_len);
 
     *out_factory_va = plant_va + (DWORD)factory_offset;
-    ModsLogf(L"      class blob: planted %lu bytes @0x%08x; "
-             L"factory @0x%08x (%d fixups applied)",
+    ModsLogf("      class blob: planted %lu bytes @0x%08x; "
+             "factory @0x%08x (%d fixups applied)",
              class_len, plant_va, *out_factory_va, nfx);
     return 0;
 }
@@ -421,14 +421,14 @@ static int resolve_xuidll_visual_imports(void) {
         return 0;
     xuidll = GetModuleHandleW(L"xuidll.dll");
     if (xuidll == NULL) {
-        ModsLogf(L"    register_visuals: xuidll.dll not loaded");
+        ModsLogf("    register_visuals: xuidll.dll not loaded");
         return -1;
     }
     g_XuiLoadVisualFromBinary = (XuiLoadVisualFromBinaryFn)GetProcAddress(
         xuidll, L"XuiLoadVisualFromBinary");
     g_XuiVisualFind = (XuiVisualFindFn)GetProcAddress(
         xuidll, L"XuiVisualFind");
-    ModsLogf(L"    register_visuals: xuidll exports load=0x%08x find=0x%08x",
+    ModsLogf("    register_visuals: xuidll exports load=0x%08x find=0x%08x",
              (DWORD)g_XuiLoadVisualFromBinary,
              (DWORD)g_XuiVisualFind);
     if (g_XuiLoadVisualFromBinary == NULL) return -1;
@@ -445,7 +445,7 @@ int apply_register_visuals(ModAction* a, ModsArena* arena) {
 
     if (ModActionGetString(a, "content_blob_ref", arena, NULL,
                             blob_path, MODS_MAX_PATH) != 1) {
-        ModsLogf(L"    register_visuals: content_blob_ref required");
+        ModsLogf("    register_visuals: content_blob_ref required");
         return -1;
     }
 
@@ -454,7 +454,7 @@ int apply_register_visuals(ModAction* a, ModsArena* arena) {
     _snwprintf(uri, sizeof(uri)/sizeof(uri[0]) - 1, L"file://%s", blob_path);
     uri[sizeof(uri)/sizeof(uri[0]) - 1] = 0;
 
-    ModsLogf(L"    register_visuals: %s", uri);
+    ModsLogf("    register_visuals: %S", uri);
 
     /* szPrefix MUST be non-NULL: see typedef comment. L"" is the minimal
        non-NULL value; visuals still register into the per-set registry. */
@@ -462,15 +462,15 @@ int apply_register_visuals(ModAction* a, ModsArena* arena) {
     __try {
         hr = g_XuiLoadVisualFromBinary(uri, L"");
     } __except (EXCEPTION_EXECUTE_HANDLER) {
-        ModsLogf(L"    register_visuals: XuiLoadVisualFromBinary call faulted");
+        ModsLogf("    register_visuals: XuiLoadVisualFromBinary call faulted");
         return -1;
     }
 
     if (FAILED(hr)) {
-        ModsLogf(L"    register_visuals: HRESULT 0x%08x", hr);
+        ModsLogf("    register_visuals: HRESULT 0x%08x", hr);
         return -1;
     }
-    ModsLogf(L"    register_visuals: loaded OK (hr=0x%08x)", hr);
+    ModsLogf("    register_visuals: loaded OK (hr=0x%08x)", hr);
 
     /* Optional registry-verify: if the manifest declared a visual id we
        expect to see, look it up to prove the registry actually got the
@@ -486,7 +486,7 @@ int apply_register_visuals(ModAction* a, ModsArena* arena) {
         void* obj_owner = NULL;
         HRESULT fhr = 0x80000000;
         if (n + 1 > (int)(sizeof(verify_w)/sizeof(verify_w[0]))) {
-            ModsLogf(L"      verify: id too long");
+            ModsLogf("      verify: id too long");
             return 0;
         }
         for (i = 0; i < n; i++) verify_w[i] = (wchar_t)(unsigned char)verify_id[i];
@@ -497,10 +497,10 @@ int apply_register_visuals(ModAction* a, ModsArena* arena) {
         __try {
             fhr = g_XuiVisualFind(verify_w, L"", &obj_data, &obj_owner);
         } __except (EXCEPTION_EXECUTE_HANDLER) {
-            ModsLogf(L"      verify: XuiVisualFind faulted");
+            ModsLogf("      verify: XuiVisualFind faulted");
             return 0;
         }
-        ModsLogf(L"      verify: XuiVisualFind(%S) hr=0x%08x data=0x%08x owner=0x%08x",
+        ModsLogf("      verify: XuiVisualFind(%s) hr=0x%08x data=0x%08x owner=0x%08x",
                  verify_id, fhr, (DWORD)obj_data, (DWORD)obj_owner);
     }
 
@@ -540,8 +540,8 @@ int apply_register_xui_class(ModAction* a, ModsArena* arena) {
         } else if (is_sd && strcmp(parent, "HudActiveBaseScene") == 0) {
             parent_ptr = ZHUD_HUDACTIVEBASESCENE_PTR;   /* interactive HUD scene base (list scenes) */
         } else if (is_sd) {
-            ModsLogf(L"    register_xui_class: servicesd supports parent "
-                     L"XuiControl/HudActiveBaseScene only (got %S)", parent);
+            ModsLogf("    register_xui_class: servicesd supports parent "
+                     "XuiControl/HudActiveBaseScene only (got %s)", parent);
             return -1;
         }
         else if (strcmp(parent, "GemBaseScene")        == 0) parent_ptr = GEMBASESCENE_PTR;
@@ -549,14 +549,14 @@ int apply_register_xui_class(ModAction* a, ModsArena* arena) {
         else if (strcmp(parent, "GemNowPlayingScene")  == 0) parent_ptr = GEMNOWPLAYINGSCENE_PTR;
         else if (strcmp(parent, "GemLibraryListScene") == 0) parent_ptr = GEMLIBRARYLISTSCENE_PTR;
         else {
-            ModsLogf(L"    register_xui_class: parent_name=%S not supported "
-                     L"(GemBaseScene/GemLibraryBaseScene/GemNowPlayingScene/"
-                     L"GemLibraryListScene/XuiControl)", parent);
+            ModsLogf("    register_xui_class: parent_name=%s not supported "
+                     "(GemBaseScene/GemLibraryBaseScene/GemNowPlayingScene/"
+                     "GemLibraryListScene/XuiControl)", parent);
             return -1;
         }
     }
 
-    /* ASCII → UTF-16LE in name_w, including trailing NUL */
+    /* ASCII to UTF-16LE in name_w, including trailing NUL */
     name_chars = (int)strlen(name);
     if (name_chars + 1 > (int)(sizeof(name_w)/sizeof(name_w[0]))) return -1;
     for (i = 0; i < name_chars; i++) name_w[i] = (wchar_t)(unsigned char)name[i];
@@ -567,11 +567,11 @@ int apply_register_xui_class(ModAction* a, ModsArena* arena) {
        there, calling XuiRegisterClass would return 0x80300005 - skip. */
     already = walk_registry(name_w, NULL);
     if (already == 1) {
-        ModsLogf(L"    register_xui_class: %S already registered - skipping", name);
+        ModsLogf("    register_xui_class: %s already registered - skipping", name);
         return 0;
     }
     if (already < 0) {
-        ModsLogf(L"    register_xui_class: registry walk faulted");
+        ModsLogf("    register_xui_class: registry walk faulted");
         return -1;
     }
 
@@ -580,21 +580,21 @@ int apply_register_xui_class(ModAction* a, ModsArena* arena) {
        scratch and applies fixups; the planted factory VA fills the
        descriptor's +0x18 slot below. */
     if (plant_class_blob(a, arena, &factory_va) < 0) {
-        ModsLogf(L"    register_xui_class: %S - class blob load failed", name);
+        ModsLogf("    register_xui_class: %s - class blob load failed", name);
         return -1;
     }
-    ModsLogf(L"    register_xui_class: %S - factory @0x%08x",
+    ModsLogf("    register_xui_class: %s - factory @0x%08x",
              name, factory_va);
 
     /* Allocate scratch for the name wstring and the 44-byte descriptor. */
     name_va = scratch_alloc((name_chars + 1) * 2);
     desc_va = scratch_alloc(sizeof(desc));
     if (!name_va || !desc_va) {
-        ModsLogf(L"    register_xui_class: scratch exhausted");
+        ModsLogf("    register_xui_class: scratch exhausted");
         return -1;
     }
     if (scratch_write(name_va, name_w, (name_chars + 1) * 2) < 0) {
-        ModsLogf(L"    register_xui_class: write name @0x%08x faulted", name_va);
+        ModsLogf("    register_xui_class: write name @0x%08x faulted", name_va);
         return -1;
     }
 
@@ -610,7 +610,7 @@ int apply_register_xui_class(ModAction* a, ModsArena* arena) {
     desc[9]  = 0;
     desc[10] = 0;
     if (scratch_write(desc_va, desc, sizeof(desc)) < 0) {
-        ModsLogf(L"    register_xui_class: write descriptor @0x%08x faulted", desc_va);
+        ModsLogf("    register_xui_class: write descriptor @0x%08x faulted", desc_va);
         return -1;
     }
 
@@ -620,20 +620,20 @@ int apply_register_xui_class(ModAction* a, ModsArena* arena) {
     hxui = GetModuleHandleW(L"xuidll.dll");
     fn = hxui ? (XuiRegisterClassFn)GetProcAddress(hxui, L"XuiRegisterClass") : NULL;
     if (fn == NULL) {
-        ModsLogf(L"    register_xui_class: XuiRegisterClass unresolved (xuidll=%p)", hxui);
+        ModsLogf("    register_xui_class: XuiRegisterClass unresolved (xuidll=%p)", hxui);
         return -1;
     }
     hr = -1;
     __try {
         hr = fn((void*)(desc_va + 4), (void*)desc_va);
     } __except (EXCEPTION_EXECUTE_HANDLER) {
-        ModsLogf(L"    register_xui_class: XuiRegisterClass call faulted");
+        ModsLogf("    register_xui_class: XuiRegisterClass call faulted");
         return -1;
     }
     if (hr != 0) {
-        ModsLogf(L"    register_xui_class: HRESULT 0x%08x", hr);
+        ModsLogf("    register_xui_class: HRESULT 0x%08x", hr);
         return -1;
     }
-    ModsLogf(L"    register_xui_class: %S registered (desc_va=0x%08x)", name, desc_va);
+    ModsLogf("    register_xui_class: %s registered (desc_va=0x%08x)", name, desc_va);
     return 0;
 }

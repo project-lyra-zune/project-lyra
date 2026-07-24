@@ -63,7 +63,7 @@ void sc_feed_hold(void);
 int  sc_held(void);
 
 /* Append a line to the screencast log (\flash2\automation\screencast.log). */
-void sc_log(const char* msg);
+void sc_log(const char* fmt, ...);
 
 #ifdef __cplusplus
 }

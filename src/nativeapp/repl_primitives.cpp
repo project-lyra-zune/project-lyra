@@ -453,7 +453,7 @@ static int handle_dump_va_to_file(const unsigned char* arg, int arg_len,
             DWORD this_chunk = (len - off) > sizeof(chunk) ? sizeof(chunk) : (len - off);
             // PL1 kernel-memcpy (KMEMCPY_FN) reading kernel `va+off` into the
             // local chunk. Direct kcall, not kerncore_kmemcpy, which is the
-            // opposite direction (user buf → kernel va).
+            // opposite direction (user buf to kernel va).
             kerncore_kcall(KMEMCPY_FN, (DWORD)chunk, va + off, this_chunk, 0, 0, 0);
 
             DWORD written = 0;

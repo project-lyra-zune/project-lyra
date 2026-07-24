@@ -552,7 +552,7 @@ static int synth_arg_bytes(ModsArena* arena, ModAction* a,
 static char* json_strdup_req(ModsArena* arena, const ModsJson* j, int tok,
                              const char* context, const char* mod_id) {
     if (tok < 0 || j->toks[tok].type != MODS_JSON_STRING) {
-        ModsLogf(L"  %S: %S must be a string", mod_id, context);
+        ModsLogf("  %s: %s must be a string", mod_id, context);
         return NULL;
     }
     return ModsJsonStrdup(arena, j, tok);
@@ -586,7 +586,7 @@ static int copy_optional_bool_arg(ModsArena* arena, ModAction* a,
 static int reject_target_proc(const ModsJson* j, int obj,
                               const char* ctx, const char* mod_id) {
     if (ModsJsonObjectFind(j, obj, "target_proc") >= 0) {
-        ModsLogf(L"  %S: %S must not set target_proc (runtime owns routing)",
+        ModsLogf("  %s: %s must not set target_proc (runtime owns routing)",
                  mod_id, ctx);
         return -1;
     }
@@ -651,14 +651,14 @@ static int lower_settings(ModsArena* arena, Mod* m, int root, int* pos) {
         tt = ModsJsonObjectFind(&m->json, obj, "type");
         type_s = json_strdup_req(arena, &m->json, tt, "settings[].type", m->mod_id);
         if (!type_s || strcmp(type_s, "bool") != 0) {
-            ModsLogf(L"  %S: settings[%d] unsupported type %S", m->mod_id, i, type_s ? type_s : "?");
+            ModsLogf("  %s: settings[%d] unsupported type %s", m->mod_id, i, type_s ? type_s : "?");
             return -1;
         }
         idt = ModsJsonObjectFind(&m->json, obj, "id");
         id_s = json_strdup_req(arena, &m->json, idt, "settings[].id", m->mod_id);
         if (!id_s) return -1;
         if (dup_in_prior(&m->json, arr, i, "id", id_s)) {
-            ModsLogf(L"  %S: settings[%d] duplicate id %S", m->mod_id, i, id_s);
+            ModsLogf("  %s: settings[%d] duplicate id %s", m->mod_id, i, id_s);
             return -1;
         }
         a = synth_action(arena, m, pos, "lyra.register_setting", 15);
@@ -727,7 +727,7 @@ static int lower_settings(ModsArena* arena, Mod* m, int root, int* pos) {
                     }
                 }
                 if (found < 0) {
-                    ModsLogf(L"  %S: settings[%d] status %S has no matching status[]",
+                    ModsLogf("  %s: settings[%d] status %s has no matching status[]",
                              m->mod_id, i, status_id);
                     return -1;
                 }
@@ -767,13 +767,13 @@ static int lower_settings(ModsArena* arena, Mod* m, int root, int* pos) {
                 char* kind = (kt >= 0 && m->json.toks[kt].type == MODS_JSON_STRING)
                              ? ModsJsonStrdup(arena, &m->json, kt) : NULL;
                 if (!kind) {
-                    ModsLogf(L"  %S: settings[%d] context.kind must be a string", m->mod_id, i);
+                    ModsLogf("  %s: settings[%d] context.kind must be a string", m->mod_id, i);
                     return -1;
                 }
                 if (synth_arg_string(arena, a, "context_kind", kind) != 0) return -1;
             }
         }
-        ModsLogf(L"  %S: lowered settings[%d] -> register_setting", m->mod_id, i);
+        ModsLogf("  %s: lowered settings[%d] -> register_setting", m->mod_id, i);
     }
     return 0;
 }
@@ -796,7 +796,7 @@ static int lower_daemons(ModsArena* arena, Mod* m, int root, int* pos) {
         if (!bin) return -1;
         a = synth_action(arena, m, pos, "lyra.spawn_daemon", 1);
         if (!a || synth_arg_string(arena, a, "binary_ref", bin) != 0) return -1;
-        ModsLogf(L"  %S: lowered daemon %S -> spawn_daemon", m->mod_id, bin);
+        ModsLogf("  %s: lowered daemon %s -> spawn_daemon", m->mod_id, bin);
     }
     return 0;
 }
@@ -903,13 +903,13 @@ static int lower_status_icons(ModsArena* arena, Mod* m, int root, int* pos) {
         bare = strchr(source, '/');
         if (!bare || (strncmp(source, "setting/", 8) != 0 &&
                       strncmp(source, "status/", 7) != 0)) {
-            ModsLogf(L"  %S: status_icons[%d] source %S must be setting/<id> or status/<id>",
+            ModsLogf("  %s: status_icons[%d] source %s must be setting/<id> or status/<id>",
                      m->mod_id, i, source);
             return -1;
         }
         bare++;
         if (dup_in_prior(&m->json, arr, i, "source", source)) {
-            ModsLogf(L"  %S: status_icons[%d] duplicate source %S", m->mod_id, i, source);
+            ModsLogf("  %s: status_icons[%d] duplicate source %s", m->mod_id, i, source);
             return -1;
         }
         /* An indicator on a setting/ source must reference a declared setting; a
@@ -918,12 +918,12 @@ static int lower_status_icons(ModsArena* arena, Mod* m, int root, int* pos) {
            icon. */
         if (source[0] == 's' && source[1] == 'e') {
             if (!settings_has_id(&m->json, root, bare)) {
-                ModsLogf(L"  %S: status_icons[%d] source %S has no matching setting",
+                ModsLogf("  %s: status_icons[%d] source %s has no matching setting",
                          m->mod_id, i, source);
                 return -1;
             }
         } else if (!status_has_id(&m->json, root, bare)) {
-            ModsLogf(L"  %S: status_icons[%d] source %S has no matching status[]",
+            ModsLogf("  %s: status_icons[%d] source %s has no matching status[]",
                      m->mod_id, i, source);
             return -1;
         }
@@ -937,12 +937,12 @@ static int lower_status_icons(ModsArena* arena, Mod* m, int root, int* pos) {
 
         frt = ModsJsonObjectFind(&m->json, obj, "frames");
         if (frt < 0 || m->json.toks[frt].type != MODS_JSON_ARRAY) {
-            ModsLogf(L"  %S: status_icons[%d] frames[] required", m->mod_id, i);
+            ModsLogf("  %s: status_icons[%d] frames[] required", m->mod_id, i);
             return -1;
         }
         nstates = m->json.toks[frt].size;
         if (nstates < 1 || nstates > MOD_ICON_MAX_FRAMES) {
-            ModsLogf(L"  %S: status_icons[%d] frames must have 1..%d entries",
+            ModsLogf("  %s: status_icons[%d] frames must have 1..%d entries",
                      m->mod_id, i, MOD_ICON_MAX_FRAMES);
             return -1;
         }
@@ -969,13 +969,13 @@ static int lower_status_icons(ModsArena* arena, Mod* m, int root, int* pos) {
                 const char* vid;
                 join_manifest_ref(ipath, MODS_MAX_PATH, m->source_dir, s);
                 if (!ipath[0] || build_file_url(iurl, MODS_MAX_PATH + 16, ipath) != 0) {
-                    ModsLogf(L"  %S: status_icons[%d] frame %d image %S bad ref", m->mod_id, i, k, s);
+                    ModsLogf("  %s: status_icons[%d] frame %d image %s bad ref", m->mod_id, i, k, s);
                     return -1;
                 }
                 _snprintf(suffix, sizeof(suffix) - 1, "s%d", k);
                 suffix[sizeof(suffix) - 1] = 0;
                 if (emit_status_visual(arena, m, pos, mod_s, slot_s, suffix, iurl, &vid) != 0) {
-                    ModsLogf(L"  %S: status_icons[%d] visual gen failed (state %d)", m->mod_id, i, k);
+                    ModsLogf("  %s: status_icons[%d] visual gen failed (state %d)", m->mod_id, i, k);
                     return -1;
                 }
                 visual_ids[nvisuals] = vid;
@@ -986,17 +986,17 @@ static int lower_status_icons(ModsArena* arena, Mod* m, int root, int* pos) {
                     wchar_t ipath[MODS_MAX_PATH], iurl[MODS_MAX_PATH + 16];
                     const char* vid;
                     if (!image_base) {
-                        ModsLogf(L"  %S: status_icons[%d] frame %d colour needs a base \"image\"",
+                        ModsLogf("  %s: status_icons[%d] frame %d colour needs a base \"image\"",
                                  m->mod_id, i, k);
                         return -1;
                     }
                     join_manifest_ref(ipath, MODS_MAX_PATH, m->source_dir, image_base);
                     if (!ipath[0] || build_file_url(iurl, MODS_MAX_PATH + 16, ipath) != 0) {
-                        ModsLogf(L"  %S: status_icons[%d] base image %S bad ref", m->mod_id, i, image_base);
+                        ModsLogf("  %s: status_icons[%d] base image %s bad ref", m->mod_id, i, image_base);
                         return -1;
                     }
                     if (emit_status_visual(arena, m, pos, mod_s, slot_s, "base", iurl, &vid) != 0) {
-                        ModsLogf(L"  %S: status_icons[%d] base visual gen failed", m->mod_id, i);
+                        ModsLogf("  %s: status_icons[%d] base visual gen failed", m->mod_id, i);
                         return -1;
                     }
                     visual_ids[nvisuals] = vid;
@@ -1006,20 +1006,20 @@ static int lower_status_icons(ModsArena* arena, Mod* m, int root, int* pos) {
                 frame_of[k] = (signed char)base_frame;
                 tint_of[k]  = argb;
             } else {
-                ModsLogf(L"  %S: status_icons[%d] frame %d %S must be null, a hex colour, or a @ image ref",
+                ModsLogf("  %s: status_icons[%d] frame %d %s must be null, a hex colour, or a @ image ref",
                          m->mod_id, i, k, s);
                 return -1;
             }
         }
         if (nvisuals < 1) {
-            ModsLogf(L"  %S: status_icons[%d] has no visible frame", m->mod_id, i);
+            ModsLogf("  %s: status_icons[%d] has no visible frame", m->mod_id, i);
             return -1;
         }
 
         _snprintf(entry, sizeof(entry) - 1, "ModIcon_%s_%s.xur", mod_s, slot_s);
         entry[sizeof(entry) - 1] = 0;
         if (ModsBuildStatusIconFragmentXur(arena, bare, visual_ids, nvisuals, &frag, &frag_len) != 0) {
-            ModsLogf(L"  %S: status_icons[%d] fragment XUR gen failed", m->mod_id, i);
+            ModsLogf("  %s: status_icons[%d] fragment XUR gen failed", m->mod_id, i);
             return -1;
         }
         a = synth_action(arena, m, pos, "lyra.gem_add_entry_bytes", 3);
@@ -1038,7 +1038,7 @@ static int lower_status_icons(ModsArena* arena, Mod* m, int root, int* pos) {
             synth_arg_string(arena, a, "scene", entry) != 0 ||
             synth_arg_string(arena, a, "frames", frames_str) != 0 ||
             synth_arg_string(arena, a, "tints", tints_str) != 0) return -1;
-        ModsLogf(L"  %S: lowered status_icon source=%S states=%d visuals=%d",
+        ModsLogf("  %s: lowered status_icon source=%s states=%d visuals=%d",
                  m->mod_id, source, nstates, nvisuals);
     }
     return 0;
@@ -1065,13 +1065,13 @@ static int lower_status(ModsArena* arena, Mod* m, int root, int* pos) {
         id_s = json_strdup_req(arena, &m->json, idt, "status[].id", m->mod_id);
         if (!id_s) return -1;
         if (dup_in_prior(&m->json, arr, i, "id", id_s)) {
-            ModsLogf(L"  %S: status[%d] duplicate id %S", m->mod_id, i, id_s);
+            ModsLogf("  %s: status[%d] duplicate id %s", m->mod_id, i, id_s);
             return -1;
         }
         a = synth_action(arena, m, pos, "lyra.register_status", 2);
         if (!a || synth_arg_string(arena, a, "target_proc", "all") != 0 ||
             synth_arg_string(arena, a, "id", id_s) != 0) return -1;
-        ModsLogf(L"  %S: lowered status[%d] id=%S", m->mod_id, i, id_s);
+        ModsLogf("  %s: lowered status[%d] id=%s", m->mod_id, i, id_s);
     }
     return 0;
 }
@@ -1101,25 +1101,25 @@ static int load_one_mod(ModsArena* arena, const wchar_t* mod_dir, Mod* m) {
     manifest_path[MODS_MAX_PATH - 1] = 0;
 
     if (read_file(arena, manifest_path, &src, &srclen) < 0) {
-        ModsLogf(L"  load failed: cannot read %s", manifest_path);
+        ModsLogf("  load failed: cannot read %S", manifest_path);
         return -1;
     }
     m->json_src = (const char*)src;
     if (ModsJsonParse(arena, m->json_src, srclen, &m->json) < 0) {
-        ModsLogf(L"  load failed: JSON parse error %s", manifest_path);
+        ModsLogf("  load failed: JSON parse error %S", manifest_path);
         return -1;
     }
 
     root = 0;
     if (m->json.ntoks == 0 || m->json.toks[0].type != MODS_JSON_OBJECT) {
-        ModsLogf(L"  load failed: root not object %s", manifest_path);
+        ModsLogf("  load failed: root not object %S", manifest_path);
         return -1;
     }
 
     mod_id_tok = ModsJsonObjectFind(&m->json, root, "mod_id");
     if (mod_id_tok < 0 ||
         m->json.toks[mod_id_tok].type != MODS_JSON_STRING) {
-        ModsLogf(L"  load failed: missing mod_id %s", manifest_path);
+        ModsLogf("  load failed: missing mod_id %S", manifest_path);
         return -1;
     }
     m->mod_id = ModsJsonStrdup(arena, &m->json, mod_id_tok);
@@ -1138,14 +1138,14 @@ static int load_one_mod(ModsArena* arena, const wchar_t* mod_dir, Mod* m) {
     base_actions = 0;
     if (actions_tok >= 0) {
         if (m->json.toks[actions_tok].type != MODS_JSON_ARRAY) {
-            ModsLogf(L"  %S: actions must be an array", m->mod_id);
+            ModsLogf("  %s: actions must be an array", m->mod_id);
             return -1;
         }
         base_actions = m->json.toks[actions_tok].size;
     }
     extra_actions = lowered_action_count(&m->json, root);
     if (extra_actions < 0) {
-        ModsLogf(L"  %S: high-level manifest sections must be arrays", m->mod_id);
+        ModsLogf("  %s: high-level manifest sections must be arrays", m->mod_id);
         return -1;
     }
     /* capacity is an upper bound for the array; the real action count is
@@ -1164,12 +1164,12 @@ static int load_one_mod(ModsArena* arena, const wchar_t* mod_dir, Mod* m) {
         int at = ModsJsonArrayAt(&m->json, actions_tok, i);
         int tt, bt;
         if (at < 0 || m->json.toks[at].type != MODS_JSON_OBJECT) {
-            ModsLogf(L"  %S action[%d]: not an object", m->mod_id, i);
+            ModsLogf("  %s action[%d]: not an object", m->mod_id, i);
             return -1;
         }
         tt = ModsJsonObjectFind(&m->json, at, "type");
         if (tt < 0 || m->json.toks[tt].type != MODS_JSON_STRING) {
-            ModsLogf(L"  %S action[%d]: missing type", m->mod_id, i);
+            ModsLogf("  %s action[%d]: missing type", m->mod_id, i);
             return -1;
         }
         m->actions[i].type       = ModsJsonStrdup(arena, &m->json, tt);
@@ -1186,7 +1186,7 @@ static int load_one_mod(ModsArena* arena, const wchar_t* mod_dir, Mod* m) {
        only sized the array. Guard against an under-estimate that would have
        overrun it (a true upper bound never trips this). */
     if (write_pos > capacity) {
-        ModsLogf(L"  %S: lowering overran action capacity %d/%d",
+        ModsLogf("  %s: lowering overran action capacity %d/%d",
                  m->mod_id, write_pos, capacity);
         return -1;
     }
@@ -1209,11 +1209,11 @@ static int load_enabled_list(ModsArena* arena, const wchar_t* mods_root,
 
     n = EnabledSetRead(ids, ENABLED_ID_MAX);
     if (n < 0) {
-        ModsLogf(L"  enabled.json: malformed");
+        ModsLogf("  enabled.json: malformed");
         return -1;
     }
     if (n == 0) {
-        ModsLogf(L"  enabled.json empty or absent - no mods active");
+        ModsLogf("  enabled.json empty or absent - no mods active");
         return 0;
     }
     list = (const char**)ModsArenaAlloc(arena, n * sizeof(const char*));
@@ -1290,7 +1290,7 @@ static void load_root_all(ModsArena* arena, const wchar_t* root, ModSet* out) {
         if (join_mod_dir(mod_dir, MODS_MAX_PATH, root, fd.cFileName) < 0) continue;
         m = &out->mods[out->count];
         if (load_one_mod(arena, mod_dir, m) != 0) continue;
-        ModsLogf(L"  loaded platform mod %S (%d actions)", m->mod_id, m->actions_count);
+        ModsLogf("  loaded platform mod %s (%d actions)", m->mod_id, m->actions_count);
         out->count++;
     } while (FindNextFileW(h, &fd));
     FindClose(h);
@@ -1333,7 +1333,7 @@ int ModsManifestLoadAll(ModsArena* arena, const wchar_t* mods_root,
         if (join_mod_dir(mod_dir, MODS_MAX_PATH, mods_root, child) < 0) continue;
         m = &out->mods[out->count];
         if (load_one_mod(arena, mod_dir, m) != 0) continue;
-        ModsLogf(L"  loaded feature mod %S (%d actions)", m->mod_id, m->actions_count);
+        ModsLogf("  loaded feature mod %s (%d actions)", m->mod_id, m->actions_count);
         out->count++;
     }
 

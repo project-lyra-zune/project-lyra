@@ -207,6 +207,10 @@
 				RelativePath=".\plugin-hello.cpp"
 				>
 			</File>
+			<File
+				RelativePath=".\ce_log.c"
+				>
+			</File>
 		</Filter>
 	</Files>
 	<Globals>

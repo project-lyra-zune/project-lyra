@@ -6,6 +6,8 @@
 // the subtype our custom IAsyncReader source pin must advertise.
 
 #include <windows.h>
+#include <stdarg.h>
+#include "ce_log.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -21,27 +23,25 @@ struct PIN_INFO { void* pFilter; int dir; wchar_t achName[128]; };
 typedef HRESULT (__stdcall *pfn_CoInitializeEx)(void*, DWORD);
 typedef HRESULT (__stdcall *pfn_CoCreateInstance)(const GUID*, void*, DWORD, const GUID*, void**);
 
-static HANDLE g_log;
-static void L(const char*s){DWORD n;if(g_log){WriteFile(g_log,s,(DWORD)strlen(s),&n,NULL);WriteFile(g_log,"\r\n",2,&n,NULL);}}
+CE_LOGGER(L, L"\\flash2\\automation\\plugin-result.log")
 #define VT(o) (*(void***)(o))
 static void logguid(const char* tag, const GUID* g){
-    char b[160]; _snprintf(b,sizeof(b),"%s {%08lx-%04x-%04x-%02x%02x%02x%02x%02x%02x%02x%02x}",
-        tag,(unsigned long)g->Data1,g->Data2,g->Data3,g->Data4[0],g->Data4[1],g->Data4[2],g->Data4[3],g->Data4[4],g->Data4[5],g->Data4[6],g->Data4[7]); L(b);
+    L("%s {%08lx-%04x-%04x-%02x%02x%02x%02x%02x%02x%02x%02x}",
+      tag,(unsigned long)g->Data1,g->Data2,g->Data3,g->Data4[0],g->Data4[1],g->Data4[2],
+      g->Data4[3],g->Data4[4],g->Data4[5],g->Data4[6],g->Data4[7]);
 }
-static HANDLE open_log(void){ wchar_t p[MAX_PATH]; HANDLE f; _snwprintf(p,MAX_PATH-1,L"\\flash2\\automation\\plugin-result-%lu.log",GetCurrentProcessId()); p[MAX_PATH-1]=0; f=CreateFileW(p,GENERIC_WRITE,FILE_SHARE_READ,NULL,OPEN_ALWAYS,FILE_ATTRIBUTE_NORMAL,NULL); if(f==INVALID_HANDLE_VALUE)return NULL; SetFilePointer(f,0,NULL,FILE_END); return f; }
 
 extern "C" __declspec(dllexport) int RunDaemon(const void *arg, int arg_len, HANDLE stop_event){
     HMODULE ole; pfn_CoInitializeEx ci; pfn_CoCreateInstance cci; void* graph=NULL; HRESULT hr;
     (void)arg;(void)arg_len;(void)stop_event;
-    g_log=open_log(); if(!g_log) return -1;
     L("=== ce_dshow_enum: dump working RenderFile graph ===");
     ole=LoadLibraryW(L"ole32.dll");
     ci=(pfn_CoInitializeEx)GetProcAddress(ole,L"CoInitializeEx");
     cci=(pfn_CoCreateInstance)GetProcAddress(ole,L"CoCreateInstance");
-    if(!cci){ L("no ole32"); CloseHandle(g_log); return 0; }
+    if(!cci){ L("no ole32"); return 0; }
     if(ci) ci(NULL,0);
     hr=cci(&CLSID_FilterGraph,NULL,1,&IID_IGraphBuilder,&graph);
-    if(hr||!graph){ L("no graph"); CloseHandle(g_log); return 0; }
+    if(hr||!graph){ L("no graph"); return 0; }
     hr=((HRESULT(__stdcall*)(void*,const wchar_t*,const wchar_t*))VT(graph)[13])(graph,SRC_FILE,NULL); // RenderFile
     { char b[64]; _snprintf(b,sizeof(b),"RenderFile hr=0x%08x",hr); L(b); }
 
@@ -88,7 +88,7 @@ extern "C" __declspec(dllexport) int RunDaemon(const void *arg, int arg_len, HAN
     }
     L("--- enum exit");
     ((ULONG(__stdcall*)(void*))VT(graph)[2])(graph);
-    CloseHandle(g_log);
+   
     return 0;
 }
 extern "C" BOOL WINAPI DllMain(HANDLE h,DWORD r,LPVOID l){(void)h;(void)r;(void)l;return TRUE;}

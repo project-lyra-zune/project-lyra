@@ -235,29 +235,29 @@ int apply_inject_settings_row(ModAction* a, ModsArena* arena) {
     DWORD name_va;
 
     if (g_pending_count >= MAX_PENDING_ROWS) {
-        ModsLogf(L"    inject_settings_row: pending list full (%d)", MAX_PENDING_ROWS);
+        ModsLogf("    inject_settings_row: pending list full (%d)", MAX_PENDING_ROWS);
         return -1;
     }
     if (ModActionGetInt(a, "section", -1, &section_id) < 0 || section_id < 0) {
-        ModsLogf(L"    inject_settings_row: missing/invalid section");
+        ModsLogf("    inject_settings_row: missing/invalid section");
         return -1;
     }
     if (ModActionGetInt(a, "label_id_or_ref", -1, &label_id) < 0 || label_id < 0) {
         if (ModActionGetInt(a, "label_id", -1, &label_id) < 0 || label_id < 0) {
-            ModsLogf(L"    inject_settings_row: missing label_id");
+            ModsLogf("    inject_settings_row: missing label_id");
             return -1;
         }
     }
     if (ModActionGetString(a, "scene", arena, &scene_name, NULL, 0) != 0
         || scene_name == NULL) {
-        ModsLogf(L"    inject_settings_row: missing scene");
+        ModsLogf("    inject_settings_row: missing scene");
         return -1;
     }
 
     /* Plant L"<scene>.xur" in scratch (manifest gives the bare name). */
     name_chars = (int)strlen(scene_name);
     if (name_chars + 4 + 1 > (int)(sizeof(name_w) / sizeof(name_w[0]))) {
-        ModsLogf(L"    inject_settings_row: scene %S too long", scene_name);
+        ModsLogf("    inject_settings_row: scene %s too long", scene_name);
         return -1;
     }
     for (i = 0; i < name_chars; i++)
@@ -269,7 +269,7 @@ int apply_inject_settings_row(ModAction* a, ModsArena* arena) {
     name_w[name_chars + 4] = 0;
     name_va = scratch_alloc((name_chars + 4 + 1) * 2);
     if (!name_va || scratch_write(name_va, name_w, (name_chars + 4 + 1) * 2) < 0) {
-        ModsLogf(L"    inject_settings_row: scene name plant failed");
+        ModsLogf("    inject_settings_row: scene name plant failed");
         return -1;
     }
 
@@ -277,7 +277,7 @@ int apply_inject_settings_row(ModAction* a, ModsArena* arena) {
     g_pending[g_pending_count].label_id      = label_id;
     g_pending[g_pending_count].scene_name_va = name_va;
     g_pending_count++;
-    ModsLogf(L"    inject_settings_row: section=%d label=%d scene=%S.xur (name_va=0x%08x)",
+    ModsLogf("    inject_settings_row: section=%d label=%d scene=%s.xur (name_va=0x%08x)",
              section_id, label_id, scene_name, name_va);
     return 0;
 }
@@ -295,7 +295,7 @@ static int build_section_ext(int section_id) {
     if (ext_for_section(section_id)) return 0;    /* already built */
 
     if (orig(section_id, &base) != 0 || base == 0) {
-        ModsLogf(L"    settings ext: section %d has no native array", section_id);
+        ModsLogf("    settings ext: section %d has no native array", section_id);
         return -1;
     }
     src = (DWORD*)base;
@@ -311,7 +311,7 @@ static int build_section_ext(int section_id) {
     if (mine == 0) return 0;
 
     ext_va = scratch_alloc((nrec + mine + 1) * 16);
-    if (!ext_va) { ModsLogf(L"    settings ext: scratch exhausted"); return -1; }
+    if (!ext_va) { ModsLogf("    settings ext: scratch exhausted"); return -1; }
 
     /* native records, verbatim */
     if (scratch_write(ext_va, src, nrec * 16) < 0) return -1;
@@ -335,7 +335,7 @@ static int build_section_ext(int section_id) {
     g_ext[g_ext_count].section_id = section_id;
     g_ext[g_ext_count].ext_va     = ext_va;
     g_ext_count++;
-    ModsLogf(L"    settings ext: section %d -> 0x%08x (%d native + %d injected rows)",
+    ModsLogf("    settings ext: section %d -> 0x%08x (%d native + %d injected rows)",
              section_id, ext_va, nrec, mine);
     return 0;
 }
@@ -348,7 +348,7 @@ int flush_settings_rows(void) {
     for (i = 0; i < g_pending_count; i++)
         (void)build_section_ext(g_pending[i].section_id);
     if (g_ext_count == 0) {
-        ModsLogf(L"  flush_settings_rows: no sections built");
+        ModsLogf("  flush_settings_rows: no sections built");
         return -1;
     }
 
@@ -362,7 +362,7 @@ int flush_settings_rows(void) {
     if (!g_orig_rowtap)
         g_orig_rowtap = (RowTapFn)build_tramp(ROW_TAP, ROW_TAP_ORIG0, ROW_TAP_ORIG1);
     if (!g_orig_sectmap || !g_orig_getitem || !g_orig_rowtap) {
-        ModsLogf(L"  flush_settings_rows: trampoline alloc failed");
+        ModsLogf("  flush_settings_rows: trampoline alloc failed");
         return -1;
     }
 
@@ -370,11 +370,11 @@ int flush_settings_rows(void) {
     if (patch_entry(SECTION_MAPPER, (void*)&sectmap_wrap) != 0 ||
         patch_entry(GET_ITEM,       (void*)&getitem_wrap) != 0 ||
         patch_entry(ROW_TAP,        (void*)&rowtap_wrap)  != 0) {
-        ModsLogf(L"  flush_settings_rows: detour install failed (kerncore not ready?)");
+        ModsLogf("  flush_settings_rows: detour install failed (kerncore not ready?)");
         return -1;
     }
     g_patched = 1;
-    ModsLogf(L"  flush_settings_rows: COMPLETE (%d sections, %d rows)",
+    ModsLogf("  flush_settings_rows: COMPLETE (%d sections, %d rows)",
              g_ext_count, g_pending_count);
     return 0;
 }

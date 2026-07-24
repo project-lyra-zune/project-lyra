@@ -4,6 +4,7 @@
 # lyra/platform/clock-date/clockdate.dll.
 
 SRC_DIR  = ..\src
+CEC      = ..\..\..\..\src\ce-common
 OUT_DIR  = ..\out\clockdate_gem
 OBJ_DIR  = $(OUT_DIR)\obj
 DLL_OUT  = $(OUT_DIR)\clockdate.dll
@@ -13,7 +14,7 @@ CC   = $(CE_CC)
 LINK = $(CE_LINK)
 LIBS = coredll.lib corelibc.lib
 
-ALL_OBJS = $(OBJ_DIR)\clockdate_gem.obj
+ALL_OBJS = $(OBJ_DIR)\clockdate_gem.obj $(OBJ_DIR)\ce_log.obj
 
 all: makedirs $(DLL_OUT)
 	@copy /y "$(DLL_OUT)" "$(STAGED)" >nul
@@ -31,4 +32,7 @@ clean:
 	@if exist "$(STAGED)" del /q "$(STAGED)"
 
 $(OBJ_DIR)\clockdate_gem.obj: $(SRC_DIR)\clockdate_gem.cpp
-	$(CC) $(CE_CFLAGS) /Fo"$(OBJ_DIR)\clockdate_gem.obj" /c $(SRC_DIR)\clockdate_gem.cpp
+	$(CC) $(CE_CFLAGS) /I"$(CEC)\src\ce_log" /Fo"$(OBJ_DIR)\clockdate_gem.obj" /c $(SRC_DIR)\clockdate_gem.cpp
+
+$(OBJ_DIR)\ce_log.obj: $(CEC)\src\ce_log\ce_log.c
+	$(CC) $(CE_CFLAGS) /I"$(CEC)\src\ce_log" /Fo"$(OBJ_DIR)\ce_log.obj" /c $(CEC)\src\ce_log\ce_log.c

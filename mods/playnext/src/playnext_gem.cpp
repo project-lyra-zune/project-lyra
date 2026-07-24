@@ -6,24 +6,17 @@
  * See playnext_queue.c and notes/re-2026-07-14-queue-insertitem-stub/. */
 
 #include <windows.h>
-#include <stdio.h>
+#include <stdarg.h>
 #include "playnext_queue.h"
 #include "kerncore.h"
+#include "ce_log.h"
 
 #define GEM_EXECUTOR       0x00067f94u
 #define PN_CMD             0x40u
 
 static const wchar_t PN_LABEL[] = L"Play Next";
 
-static void L(const char* s) {
-    HANDLE f = CreateFileW(L"\\flash2\\automation\\playnext.log", GENERIC_WRITE,
-                           FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_ALWAYS,
-                           FILE_ATTRIBUTE_NORMAL, NULL);
-    if (f == INVALID_HANDLE_VALUE) return;
-    SetFilePointer(f, 0, NULL, FILE_END);
-    { DWORD n; WriteFile(f, s, (DWORD)strlen(s), &n, NULL); WriteFile(f, "\r\n", 2, &n, NULL); }
-    CloseHandle(f);
-}
+CE_LOGGER(L, L"\\flash2\\automation\\playnext.log")
 
 typedef DWORD (*ExecFn)(DWORD cmd, DWORD ctx, DWORD item);
 static DWORD g_add_cmd = 0;   /* the native "add to now playing" cmd for the open menu */
@@ -159,9 +152,9 @@ extern "C" __declspec(dllexport) int PlayNextInstall(void) {
     int rc, rc2;
     L("PlayNextInstall: loaded into gemstone");
     rc = install_executor_hook();
-    { char b[48]; _snprintf(b, sizeof(b), "executor hook rc=%d", rc); b[47]=0; L(b); }
+    L("executor hook rc=%d", rc);
     rc2 = install_replace(GEM_ROW_ADD, (void*)&PlayNext_RowAdd);
-    { char b[48]; _snprintf(b, sizeof(b), "rowadd replace rc=%d", rc2); b[47]=0; L(b); }
+    L("rowadd replace rc=%d", rc2);
     return rc;
 }
 

@@ -129,43 +129,43 @@ int apply_register_setting(ModAction* a, ModsArena* arena) {
     char           key[MOD_STATE_ID_LEN + 1];
 
     if (ModActionGetString(a, "value_type", arena, &value_type, NULL, 0) != 0 || !value_type) {
-        ModsLogf(L"    register_setting: value_type required");
+        ModsLogf("    register_setting: value_type required");
         return -1;
     }
     if (strcmp(value_type, "bool") != 0) {
-        ModsLogf(L"    register_setting: value_type %S unsupported (value_type bool only)", value_type);
+        ModsLogf("    register_setting: value_type %s unsupported (value_type bool only)", value_type);
         return -1;
     }
     if (ModActionGetString(a, "id", arena, &id, NULL, 0) != 0 || !id) {
-        ModsLogf(L"    register_setting: id required");
+        ModsLogf("    register_setting: id required");
         return -1;
     }
     if (ModActionGetString(a, "label", arena, &label, NULL, 0) != 0 || !label) {
-        ModsLogf(L"    register_setting: label required");
+        ModsLogf("    register_setting: label required");
         return -1;
     }
     if (ModActionGetString(a, "quick_toggle", arena, &qt_s, NULL, 0) == 0 && qt_s) {
         if (strcmp(qt_s, "default") == 0)       qt = MOD_QT_DEFAULT;
         else if (strcmp(qt_s, "eligible") == 0) qt = MOD_QT_ELIGIBLE;
         else {
-            ModsLogf(L"    register_setting: unknown quick_toggle %S", qt_s);
+            ModsLogf("    register_setting: unknown quick_toggle %s", qt_s);
             return -1;
         }
     }
     if (ModActionGetBool(a, "default", 0, &default_val) < 0) {
-        ModsLogf(L"    register_setting: 'default' must be true/false");
+        ModsLogf("    register_setting: 'default' must be true/false");
         return -1;
     }
     /* persist=false -> transient: the value is never restored from or written to
        mod-settings.json, so it resets to `default` each boot (e.g. a casting
        toggle that must default off). */
     if (ModActionGetBool(a, "persist", 1, &persist) < 0) {
-        ModsLogf(L"    register_setting: 'persist' must be true/false");
+        ModsLogf("    register_setting: 'persist' must be true/false");
         return -1;
     }
 
     if (form_key(key, sizeof(key), "setting", a->mod->mod_id, id) != 0) {
-        ModsLogf(L"    register_setting: key setting/%S/%S too long", a->mod->mod_id, id);
+        ModsLogf("    register_setting: key setting/%s/%s too long", a->mod->mod_id, id);
         return -1;
     }
     ModTogglesRegister(MOD_TOGGLE_BINARY, key, label, qt, persist);
@@ -187,7 +187,7 @@ int apply_register_setting(ModAction* a, ModsArena* arena) {
         if (ModActionGetString(a, "quick_icon", arena, &icon_ref, NULL, 0) == 0 && icon_ref) {
             if (build_asset_url(icon_url, (int)(sizeof(icon_url) / sizeof(icon_url[0])),
                                 a->mod, icon_ref) != 0) {
-                ModsLogf(L"    register_setting: bad quick_icon %S", icon_ref);
+                ModsLogf("    register_setting: bad quick_icon %s", icon_ref);
                 return -1;
             }
             ModToggleSetQuickIcon(key, icon_url);
@@ -241,14 +241,14 @@ int apply_register_setting(ModAction* a, ModsArena* arena) {
         const char* ckind = NULL;
         if (ModActionGetString(a, "context_kind", arena, &ckind, NULL, 0) == 0 && ckind) {
             if (strcmp(ckind, "select") != 0) {
-                ModsLogf(L"    register_setting: unknown context.kind %S", ckind);
+                ModsLogf("    register_setting: unknown context.kind %s", ckind);
                 return -1;
             }
             ModListChannelProviderRegister(key);
         }
     }
 
-    ModsLogf(L"    register_setting: %S value_type=bool default=%d quick_toggle=%d",
+    ModsLogf("    register_setting: %s value_type=bool default=%d quick_toggle=%d",
              key, default_val, (int)qt);
     return 0;
 }
@@ -261,15 +261,15 @@ int apply_register_status(ModAction* a, ModsArena* arena) {
     const char* id = NULL;
     char        key[MOD_STATE_ID_LEN + 1];
     if (ModActionGetString(a, "id", arena, &id, NULL, 0) != 0 || !id) {
-        ModsLogf(L"    register_status: id required");
+        ModsLogf("    register_status: id required");
         return -1;
     }
     if (form_key(key, sizeof(key), "status", a->mod->mod_id, id) != 0) {
-        ModsLogf(L"    register_status: key status/%S/%S too long", a->mod->mod_id, id);
+        ModsLogf("    register_status: key status/%s/%s too long", a->mod->mod_id, id);
         return -1;
     }
     ModStateSeed(key, 0, 0);   /* off; the actor stamps live state + owner */
-    ModsLogf(L"    register_status: %S seeded off", key);
+    ModsLogf("    register_status: %s seeded off", key);
     return 0;
 }
 
@@ -329,31 +329,31 @@ int apply_add_status_icon(ModAction* a, ModsArena* arena) {
     DWORD       tint_of[MOD_ICON_STATES_MAX];
     int         nf, nt;
     if (ModActionGetString(a, "source", arena, &source, NULL, 0) != 0 || !source) {
-        ModsLogf(L"    add_status_icon: source required");
+        ModsLogf("    add_status_icon: source required");
         return -1;
     }
     if (ModActionGetString(a, "scene", arena, &scene, NULL, 0) != 0 || !scene) {
-        ModsLogf(L"    add_status_icon: scene required");
+        ModsLogf("    add_status_icon: scene required");
         return -1;
     }
     if (ModActionGetString(a, "frames", arena, &frames_s, NULL, 0) != 0 || !frames_s ||
         ModActionGetString(a, "tints", arena, &tints_s, NULL, 0) != 0 || !tints_s) {
-        ModsLogf(L"    add_status_icon: frames/tints required");
+        ModsLogf("    add_status_icon: frames/tints required");
         return -1;
     }
     if (form_source_key(key, sizeof(key), a->mod->mod_id, source) != 0) {
-        ModsLogf(L"    add_status_icon: bad source %S", source);
+        ModsLogf("    add_status_icon: bad source %s", source);
         return -1;
     }
     nf = parse_int_csv(frames_s, frame_of, MOD_ICON_STATES_MAX);
     nt = parse_hex_csv(tints_s, tint_of, MOD_ICON_STATES_MAX);
     if (nf <= 0 || nf != nt) {
-        ModsLogf(L"    add_status_icon: frames/tints count mismatch %d/%d", nf, nt);
+        ModsLogf("    add_status_icon: frames/tints count mismatch %d/%d", nf, nt);
         return -1;
     }
     token = strchr(source, '/') + 1;   /* bare id after the role/, the modicon_<token> element id */
     ModIconsRegister(token, key, scene, frame_of, tint_of, nf);
-    ModsLogf(L"    add_status_icon: token=%S key=%S states=%d scene=%S", token, key, nf, scene);
+    ModsLogf("    add_status_icon: token=%s key=%s states=%d scene=%s", token, key, nf, scene);
     return 0;
 }
 
@@ -389,27 +389,27 @@ int apply_tint_element(ModAction* a, ModsArena* arena) {
     char        key[MOD_STATE_ID_LEN + 1];
     DWORD       argb = 0;
     if (ModActionGetString(a, "element", arena, &element, NULL, 0) != 0 || !element) {
-        ModsLogf(L"    tint_element: element required");
+        ModsLogf("    tint_element: element required");
         return -1;
     }
     if (ModActionGetString(a, "source", arena, &source, NULL, 0) != 0 || !source) {
-        ModsLogf(L"    tint_element: source required");
+        ModsLogf("    tint_element: source required");
         return -1;
     }
     if (ModActionGetString(a, "color", arena, &color, NULL, 0) != 0 || !color) {
-        ModsLogf(L"    tint_element: color required");
+        ModsLogf("    tint_element: color required");
         return -1;
     }
     if (parse_argb(color, &argb) != 0) {
-        ModsLogf(L"    tint_element: color %S not RRGGBB/AARRGGBB hex", color);
+        ModsLogf("    tint_element: color %s not RRGGBB/AARRGGBB hex", color);
         return -1;
     }
     if (form_source_key(key, sizeof(key), a->mod->mod_id, source) != 0) {
-        ModsLogf(L"    tint_element: bad source %S", source);
+        ModsLogf("    tint_element: bad source %s", source);
         return -1;
     }
     ModIconTintRegister(element, key, argb);
-    ModsLogf(L"    tint_element: element=%S key=%S argb=0x%08x", element, key, argb);
+    ModsLogf("    tint_element: element=%s key=%s argb=0x%08x", element, key, argb);
     return 0;
 }
 
@@ -426,22 +426,22 @@ int apply_suppress_scene(ModAction* a, ModsArena* arena) {
     char        key[MOD_STATE_ID_LEN + 1];
     int         i;
     if (ModActionGetString(a, "scene", arena, &scene, NULL, 0) != 0) {
-        ModsLogf(L"    suppress_scene: missing 'scene'"); return -1;
+        ModsLogf("    suppress_scene: missing 'scene'"); return -1;
     }
     if (ModActionGetString(a, "state", arena, &state, NULL, 0) != 0) {
-        ModsLogf(L"    suppress_scene: missing 'state'"); return -1;
+        ModsLogf("    suppress_scene: missing 'state'"); return -1;
     }
     if (form_key(key, sizeof(key), "setting", a->mod->mod_id, state) != 0) {
-        ModsLogf(L"    suppress_scene: key setting/%S/%S too long", a->mod->mod_id, state);
+        ModsLogf("    suppress_scene: key setting/%s/%s too long", a->mod->mod_id, state);
         return -1;
     }
     for (i = 0; scene[i] && i < (int)(sizeof(uri)/sizeof(uri[0])) - 1; i++)
         uri[i] = (wchar_t)(unsigned char)scene[i];
     uri[i] = 0;
     if (ModSceneSuppressAdd(uri, key) != 0) {
-        ModsLogf(L"    suppress_scene: registry full (%S)", scene); return -1;
+        ModsLogf("    suppress_scene: registry full (%s)", scene); return -1;
     }
-    ModsLogf(L"    suppress_scene: %S gated by %S", scene, key);
+    ModsLogf("    suppress_scene: %s gated by %s", scene, key);
     return 0;
 }
 

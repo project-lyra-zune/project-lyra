@@ -1,4 +1,5 @@
 #include "mods_list_channel_provider.h"
+#include <stdarg.h>
 #include "mods_list_channel.h"
 #include "mods_list_model.h"     /* ModListRow / ModListSource */
 #include "mods_icon_host.h"      /* ModsHudContextRegister */
@@ -8,8 +9,8 @@
 #include <windows.h>
 #include <string.h>
 
-#define CHP_LOG  L"\\flash2\\automation\\mods\\list-channel.log"
 
+#include "ce_log.h"
 /* One provider per registered picker key. The ModListSource `ctx` points back at
    the owning slot so the callbacks recover their key. Slots are file-static and
    never freed (registration is a boot-time, once-per-mod act), so the pointers
@@ -22,12 +23,7 @@ typedef struct {
 } ChpSlot;
 static ChpSlot g_slots[CHP_MAX];
 
-static void chp_log(const wchar_t* fmt, ...) {
-    va_list ap;
-    va_start(ap, fmt);
-    mods_vflashlog(CHP_LOG, fmt, ap);
-    va_end(ap);
-}
+CE_LOGGER(chp_log, L"\\flash2\\automation\\mods\\list-channel.log")
 
 static void copy_w(wchar_t* dst, int cap, const wchar_t* src) {
     int i = 0;
@@ -80,7 +76,7 @@ static void chp_fill(void* ctx, int row, ModListRow* out) {
 static void chp_on_open(void* ctx) {
     ChpSlot* s = (ChpSlot*)ctx;
     ModListChannelSignalScan(s->key);
-    chp_log(L"OPEN %S -> scan requested", s->key);
+    chp_log("OPEN %s -> scan requested", s->key);
 }
 
 static void chp_on_tap(void* ctx, int row) {
@@ -91,7 +87,7 @@ static void chp_on_tap(void* ctx, int row) {
     if (!b || n <= 0 || row < 0 || row >= n) return;   /* placeholder / stale tap */
     ModListChannelSelect(s->key, b->row[row].value);
     ModStateEventPublish();   /* wake the daemon so it adopts the new selection */
-    chp_log(L"SELECT %S row=%d value=%S", s->key, row, b->row[row].value);
+    chp_log("SELECT %s row=%d value=%s", s->key, row, b->row[row].value);
 }
 
 void ModListChannelProviderRegister(const char* setting_key) {
@@ -113,5 +109,5 @@ void ModListChannelProviderRegister(const char* setting_key) {
     s->used        = 1;
     ModsHudContextRegister(s->key, &s->src);
     ModListChannelMap(s->key);   /* create the section now so the daemon can attach */
-    chp_log(L"registered picker for %S", s->key);
+    chp_log("registered picker for %s", s->key);
 }

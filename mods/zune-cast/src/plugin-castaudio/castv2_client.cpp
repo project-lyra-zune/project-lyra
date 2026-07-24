@@ -196,7 +196,7 @@ static void local_ip(SOCKET s, char* out, int outsz)
     }
 }
 
-static int tls_handshake(WOLFSSL* ssl, SOCKET s, HANDLE stop_event)
+static int tls_handshake(WOLFSSL* ssl, SOCKET s, HANDLE stop_event, int log_failure)
 {
     DWORD start = GetTickCount();
     for (;;) {
@@ -206,7 +206,7 @@ static int tls_handshake(WOLFSSL* ssl, SOCKET s, HANDLE stop_event)
         if (rc == WOLFSSL_SUCCESS) return 0;
         int e = wolfSSL_get_error(ssl, rc);
         if (e != WOLFSSL_ERROR_WANT_READ && e != WOLFSSL_ERROR_WANT_WRITE) {
-            cast_log("TLS handshake err wolfSSL=%d", e);
+            if (log_failure) cast_log("TLS handshake err wolfSSL=%d", e);
             return -1;
         }
         fd_set fs;
@@ -734,10 +734,13 @@ static DWORD WINAPI reconcile_thread(LPVOID arg)
 // ── Cast I/O thread (this function; owns wolfSSL, never blocks on the device) ─
 int castv2_run(HANDLE stop_event, const char* target_ip,
                unsigned short control_port, unsigned short media_port,
-               CastQueue* q, CaptureRing* ring)
+               CastQueue* q, CaptureRing* ring, int log_setup_failure)
 {
     SOCKET s = socket(AF_INET, SOCK_STREAM, 0);
-    if (s == INVALID_SOCKET) { cast_log("CTRL socket fail %d", WSAGetLastError()); return -1; }
+    if (s == INVALID_SOCKET) {
+        if (log_setup_failure) cast_log("CTRL socket fail %d", WSAGetLastError());
+        return -1;
+    }
 
     sockaddr_in a;
     memset(&a, 0, sizeof(a));
@@ -745,7 +748,8 @@ int castv2_run(HANDLE stop_event, const char* target_ip,
     a.sin_port   = htons(control_port);
     a.sin_addr.s_addr = inet_addr(target_ip);
     if (connect_with_timeout(s, &a, 4000) != 0) {
-        cast_log("CTRL connect fail %s:%d err=%d", target_ip, control_port, WSAGetLastError());
+        if (log_setup_failure)
+            cast_log("CTRL connect fail %s:%d err=%d", target_ip, control_port, WSAGetLastError());
         closesocket(s);
         return -2;
     }
@@ -754,15 +758,21 @@ int castv2_run(HANDLE stop_event, const char* target_ip,
     local_ip(s, myip, sizeof(myip));
 
     WOLFSSL_CTX* ctx = wolfSSL_CTX_new(wolfSSLv23_client_method());
-    if (ctx == NULL) { cast_log("CTX-NEW-FAIL"); closesocket(s); return -3; }
+    if (ctx == NULL) {
+        if (log_setup_failure) cast_log("CTX-NEW-FAIL");
+        closesocket(s); return -3;
+    }
     wolfSSL_CTX_set_verify(ctx, WOLFSSL_VERIFY_NONE, NULL);
 
     WOLFSSL* ssl = wolfSSL_new(ctx);
-    if (ssl == NULL) { cast_log("SSL-NEW-FAIL"); wolfSSL_CTX_free(ctx); closesocket(s); return -3; }
+    if (ssl == NULL) {
+        if (log_setup_failure) cast_log("SSL-NEW-FAIL");
+        wolfSSL_CTX_free(ctx); closesocket(s); return -3;
+    }
     wolfSSL_set_fd(ssl, (int)s);
     wolfSSL_set_using_nonblock(ssl, 1);
 
-    if (tls_handshake(ssl, s, stop_event) != 0) {
+    if (tls_handshake(ssl, s, stop_event, log_setup_failure) != 0) {
         wolfSSL_free(ssl); wolfSSL_CTX_free(ctx); closesocket(s);
         return -4;
     }

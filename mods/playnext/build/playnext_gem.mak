@@ -4,6 +4,7 @@
 
 SRC_DIR  = ..\src
 KC_DIR   = ..\..\..\src\kerncore
+CEC      = ..\..\..\src\ce-common
 OUT_DIR  = ..\out\playnext_gem
 OBJ_DIR  = $(OUT_DIR)\obj
 DLL_OUT  = $(OUT_DIR)\playnext.dll
@@ -11,10 +12,10 @@ STAGED   = ..\playnext.dll
 
 CC   = $(CE_CC)
 LINK = $(CE_LINK)
-INCS = /I"$(KC_DIR)"
+INCS = /I"$(KC_DIR)" /I"$(CEC)\src\ce_log"
 LIBS = coredll.lib corelibc.lib toolhelp.lib
 
-ALL_OBJS = $(OBJ_DIR)\playnext_gem.obj $(OBJ_DIR)\playnext_queue.obj $(OBJ_DIR)\kerncore.obj
+ALL_OBJS = $(OBJ_DIR)\playnext_gem.obj $(OBJ_DIR)\playnext_queue.obj $(OBJ_DIR)\ce_log.obj $(OBJ_DIR)\kerncore.obj
 
 all: makedirs $(DLL_OUT)
 	@copy /y "$(DLL_OUT)" "$(STAGED)" >nul
@@ -39,3 +40,6 @@ $(OBJ_DIR)\playnext_queue.obj: $(SRC_DIR)\playnext_queue.c
 
 $(OBJ_DIR)\kerncore.obj: $(KC_DIR)\kerncore.c
 	$(CC) $(CE_CFLAGS) $(INCS) /Fo"$(OBJ_DIR)\kerncore.obj" /c $(KC_DIR)\kerncore.c
+
+$(OBJ_DIR)\ce_log.obj: $(CEC)\src\ce_log\ce_log.c
+	$(CC) $(CE_CFLAGS) $(INCS) /Fo"$(OBJ_DIR)\ce_log.obj" /c $(CEC)\src\ce_log\ce_log.c

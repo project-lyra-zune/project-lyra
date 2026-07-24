@@ -52,7 +52,7 @@ static int load_from_file(void) {
     }
     if (ModsJsonParse(&arena, (const char*)src, srclen, &j) < 0 ||
         j.ntoks == 0 || j.toks[0].type != MODS_JSON_OBJECT) {
-        ModsLogf(L"  mod-settings: parse error");
+        ModsLogf("  mod-settings: parse error");
         ModsArenaFree(&arena);
         return 0;
     }
@@ -60,7 +60,7 @@ static int load_from_file(void) {
     ver_tok = ModsJsonObjectFind(&j, 0, "version");
     if (ver_tok < 0 || ModsJsonInt(&j, ver_tok, &ver) != 0 ||
         ver != MOD_SETTINGS_VERSION) {
-        ModsLogf(L"  mod-settings: version %d != %d - ignored", ver, MOD_SETTINGS_VERSION);
+        ModsLogf("  mod-settings: version %d != %d - ignored", ver, MOD_SETTINGS_VERSION);
         ModsArenaFree(&arena);
         return 0;
     }
@@ -88,9 +88,9 @@ static int load_from_file(void) {
             }
             child = ModsJsonSkip(&j, val);
         }
-        ModsLogf(L"  mod-settings: restored %d value(s)", applied);
+        ModsLogf("  mod-settings: restored %d value(s)", applied);
     } else {
-        ModsLogf(L"  mod-settings: no 'values' object - defaults stand");
+        ModsLogf("  mod-settings: no 'values' object - defaults stand");
     }
 
     qt_tok = ModsJsonObjectFind(&j, 0, "quick_toggles");
@@ -105,7 +105,7 @@ static int load_from_file(void) {
                 if (key) ModCurationAdd(key);
             }
         }
-        ModsLogf(L"  mod-settings: curation loaded %d key(s)", ModCurationCount());
+        ModsLogf("  mod-settings: curation loaded %d key(s)", ModCurationCount());
     }
 
     ModsArenaFree(&arena);
@@ -129,7 +129,7 @@ void ModSettingsLoad(void) {
         if (ModToggleGetQuickToggle(i) == MOD_QT_DEFAULT)
             ModCurationAdd(ModToggleGetKey(i));
 
-    ModsLogf(L"  mod-settings: curation %d key(s) (persisted=%d)",
+    ModsLogf("  mod-settings: curation %d key(s) (persisted=%d)",
              ModCurationCount(), qt_present);
 }
 
@@ -198,8 +198,8 @@ void ModSettingsSave(void) {
 
     h = CreateFileW(MOD_SETTINGS_PATH, GENERIC_WRITE, 0, NULL,
                     CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-    if (h == INVALID_HANDLE_VALUE) { ModsLogf(L"  mod-settings: save open failed"); return; }
+    if (h == INVALID_HANDLE_VALUE) { ModsLogf("  mod-settings: save open failed"); return; }
     WriteFile(h, buf, (DWORD)len, &written, NULL);
     CloseHandle(h);
-    ModsLogf(L"  mod-settings: saved %d value(s) / %d curated", n, c);
+    ModsLogf("  mod-settings: saved %d value(s) / %d curated", n, c);
 }

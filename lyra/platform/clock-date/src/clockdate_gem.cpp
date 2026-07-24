@@ -10,6 +10,8 @@
  */
 #include <windows.h>
 #include <stdio.h>
+#include <stdarg.h>
+#include "ce_log.h"
 
 // ── gemstone fixed addresses (base 0x10000) ─────────────────────────────────
 #define ALLOCATOR            0x00084ee4   // coredll ord1095 ("operator new")
@@ -61,15 +63,7 @@ static DWORD g_month_list = 0, g_day_list = 0, g_year_list = 0;
 static DWORD g_month_touch = 0, g_day_touch = 0, g_year_touch = 0;
 static DWORD g_ok_button = 0, g_cancel_button = 0;
 
-static void L(const char* s) {
-    HANDLE f = CreateFileW(L"\\flash2\\automation\\clockdate.log", GENERIC_WRITE,
-                           FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_ALWAYS,
-                           FILE_ATTRIBUTE_NORMAL, NULL);
-    if (f == INVALID_HANDLE_VALUE) return;
-    SetFilePointer(f, 0, NULL, FILE_END);
-    { DWORD n; WriteFile(f, s, (DWORD)strlen(s), &n, NULL); WriteFile(f, "\r\n", 2, &n, NULL); }
-    CloseHandle(f);
-}
+CE_LOGGER(L, L"\\flash2\\automation\\clockdate.log")
 
 static int days_in_month(int month, int year) {
     static const int d[] = {31,28,31,30,31,30,31,31,30,31,30,31};
@@ -313,7 +307,7 @@ extern "C" __declspec(dllexport) int ClockDateInstall(void) {
     g_desc[6] = (DWORD)date_factory;
     g_desc[7] = DESC_FINALIZER;
     h = reg(&g_desc[1], &g_desc[0]);
-    { char b[64]; _snprintf(b, sizeof(b), "register GemSettingSetDateScene h=0x%08x", (unsigned)h); b[63]=0; L(b); }
+    L("register GemSettingSetDateScene h=0x%08x", (unsigned)h);
     return 0;
 }
 

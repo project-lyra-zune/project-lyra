@@ -35,6 +35,7 @@ extern "C" {
 #include <stdarg.h>
 #include <stdio.h>
 
+#include "ce_log.h"
 struct ModQuickSettingsSceneInstance {
     DWORD vtable;         /* +0x00 - set by the class-blob ctor */
     DWORD scene_handle;   /* +0x04 - base-written; GetDescendantById root */
@@ -95,14 +96,8 @@ static void copy_a(char* dst, int cap, const char* src) {
 /* Append-per-line log, opened only from the rare sub=0x12 (hold) arm. The hot
    data-source arms (count/text/image) stay I/O-free; per-message file I/O on the
    pump thread is what caused the mods-tab first-present stall. */
-#define QUICK_SETTINGS_LOG  L"\\flash2\\automation\\mods\\quicksettings.log"
 
-static void qs_log(const wchar_t* fmt, ...) {
-    va_list ap;
-    va_start(ap, fmt);
-    mods_vflashlog(QUICK_SETTINGS_LOG, fmt, ap);
-    va_end(ap);
-}
+CE_LOGGER(qs_log, L"\\flash2\\automation\\mods\\quicksettings.log")
 
 /* Rows are the VISIBLE quick-toggle set (curated ∩ eligible), same source the
    flat menu used; `row` is a position in that set, mapped to a registry index. */
@@ -260,8 +255,8 @@ HRESULT ModQuickSettingsScene_OnMessage(ModQuickSettingsSceneInstance* self, voi
             __except (EXCEPTION_EXECUTE_HANDLER) { row = -1; }
             if (g_hold_consumed) {
                 int matched = (row == g_hold_consumed_row);
-                qs_log(L"SET_SEL row=%d hold_row=%d -> %s",
-                       row, g_hold_consumed_row, matched ? L"SWALLOW" : L"toggle(row mismatch)");
+                qs_log("SET_SEL row=%d hold_row=%d -> %S",
+                       row, g_hold_consumed_row, matched ? "SWALLOW" : "toggle(row mismatch)");
                 g_hold_consumed     = 0;
                 g_hold_consumed_row = -1;
                 if (matched) {
@@ -295,7 +290,7 @@ HRESULT ModQuickSettingsScene_OnMessage(ModQuickSettingsSceneInstance* self, voi
             key = (idx >= 0) ? ModToggleGetKey(idx) : NULL;
             if (key) handled = ModsHudContextOpenForKey(key);
         }
-        qs_log(L"HOLD sub=0x12 sel=%d idx=%d key=%S handled=%d",
+        qs_log("HOLD sub=0x12 sel=%d idx=%d key=%s handled=%d",
                sel, idx, key ? key : "(null)", handled);
         if (handled) {
             /* Arm the latch so the release-select for this row is swallowed (the

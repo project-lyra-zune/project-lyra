@@ -7,13 +7,12 @@
 #  include <wchar.h>
 #endif
 
-/* Log writer for the mods pipeline.
+/* Log writer for the mods pipeline, over the shared ce_log.
 
    Each phase opens its own file (Phase 1: boot.log; Phase 2: phase2.log)
    so logs don't trample each other when both phases run in the same boot
-   across different processes.
-   Format: UTF-16 LE, CRLF line endings, matching existing zuxhook log
-           conventions. CREATE_ALWAYS so each boot starts fresh. */
+   across different processes. ModsLogOpen starts the file fresh each boot;
+   ModsLogOpenAppend keeps it. Formats are ASCII: a wide argument takes %S. */
 
 #include <stdarg.h>
 
@@ -29,17 +28,10 @@ void ModsLogOpen(const wchar_t* path);
 void ModsLogOpenAppend(const wchar_t* path);
 void ModsLogClose(void);
 
-/* printf-style; %s is wchar_t* (W variant), %d/%x/%X/%lu as usual.
+/* printf-style; %S is wchar_t*, %s is char*, %d/%x/%X/%lu as usual.
    Lines are CRLF-terminated automatically. */
-void ModsLogf(const wchar_t* fmt, ...);
+void ModsLogf(const char* fmt, ...);
 
-/* Per-call open/append/close writer to an arbitrary flash path, independent of
-   the single global handle above. Each subsystem that logs to its own file wraps
-   this behind a thin module facade (its log path is the module's identity).
-   Opens OPEN_ALWAYS with FILE_SHARE_READ|WRITE, seeks to end, writes one
-   CRLF-terminated UTF-16 LE line, closes. Same format specifiers as ModsLogf. */
-void mods_flashlog(const wchar_t* path, const wchar_t* fmt, ...);
-void mods_vflashlog(const wchar_t* path, const wchar_t* fmt, va_list ap);
 
 #ifdef __cplusplus
 }

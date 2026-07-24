@@ -1,7 +1,7 @@
 {
   "mod_id": "mods-tab",
   "name": "Mods Tab: modkit reference mod",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": "Project Lyra",
   "category": "System",
   "description": "Adds a Mods tile to the Start menu for browsing the repo, installing mods, and managing what is enabled.",

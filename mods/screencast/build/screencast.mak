@@ -21,7 +21,7 @@ STAGED   = ..\screencastd.exe
 CC   = $(CE_CC)
 LINK = $(CE_LINK)
 
-INCS = /I"$(KC)" /I"$(MR)" /I"$(CEC)\deps\ce_image" /I"$(PL_ROOT)"
+INCS = /I"$(KC)" /I"$(MR)" /I"$(CEC)\deps\ce_image" /I"$(CEC)\src\ce_log" /I"$(PL_ROOT)"
 
 # C++ TUs (engine + the two entries): no RTTI, EH on for the imaging COM paths.
 CPP_CFLAGS = $(CE_CFLAGS) /EHsc /GR- /D_CRT_SECURE_NO_WARNINGS /D_CRT_SECURE_NO_DEPRECATE $(INCS)
@@ -41,6 +41,7 @@ CORE_OBJS = \
 	$(OBJ_DIR)\screencast_serve.obj \
 	$(OBJ_DIR)\mod_state.obj \
 	$(OBJ_DIR)\mod_list_channel.obj \
+	$(OBJ_DIR)\ce_log.obj \
 	$(OBJ_DIR)\kerncore.obj
 
 EXE_OBJS = $(CORE_OBJS) $(OBJ_DIR)\screencast_main.obj
@@ -92,3 +93,6 @@ $(OBJ_DIR)\mod_list_channel.obj: $(MR)\mod_list_channel.c
 
 $(OBJ_DIR)\kerncore.obj: $(KC)\kerncore.c
 	$(CC) $(C_CFLAGS) /Fo"$(OBJ_DIR)\kerncore.obj" /c $(KC)\kerncore.c
+
+$(OBJ_DIR)\ce_log.obj: $(CEC)\src\ce_log\ce_log.c
+	$(CC) $(C_CFLAGS) /Fo"$(OBJ_DIR)\ce_log.obj" /c $(CEC)\src\ce_log\ce_log.c

@@ -13,23 +13,19 @@
  *
  * The UI side (youtube.dll) adds DONE to gemstone's MsgWaitForMultipleObjectsEx
  * set; on signal it re-snapshots the section + LIST_INVALIDATE on the UI thread;
- * the same out-of-process→UI delivery the modkit/zune-cast use, no native marshal. */
+ * the same out-of-process to UI delivery the modkit/zune-cast use, no native marshal. */
 
 #include <winsock2.h>
 #include <windows.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <string.h>
+#include "ce_log.h"
 #include "ce_innertube.h"
 #include "ce_https.h"
 #include "yt_search_ipc.h"
 
-static void L(const char* s){
-    HANDLE f=CreateFileW(L"\\flash2\\automation\\ytsearchd.log",GENERIC_WRITE,
-                         FILE_SHARE_READ|FILE_SHARE_WRITE,NULL,OPEN_ALWAYS,FILE_ATTRIBUTE_NORMAL,NULL);
-    if(f==INVALID_HANDLE_VALUE)return; SetFilePointer(f,0,NULL,FILE_END);
-    DWORD n; WriteFile(f,s,(DWORD)strlen(s),&n,NULL); WriteFile(f,"\r\n",2,&n,NULL); CloseHandle(f);
-}
-static void Lx(const char* t,long v){ char b[160]; _snprintf(b,sizeof(b),"%s=%ld",t,v); L(b); }
+CE_LOGGER(L, L"\\flash2\\automation\\ytsearchd.log")
 
 /* narrow a wide query to ASCII for the JSON body (English queries; drop >0x7f). */
 static void wide_to_ascii(const wchar_t* w, char* out, int cap){
@@ -137,7 +133,7 @@ int WINAPI wWinMain(HINSTANCE a,HINSTANCE b,LPWSTR c,int d){
                                      tracks, YT_SEARCH_MAX_ROWS, &n,
                                      blk->continuation, YT_SEARCH_CONT_LEN);
         }
-        Lx("  request ms", (long)(GetTickCount()-t0));
+        L("  request ms=%ld", (long)(GetTickCount()-t0));
         { int ct=0,tl=0,rc2=0; ce_https_last_timing(&ct,&tl,&rc2);
           char m[160]; _snprintf(m,sizeof(m),"  net connect=%d tls=%d recv=%d",ct,tl,rc2); L(m); }
         if(n>YT_SEARCH_MAX_ROWS) n=YT_SEARCH_MAX_ROWS;
@@ -154,7 +150,7 @@ int WINAPI wWinMain(HINSTANCE a,HINSTANCE b,LPWSTR c,int d){
         blk->count  = n;
         blk->category = cat;          // echo the answered category
         blk->done_seq = seq;          // mark answered before waking the UI
-        Lx("  done count", n);
+        L("  done count=%ld", n);
         SetEvent(done);               // gemstone pump wait wakes on the UI thread
 
         // Background-fetch this page's thumbnails; re-signals DONE as files land so

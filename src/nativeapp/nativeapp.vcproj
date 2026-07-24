@@ -54,7 +54,7 @@
 				ExecutionBucket="7"
 				AdditionalOptions="/QRfpe- /QRarch6"
 				Optimization="0"
-				AdditionalIncludeDirectories=".;.\khronos;..\kerncore;..\shared;.\src"
+				AdditionalIncludeDirectories="..\ce-common\src\ce_log;.;.\khronos;..\kerncore;..\shared;.\src"
 				PreprocessorDefinitions="_DEBUG;_WIN32_WCE=$(CEVER);UNDER_CE;$(PLATFORMDEFINES);WINCE;DEBUG;_WINDOWS;$(ARCHFAM);$(_ARCHFAM_);_UNICODE;UNICODE;_CRT_SECURE_NO_WARNINGS"
 				MinimalRebuild="true"
 				RuntimeLibrary="1"
@@ -70,7 +70,7 @@
 				Name="VCResourceCompilerTool"
 				PreprocessorDefinitions="_DEBUG;_WIN32_WCE=$(CEVER);UNDER_CE;$(PLATFORMDEFINES)"
 				Culture="1033"
-				AdditionalIncludeDirectories="$(IntDir)"
+				AdditionalIncludeDirectories="..\ce-common\src\ce_log;$(IntDir)"
 			/>
 			<Tool
 				Name="VCPreLinkEventTool"
@@ -154,7 +154,7 @@
 				ExecutionBucket="7"
 				AdditionalOptions="/QRfpe- /QRarch6"
 				Optimization="2"
-				AdditionalIncludeDirectories=".;.\khronos;..\kerncore;..\shared;.\src"
+				AdditionalIncludeDirectories="..\ce-common\src\ce_log;.;.\khronos;..\kerncore;..\shared;.\src"
 				PreprocessorDefinitions="NDEBUG;_WIN32_WCE=$(CEVER);UNDER_CE;$(PLATFORMDEFINES);WINCE;_WINDOWS;$(ARCHFAM);$(_ARCHFAM_);_UNICODE;UNICODE;_CRT_SECURE_NO_WARNINGS"
 				RuntimeLibrary="0"
 				EnableFunctionLevelLinking="true"
@@ -169,7 +169,7 @@
 				Name="VCResourceCompilerTool"
 				PreprocessorDefinitions="NDEBUG;_WIN32_WCE=$(CEVER);UNDER_CE;$(PLATFORMDEFINES)"
 				Culture="1033"
-				AdditionalIncludeDirectories="$(IntDir)"
+				AdditionalIncludeDirectories="..\ce-common\src\ce_log;$(IntDir)"
 			/>
 			<Tool
 				Name="VCPreLinkEventTool"
@@ -288,10 +288,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\src\zlog.h"
-				>
-			</File>
-			<File
 				RelativePath="..\shared\title_name.h"
 				>
 			</File>
@@ -356,7 +352,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\src\zlog.cpp"
+				RelativePath="..\ce-common\src\ce_log\ce_log.c"
 				>
 			</File>
 			<File

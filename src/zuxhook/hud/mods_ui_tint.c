@@ -184,7 +184,7 @@ void ModUiTintSet(DWORD handle, DWORD argb) {
         g_tints[slot].argb   = argb;
         g_tint_count++;
     } else {
-        ModsLogf(L"  ui_tint: table full (%d), dropped tint for handle 0x%08x",
+        ModsLogf("  ui_tint: table full (%d), dropped tint for handle 0x%08x",
                  UI_TINT_MAX, handle);
     }
 }

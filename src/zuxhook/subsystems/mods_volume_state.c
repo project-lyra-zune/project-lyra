@@ -7,6 +7,7 @@
 #include <stdarg.h>
 #include <string.h>
 
+#include "ce_log.h"
 /* The single ZAM volume-write choke point (zam_serv.dll, firmware v4.5). Both
    on-screen change paths funnel through it: relative (ZAM0:/0x204 method 0x13,
    the HUD Vol+/- touch elements) via sub_0x41893d34, and absolute (method 0x11)
@@ -14,19 +15,13 @@
    function then curve-maps and writes the codec (waveOut-backed) level. */
 #define ZAM_VOLUME_WRITER_VA  0x41893c18u
 
-#define VOLUME_STATE_LOG  L"\\flash2\\automation\\mods\\volume-state.log"
 
 static VolumeStateBlock* g_block   = NULL;
 static HANDLE            g_section = NULL;
 static HANDLE            g_event   = NULL;
 static volatile LONG     g_installed = 0;
 
-static void VSlogf(const wchar_t* fmt, ...) {
-    va_list ap;
-    va_start(ap, fmt);
-    mods_vflashlog(VOLUME_STATE_LOG, fmt, ap);
-    va_end(ap);
-}
+CE_LOGGER(VSlogf, L"\\flash2\\automation\\mods\\volume-state.log")
 
 static VolumeStateBlock* vs_map(void) {
     HANDLE h;
@@ -70,14 +65,14 @@ static DWORD WINAPI vs_install_thread(LPVOID param) {
     for (tries = 0; tries < 240; tries++) {        /* up to ~120s */
         if (kerncore_is_ready() && kerncore_ensure_helpers()) {
             if (ModDetourInstallObserve(ZAM_VOLUME_WRITER_VA, vs_on_volume) == 0)
-                VSlogf(L"writer detour installed @0x%08x", ZAM_VOLUME_WRITER_VA);
+                VSlogf("writer detour installed @0x%08x", ZAM_VOLUME_WRITER_VA);
             else
-                VSlogf(L"writer detour FAILED @0x%08x", ZAM_VOLUME_WRITER_VA);
+                VSlogf("writer detour FAILED @0x%08x", ZAM_VOLUME_WRITER_VA);
             return 0;
         }
         Sleep(500);
     }
-    VSlogf(L"kerncore not ready after wait - detour not installed");
+    VSlogf("kerncore not ready after wait - detour not installed");
     return 0;
 }
 
@@ -95,12 +90,12 @@ void VolumeStateInstall(void) {
     if (!vs_is_servicesd()) return;
     if (InterlockedExchange(&g_installed, 1) != 0) return;
 
-    if (!vs_map()) { VSlogf(L"section map failed"); return; }
+    if (!vs_map()) { VSlogf("section map failed"); return; }
     g_event = CreateEventW(NULL, FALSE, FALSE, VOLUME_STATE_EVENT);  /* auto-reset */
 
     {
         HANDLE h = CreateThread(NULL, 0, vs_install_thread, NULL, 0, NULL);
         if (h) CloseHandle(h);
     }
-    VSlogf(L"section+event up; writer detour deferred to kerncore-ready");
+    VSlogf("section+event up; writer detour deferred to kerncore-ready");
 }

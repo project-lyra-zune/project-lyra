@@ -33,6 +33,7 @@ WOLF_CFLAGS = $(CE_CFLAGS) \
 	/I"$(CEC)\deps\wolfssl" \
 	/I"$(HTTPS_DIR)" \
 	/I"$(CEC)\src" \
+	/I"$(CEC)\src\ce_log" \
 	/I"$(ZLIB)" \
 	/I"$(MZ)" \
 	/I"$(MR)" \
@@ -72,8 +73,8 @@ ALL_OBJS = \
 	$(OBJ_DIR)\inffast.obj \
 	$(OBJ_DIR)\adler32.obj \
 	$(OBJ_DIR)\crc32.obj \
-	$(OBJ_DIR)\zutil.obj
-
+	$(OBJ_DIR)\zutil.obj \
+	$(OBJ_DIR)\ce_log.obj
 HDRS = repo_ipc.h repo_feed.h $(HTTPS_DIR)\ce_https.h
 
 all: makedirs $(EXE_OUT)
@@ -144,3 +145,6 @@ $(OBJ_DIR)\crc32.obj: $(ZLIB)\crc32.c
 
 $(OBJ_DIR)\zutil.obj: $(ZLIB)\zutil.c
 	$(CC) $(ZLIB_CFLAGS) /Fo"$(OBJ_DIR)\zutil.obj" /c $(ZLIB)\zutil.c
+
+$(OBJ_DIR)\ce_log.obj: $(CEC)\src\ce_log\ce_log.c
+	$(CC) $(WOLF_CFLAGS) /Fo"$(OBJ_DIR)\ce_log.obj" /c $(CEC)\src\ce_log\ce_log.c

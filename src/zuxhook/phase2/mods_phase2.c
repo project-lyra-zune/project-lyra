@@ -125,24 +125,24 @@ int patch_kernel_dword(DWORD va, DWORD value, const wchar_t* label) {
     __try {
         cur = *(volatile DWORD*)va;
     } __except (EXCEPTION_EXECUTE_HANDLER) {
-        ModsLogf(L"    patch %s @0x%08x: in-process read faulted", label, va);
+        ModsLogf("    patch %S @0x%08x: in-process read faulted", label, va);
         return -1;
     }
     if (cur == value) {
-        ModsLogf(L"    %s @0x%08x already 0x%08x - skip", label, va, value);
+        ModsLogf("    %S @0x%08x already 0x%08x - skip", label, va, value);
         return 0;
     }
     /* Get our own proc-struct VA for the PT-flip. */
     gem_proc = get_gem_proc();
     if (gem_proc == 0) {
-        ModsLogf(L"    patch %s: cannot find gemstone proc-struct", label);
+        ModsLogf("    patch %S: cannot find gemstone proc-struct", label);
         return -1;
     }
     /* PT-flip write: temporarily clear AP[2] on the L2 entry, write, restore. */
     {
         DWORD bytes[1] = { value };
         if (kerncore_patch_code(gem_proc, va, bytes, 4) != 0) {
-            ModsLogf(L"    patch %s @0x%08x: kerncore_patch_code failed",
+            ModsLogf("    patch %S @0x%08x: kerncore_patch_code failed",
                      label, va);
             return -1;
         }
@@ -152,15 +152,15 @@ int patch_kernel_dword(DWORD va, DWORD value, const wchar_t* label) {
     __try {
         cur = *(volatile DWORD*)va;
     } __except (EXCEPTION_EXECUTE_HANDLER) {
-        ModsLogf(L"    patch %s @0x%08x: verify read faulted", label, va);
+        ModsLogf("    patch %S @0x%08x: verify read faulted", label, va);
         return -1;
     }
     if (cur != value) {
-        ModsLogf(L"    patch %s @0x%08x: write didn't stick (got 0x%08x)",
+        ModsLogf("    patch %S @0x%08x: write didn't stick (got 0x%08x)",
                  label, va, cur);
         return -1;
     }
-    ModsLogf(L"    patched %s @0x%08x to 0x%08x", label, va, value);
+    ModsLogf("    patched %S @0x%08x to 0x%08x", label, va, value);
     return 0;
 }
 
@@ -188,14 +188,14 @@ static int enable_debug_button_launch(void) {
     DWORD tramp[17];
 
     proc = get_gem_proc();   /* process-agnostic: our own proc-struct */
-    if (proc == 0) { ModsLogf(L"  debug-enable: no proc-struct"); return -1; }
+    if (proc == 0) { ModsLogf("  debug-enable: no proc-struct"); return -1; }
 
     /* Idempotency: the dispatcher entry already holds our detour jump. */
     __try { cur = *(volatile DWORD*)ZHUD_DBG_DISP_VA; }
     __except (EXCEPTION_EXECUTE_HANDLER) {
-        ModsLogf(L"  debug-enable: dispatcher read faulted"); return -1;
+        ModsLogf("  debug-enable: dispatcher read faulted"); return -1;
     }
-    if (cur == ARM_LDR_PC_NEG4) { ModsLogf(L"  debug-enable: already patched - skip"); return 0; }
+    if (cur == ARM_LDR_PC_NEG4) { ModsLogf("  debug-enable: already patched - skip"); return 0; }
 
     /* Entry detour for 0x419c8b50(r0=scene, r1=msg-payload, r2=&out, lr=caller).
        Stolen prologue: push {r4,lr}; mov r4,r2. The C call preserves r4-r11; we
@@ -222,9 +222,9 @@ static int enable_debug_button_launch(void) {
     tramp[16] = (DWORD)&ModsHudMenuButtonTap;
 
     tramp_va = scratch_alloc(sizeof(tramp));
-    if (!tramp_va) { ModsLogf(L"  debug-enable: scratch exhausted (tramp)"); return -1; }
+    if (!tramp_va) { ModsLogf("  debug-enable: scratch exhausted (tramp)"); return -1; }
     if (scratch_write(tramp_va, tramp, sizeof(tramp)) < 0) {
-        ModsLogf(L"  debug-enable: tramp write faulted @0x%08x", tramp_va); return -1;
+        ModsLogf("  debug-enable: tramp write faulted @0x%08x", tramp_va); return -1;
     }
     FlushInstructionCache(GetCurrentProcess(), (void*)tramp_va, sizeof(tramp));
 
@@ -232,13 +232,13 @@ static int enable_debug_button_launch(void) {
     patch[0] = ARM_LDR_PC_NEG4;
     patch[1] = tramp_va;
     if (kerncore_patch_code(proc, ZHUD_DBG_DISP_VA, patch, 8) != 0) {
-        ModsLogf(L"  debug-enable: kerncore_patch_code failed @0x%08x", ZHUD_DBG_DISP_VA);
+        ModsLogf("  debug-enable: kerncore_patch_code failed @0x%08x", ZHUD_DBG_DISP_VA);
         return -1;
     }
     FlushInstructionCache(GetCurrentProcess(), (void*)ZHUD_DBG_DISP_VA, 8);
     __try { cur = *(volatile DWORD*)ZHUD_DBG_DISP_VA; }
     __except (EXCEPTION_EXECUTE_HANDLER) { cur = 0; }
-    ModsLogf(L"  debug-enable: tramp@0x%08x detour@0x%08x (now 0x%08x) helper@0x%08x",
+    ModsLogf("  debug-enable: tramp@0x%08x detour@0x%08x (now 0x%08x) helper@0x%08x",
              tramp_va, ZHUD_DBG_DISP_VA, cur, (DWORD)&ModsHudMenuButtonTap);
     return (cur == ARM_LDR_PC_NEG4) ? 0 : -1;
 }
@@ -296,7 +296,7 @@ static void activate_demanded_subsystems(const ModSet* set, const char* host) {
         if (strcmp(SUBSYSTEMS[i].host, host) != 0) continue;
         if (ModsCapabilityDemanded(set, SUBSYSTEMS[i].name)) {
             SUBSYSTEMS[i].activate();
-            ModsLogf(L"  phase2: subsystem %S activated", SUBSYSTEMS[i].name);
+            ModsLogf("  phase2: subsystem %s activated", SUBSYSTEMS[i].name);
         }
     }
 }
@@ -311,7 +311,7 @@ static int dispatch_phase2_action(ModAction* a, ModsArena* arena) {
     const char* t = a->type;
     int phase = ModsCapabilityPhase(t);
     if (phase == MODS_CAP_PHASE_NONE) {
-        ModsLogf(L"    unknown capability: %S (skipped)", t);
+        ModsLogf("    unknown capability: %s (skipped)", t);
         return MODS_ACTION_SKIPPED;
     }
     /* A Phase 1 cap already ran in the compositor - skip it here. */
@@ -337,7 +337,7 @@ static int dispatch_phase2_action(ModAction* a, ModsArena* arena) {
     if (strcmp(t, "lyra.load_module")            == 0) return apply_load_module(a, arena);
     /* A Phase 2 CAPS entry with no handler wired breaks the entry-plus-handler
        invariant; surface it loudly rather than silently skip. */
-    ModsLogf(L"    capability %S is classified Phase 2 but has no handler", t);
+    ModsLogf("    capability %s is classified Phase 2 but has no handler", t);
     return MODS_ACTION_FAILED;
 }
 
@@ -373,12 +373,12 @@ static DWORD WINAPI Phase2Worker(LPVOID lpParam) {
 
     ModsLogOpen(is_sd ? L"\\flash2\\automation\\mods\\phase2-servicesd.log"
                       : L"\\flash2\\automation\\mods\\phase2.log");
-    ModsLogf(L"== ModsApplyPhase2 start (host=%S) ==", host);
+    ModsLogf("== ModsApplyPhase2 start (host=%s) ==", host);
 
     /* Non-gemstone hosts lack the fixed low-VA scratch region; plant into a
        VirtualAlloc'd RWX page instead (CE6 user pages are executable). */
     if (is_sd && scratch_use_virtualalloc(0x1000) < 0) {
-        ModsLogf(L"  phase2: VirtualAlloc RWX scratch failed");
+        ModsLogf("  phase2: VirtualAlloc RWX scratch failed");
         ModsLogClose();
         return 0;
     }
@@ -393,17 +393,17 @@ static DWORD WINAPI Phase2Worker(LPVOID lpParam) {
     }
 
     if (!ready) {
-        ModsLogf(L"  xuidll registry never primed after %d attempts "
-                 L"(last_total=%d)", attempts, total);
-        ModsLogf(L"== ModsApplyPhase2 aborted ==");
+        ModsLogf("  xuidll registry never primed after %d attempts "
+                 "(last_total=%d)", attempts, total);
+        ModsLogf("== ModsApplyPhase2 aborted ==");
         ModsLogClose();
         return 0;
     }
 
     /* Walk once more to capture the full registered-class count. */
     walk_registry(NULL, &total);
-    ModsLogf(L"  xuidll registry primed after %d attempt(s) "
-             L"(%dx 100ms); %d classes registered",
+    ModsLogf("  xuidll registry primed after %d attempt(s) "
+             "(%dx 100ms); %d classes registered",
              attempts + 1, attempts, total);
 
     /* Apply Phase 2 capabilities from each applied mod's manifest
@@ -419,18 +419,18 @@ static DWORD WINAPI Phase2Worker(LPVOID lpParam) {
            scales with the whole mods/ directory. 4 MB leaves headroom for
            that plus each applied mod's Phase 2 class/blob allocations. */
         if (ModsArenaInit(&arena, 4 * 1024 * 1024) < 0) {
-            ModsLogf(L"  phase2: arena init failed");
+            ModsLogf("  phase2: arena init failed");
             ModsLogClose();
             return 0;
         }
         memset(&mods, 0, sizeof(mods));
         if (ModsManifestLoadAll(&arena, L"\\flash2\\automation\\mods", &mods) < 0) {
-            ModsLogf(L"  phase2: manifest load failed");
+            ModsLogf("  phase2: manifest load failed");
             ModsArenaFree(&arena);
             ModsLogClose();
             return 0;
         }
-        ModsLogf(L"  phase2: %d mod(s) loaded for capability application", mods.count);
+        ModsLogf("  phase2: %d mod(s) loaded for capability application", mods.count);
         ModsResolve(&mods, &arena, ModsPlatformProvides);
 
         /* Wait for kerncore (nativeapp's hax + plant_helpers) to be ready
@@ -452,8 +452,8 @@ static DWORD WINAPI Phase2Worker(LPVOID lpParam) {
                 }
                 Sleep(200);
             }
-            ModsLogf(L"  phase2: kerncore %s after %d attempt(s)",
-                     kc_ready ? L"ready" : L"NOT ready",
+            ModsLogf("  phase2: kerncore %S after %d attempt(s)",
+                     kc_ready ? "ready" : "NOT ready",
                      kc_attempts + 1);
         }
 
@@ -464,14 +464,14 @@ static DWORD WINAPI Phase2Worker(LPVOID lpParam) {
         for (i = 0; i < mods.count; i++) {
             Mod* m = &mods.mods[i];
             if (m->disabled) {
-                ModsLogf(L"  [%d/%d] %S - skipped (resolver disabled)",
+                ModsLogf("  [%d/%d] %s - skipped (resolver disabled)",
                          i + 1, mods.count, m->mod_id);
                 continue;
             }
             /* Load Phase 1 back-refs (from disk; Phase 1 ran in the
                compositor's process, so scope doesn't cross processes). */
             ModsLoadBackRefs(m, &arena);
-            ModsLogf(L"  [%d/%d] %S v%S - %d action(s)",
+            ModsLogf("  [%d/%d] %s v%s - %d action(s)",
                      i + 1, mods.count, m->mod_id, m->version, m->actions_count);
             for (j = 0; j < m->actions_count; j++) {
                 int rc;
@@ -484,11 +484,11 @@ static DWORD WINAPI Phase2Worker(LPVOID lpParam) {
                 else if (rc == MODS_ACTION_DEFERRED) deferred++;
                 else if (rc == MODS_ACTION_SKIPPED)  skipped++;
                 else { failed++;
-                    ModsLogf(L"    action[%d] %S FAILED", j, m->actions[j].type);
+                    ModsLogf("    action[%d] %s FAILED", j, m->actions[j].type);
                 }
             }
         }
-        ModsLogf(L"  phase2: %d applied / %d deferred / %d skipped / %d failed",
+        ModsLogf("  phase2: %d applied / %d deferred / %d skipped / %d failed",
                  p2_applied, deferred, skipped, failed);
 
         /* Build the mods-tab row set on this boot thread, before the menu
@@ -507,10 +507,10 @@ static DWORD WINAPI Phase2Worker(LPVOID lpParam) {
         if (!is_sd) ModScanBuild(&mods);
 
         if (flush_menu_entries() < 0)
-            ModsLogf(L"  flush_menu_entries: failures detected");
+            ModsLogf("  flush_menu_entries: failures detected");
 
         if (flush_settings_rows() < 0)
-            ModsLogf(L"  flush_settings_rows: failures detected");
+            ModsLogf("  flush_settings_rows: failures detected");
 
         ModsArenaFree(&arena);
     }
@@ -532,17 +532,17 @@ static DWORD WINAPI Phase2Worker(LPVOID lpParam) {
             Sleep(200);
         }
         if (kc_ready) {
-            if (enable_debug_button_launch() == 0) ModsLogf(L"  debug-enable: OK");
+            if (enable_debug_button_launch() == 0) ModsLogf("  debug-enable: OK");
             /* The wifi-awake keepalive patch set is owned by the subsystem's
                authority thread (armed earlier this pass by
                activate_demanded_subsystems when a mod requires/provides
                wifi_awake) and applied/restored on demand, not installed here. */
         } else {
-            ModsLogf(L"  debug-enable: kerncore NOT ready after %d attempt(s), skipped", kc);
+            ModsLogf("  debug-enable: kerncore NOT ready after %d attempt(s), skipped", kc);
         }
     }
 
-    ModsLogf(L"== ModsApplyPhase2 done ==");
+    ModsLogf("== ModsApplyPhase2 done ==");
     ModsLogClose();
     return 0;
 }
@@ -566,7 +566,7 @@ static void ModStateReaperStart(void) {
     if (InterlockedExchange(&started, 1) == 0) {
         HANDLE h = CreateThread(NULL, 0, state_reaper_thread, NULL, 0, NULL);
         if (h) CloseHandle(h);
-        ModsLogf(L"  status reaper started");
+        ModsLogf("  status reaper started");
     }
 }
 
@@ -600,22 +600,22 @@ int ModsApplyHostInline(const char* host) {
     if (host == NULL) return -1;
 
     ModsLogOpen(L"\\flash2\\automation\\mods\\phase2-inline.log");
-    ModsLogf(L"== ModsApplyHostInline start (host=%S) ==", host);
+    ModsLogf("== ModsApplyHostInline start (host=%s) ==", host);
 
     if (ModsArenaInit(&arena, 4 * 1024 * 1024) < 0) {
-        ModsLogf(L"  inline: arena init failed");
+        ModsLogf("  inline: arena init failed");
         ModsLogClose();
         return -1;
     }
     memset(&mods, 0, sizeof(mods));
     if (ModsManifestLoadAll(&arena, L"\\flash2\\automation\\mods", &mods) < 0) {
-        ModsLogf(L"  inline: manifest load failed");
+        ModsLogf("  inline: manifest load failed");
         ModsArenaFree(&arena);
         ModsLogClose();
         return -1;
     }
     ModsResolve(&mods, &arena, ModsPlatformProvides);
-    ModsLogf(L"  inline: %d mod(s) loaded", mods.count);
+    ModsLogf("  inline: %d mod(s) loaded", mods.count);
 
     for (i = 0; i < mods.count; i++) {
         Mod* m = &mods.mods[i];
@@ -635,12 +635,12 @@ int ModsApplyHostInline(const char* host) {
             else if (rc == MODS_ACTION_SKIPPED) skipped++;
             else if (rc != MODS_ACTION_DEFERRED) {
                 failed++;
-                ModsLogf(L"    %S action[%d] %S FAILED", m->mod_id, j, a->type);
+                ModsLogf("    %s action[%d] %s FAILED", m->mod_id, j, a->type);
             }
         }
     }
 
-    ModsLogf(L"  inline: %d applied / %d skipped / %d failed", applied, skipped, failed);
+    ModsLogf("  inline: %d applied / %d skipped / %d failed", applied, skipped, failed);
     ModsArenaFree(&arena);
     ModsLogClose();
     return failed == 0 ? 0 : -1;

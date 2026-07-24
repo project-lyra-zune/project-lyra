@@ -317,7 +317,7 @@ enum ce_https_result ce_https_request(const char *host,
     wolfSSL_UseSNI(ssl, WOLFSSL_SNI_HOST_NAME, host, (unsigned short)strlen(host));
     wolfSSL_check_domain_name(ssl, host);
     {
-        WOLFSSL_SESSION *cached = sess_get(host);   /* resume → skip the handshake crypto */
+        WOLFSSL_SESSION *cached = sess_get(host);   /* resume to skip the handshake crypto */
         if (cached != NULL) wolfSSL_set_session(ssl, cached);
     }
     {

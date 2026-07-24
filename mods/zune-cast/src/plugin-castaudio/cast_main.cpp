@@ -171,7 +171,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrev, LPWSTR lpCmdLine, int 
 {
     (void)hInstance; (void)hPrev; (void)lpCmdLine; (void)nShow;
 
-    cast_log_init();
     mod_state_daemon_init(CAST_DAEMON_EVENT);
     mod_channel_init(CAST_TOGGLE_KEY);
 

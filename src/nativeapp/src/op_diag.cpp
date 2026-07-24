@@ -1,9 +1,13 @@
 #include "op_diag.h"
-#include "zlog.h"
+#include <stdarg.h>
+#include "ce_log.h"
+
+// Survives device blackouts (USB-active WiFi loss) for read-after-reboot diagnosis.
+CE_LOGGER(zlog, L"\\flash2\\zpod-wk.log")
 
 // Bulk-copy `len` bytes from a kernel VA to a user-space buffer in one
 // PL1 call. Uses the same KMEMCPY_FN recipe as repl_primitives.cpp's
-// DUMP_VA_TO_FILE, validated in-process for kernel→user copies.
+// DUMP_VA_TO_FILE, validated in-process for kernel to user copies.
 static void op21_kbulk(DWORD kernel_src, void* user_dst, DWORD len) {
 	kerncore_kcall(0x80072318u, (DWORD)user_dst, kernel_src, len, 0, 0, 0);
 }
@@ -29,7 +33,7 @@ void op23_unmap(DWORD va) {
 }
 
 // Pacing source: APB-DMA ch15. Each AHB_PTR change = one EOC = one block
-// (BSZ=0x2000 → 8KB per EOC, matches Tegra20 WCOUNT=1023 + 4KB-per-burst).
+// (BSZ=0x2000 to 8KB per EOC, matches Tegra20 WCOUNT=1023 + 4KB-per-burst).
 #define OP23_BSZ      0x2000u      // 8 KB/block
 #define OP23_I2S_FIFO 0x70002840u  // ch15 APBPTR (= I2S1 TX FIFO)
 
@@ -131,7 +135,7 @@ struct Op23Result run_op23(u32 run_ms, u32 cap_bytes, u32 phys_base) {
 
 // ── Opcode 24: USB iso audio tee (DDK TX-start) ─────────────────────────
 //
-// Consumer-paced ch15 source (op23 mechanism) → per AHB_PTR change feeds
+// Consumer-paced ch15 source (op23 mechanism) to per AHB_PTR change feeds
 // `pkt`-byte iso-IN submissions through libnvddk_misc!0xC08EC2F8 to
 // EP 0x81. `submit_iso` is the single swap point for the future zero-copy
 // dTD variant.
@@ -158,7 +162,7 @@ struct Op23Result run_op24(u32 run_ms, u32 handle, u32 ep_index,
 	r.ahb0 = handle;
 
 	// DIAG (pkt==1): trivial-stub 1-shot. Isolates the plant/exec/return
-	// mechanism (no ch15, no DDK-TX). r.flips == 0x42 ⇒ mechanism OK.
+	// mechanism (no ch15, no DDK-TX). r.flips == 0x42 means mechanism OK.
 	if (pkt == 1u) {
 		// Plant into the ALWAYS-EXECUTABLE kerncore scratch (the page the
 		// helpers run from), via plain kmemcpy - NOT NvOsAlloc+patch_code:
@@ -216,7 +220,7 @@ struct Op23Result run_op24(u32 run_ms, u32 handle, u32 ep_index,
 	// ENDPT drain diagnostic. ChipIdea EP1-IN (TX) = bit17. ENDPTCOMPLETE
 	// (MMIO+0x1BC) sets when the host consumes an IN transfer; ENDPTSTAT
 	// (MMIO+0x1B8) bit17 is set while a primed dTD is armed and clears
-	// once drained. Both counters zero ⇒ host never issued iso-IN.
+	// once drained. Both counters zero means host never issued iso-IN.
 	DWORD mmio    = kerncore_kreadu32(handle + 4u);
 	DWORD epc_cnt = 0, clr_cnt = 0, primed = 0;
 
@@ -266,8 +270,8 @@ static void w32(DWORD va, DWORD val) {
 // opcode 25 - zero-copy iso ring. Per AVP-DMA ch15 block: write ONE
 // ChipIdea dTD whose buffer pointers are the PCM block's PHYSICAL address
 // (true zero-copy), link it into the live ep1 dQH, and ENDPTPRIME bit17.
-// dTD/dQH live at fixed addresses reused every block ⇒ nothing is
-// allocated/freed ⇒ DDK-pool-exhaustion wedge is impossible. Re-prime is
+// dTD/dQH live at fixed addresses reused every block means nothing is
+// allocated/freed means DDK-pool-exhaustion wedge is impossible. Re-prime is
 // gated on ENDPTSTAT bit17 == 0 so the running controller's dQH is never
 // modified mid-transfer.
 struct Op23Result run_op25_ring(u32 run_ms, u32 handle) {
@@ -286,8 +290,8 @@ struct Op23Result run_op25_ring(u32 run_ms, u32 handle) {
 	DWORD ec_pre = mmio ? kerncore_kreadu32(mmio + 0x1C4u) : 0;
 	if (mmio) { DWORD ecv = 0x00840000u;
 	            kerncore_kmemcpy(mmio + 0x1C4u, &ecv, 4); }
-	zlog("ECRNG", ec_pre, mmio ? kerncore_kreadu32(mmio + 0x1C4u) : 0,
-	     mmio);
+	zlog("ECRNG a=%08x b=%08x c=%08x", ec_pre,
+	     mmio ? kerncore_kreadu32(mmio + 0x1C4u) : 0, mmio);
 	DWORD eplist = kerncore_kreadu32(mmio + 0x158u);     // dQH phys
 	if (!eplist) { r.error_code = 7; return r; }
 	DWORD pg = op23_map(eplist & ~0xFFFu, 0x1000u);
@@ -327,7 +331,7 @@ struct Op23Result run_op25_ring(u32 run_ms, u32 handle) {
 	// Initialise ep1 dQH: iso-IN, Mult=1 (bit30), MaxPacketLen=192
 	// (bits[26:16] = 0xC0<<16). cap = 0x40000000 | 0x00C00000.
 	w32(dqh3 + 0x00u, 0x40C00000u);   // cap
-	w32(dqh3 + 0x04u, 0x00000001u);   // current_dTD = invalid → load next
+	w32(dqh3 + 0x04u, 0x00000001u);   // current_dTD = invalid to load next
 	w32(dqh3 + 0x08u, dtd);           // next_dTD
 	w32(dqh3 + 0x0Cu, 0x00000000u);   // overlay token cleared
 
@@ -339,7 +343,7 @@ struct Op23Result run_op25_ring(u32 run_ms, u32 handle) {
 		if (cur != prev) {
 			if (prev >= blk_base && prev + OP23_BSZ <= blk_base + blk_len) {
 				DWORD stat = kerncore_kreadu32(mmio + 0x1B8u);
-				if (!(stat & 0x20000u)) {           // ep1 idle → safe
+				if (!(stat & 0x20000u)) {           // ep1 idle to safe
 					w32(dtd + 0x00u, 0x00000001u);  // next = terminate
 					// token: total=8KB[30:16], IOC bit15, active bit7
 					w32(dtd + 0x04u, (OP23_BSZ << 16) | 0x8000u | 0x80u);
@@ -364,7 +368,7 @@ struct Op23Result run_op25_ring(u32 run_ms, u32 handle) {
 					  while (GetTickCount() - st < 5u)
 					    epcacc |= kerncore_kreadu32(mmio + 0x1BCu); }
 				} else {
-					r.segA_top++;                   // ep1 busy → block dropped
+					r.segA_top++;                   // ep1 busy to block dropped
 				}
 			}
 			prev = cur;

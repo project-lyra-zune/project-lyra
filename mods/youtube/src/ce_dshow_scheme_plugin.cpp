@@ -19,6 +19,8 @@
 // The DLL must live at the InprocServer32 path below so COM reuses the loaded image.
 
 #include <windows.h>
+#include <stdarg.h>
+#include "ce_log.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -53,12 +55,10 @@ struct AM_MEDIA_TYPE {
 struct PIN_INFO { void* pFilter; int dir; wchar_t achName[128]; };
 struct FILTER_INFO { wchar_t achName[128]; void* pGraph; };
 
-static HANDLE g_log;
 static int g_hit_dllgco=0, g_hit_createinst=0, g_hit_load=0;
 static wchar_t g_load_url[260]={0};
 
-static void L(const char*s){DWORD n;if(g_log){WriteFile(g_log,s,(DWORD)strlen(s),&n,NULL);WriteFile(g_log,"\r\n",2,&n,NULL);}}
-static void Lx(const char*tag,HRESULT hr){char b[160];_snprintf(b,sizeof(b),"%s hr=0x%08x",tag,hr);L(b);}
+CE_LOGGER(L, L"\\flash2\\automation\\plugin-result.log")
 static int guid_eq(const GUID*a,const GUID*b){return memcmp(a,b,16)==0;}
 
 #define VT(o) (*(void***)(o))
@@ -257,7 +257,6 @@ static void reg_teardown(){
     RegDeleteKeyW(HKEY_CLASSES_ROOT,TEST_SCHEME);
 }
 
-static HANDLE open_log(void){ wchar_t p[MAX_PATH]; HANDLE f; _snwprintf(p,MAX_PATH-1,L"\\flash2\\automation\\plugin-result-%lu.log",GetCurrentProcessId()); p[MAX_PATH-1]=0; f=CreateFileW(p,GENERIC_WRITE,FILE_SHARE_READ,NULL,OPEN_ALWAYS,FILE_ATTRIBUTE_NORMAL,NULL); if(f==INVALID_HANDLE_VALUE)return NULL; SetFilePointer(f,0,NULL,FILE_END); return f; }
 
 extern "C" __declspec(dllexport) int RunDaemon(const void *arg, int arg_len, HANDLE stop_event){
     char line[200];
@@ -265,7 +264,6 @@ extern "C" __declspec(dllexport) int RunDaemon(const void *arg, int arg_len, HAN
     void *graph=NULL; HRESULT hr;
     (void)arg;(void)arg_len;(void)stop_event;
 
-    g_log=open_log(); if(!g_log) return -1;
     L("=== ce_dshow_scheme (daemon): RenderFile custom-scheme registration probe ===");
     init_vtbls();
 
@@ -273,18 +271,18 @@ extern "C" __declspec(dllexport) int RunDaemon(const void *arg, int arg_len, HAN
     CoInitializeEx_   = ole?(pfn_CoInitializeEx)GetProcAddress(ole,L"CoInitializeEx"):NULL;
     CoCreateInstance_ = ole?(pfn_CoCreateInstance)GetProcAddress(ole,L"CoCreateInstance"):NULL;
     g_CoTaskMemAlloc  = ole?(void*(__stdcall*)(SIZE_T))GetProcAddress(ole,L"CoTaskMemAlloc"):NULL;
-    if(!CoCreateInstance_||!g_CoTaskMemAlloc){ L("ole32 resolve failed"); CloseHandle(g_log); return 0; }
+    if(!CoCreateInstance_||!g_CoTaskMemAlloc){ L("ole32 resolve failed"); return 0; }
     if(CoInitializeEx_) CoInitializeEx_(NULL,0);
 
     reg_setup();
     L("registry written: HKCR\\ytm\\Source Filter + HKCR\\CLSID\\{ours}\\InprocServer32");
 
     hr=CoCreateInstance_(&CLSID_FilterGraph,NULL,1,&IID_IGraphBuilder,&graph);
-    Lx("CoCreateInstance(FilterGraph)",hr); if(hr||!graph){ reg_teardown(); CloseHandle(g_log); return 0; }
+    L("CoCreateInstance(FilterGraph) hr=0x%08x", hr); if(hr||!graph){ reg_teardown(); return 0; }
 
     L("calling RenderFile(L\"ytm://testid12345\") ...");
     hr=((HRESULT(__stdcall*)(void*,const wchar_t*,const wchar_t*))VT(graph)[13])(graph,TEST_URL,NULL);
-    Lx("RenderFile(ytm://...)",hr);
+    L("RenderFile(ytm://...) hr=0x%08x", hr);
 
     L("---- RESULT ----");
     _snprintf(line,sizeof(line),"DllGetClassObject fired = %d", g_hit_dllgco); L(line);
@@ -297,7 +295,7 @@ extern "C" __declspec(dllexport) int RunDaemon(const void *arg, int arg_len, HAN
     if(graph) g_REL(graph);
     reg_teardown();
     L("--- exit");
-    CloseHandle(g_log);
+   
     return 0;
 }
 

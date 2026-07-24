@@ -23,6 +23,8 @@
 
 #include <windows.h>
 #include <stdio.h>
+#include <stdarg.h>
+#include "ce_log.h"
 
 #include "yt_search_ipc.h"
 #include "yt_queue.h"
@@ -37,7 +39,7 @@
 #define GEMLIBRARYBASESCENE_NAME 0x00011b6c   /* L"GemLibraryBaseScene", content-swap helper parent */
 
 typedef int (*SetLabelTextFn)(void*, const wchar_t*);
-#define SET_LABEL_TEXT  ((SetLabelTextFn)0x00038434)   /* (elem, wstring) → msg 0x7e0 */
+#define SET_LABEL_TEXT  ((SetLabelTextFn)0x00038434)   /* (elem, wstring) to msg 0x7e0 */
 
 typedef HRESULT (*XuiElementGetDescendantByIdFn)(void*, const wchar_t*, void**, int);
 #define XUI_GET_DESC_BY_ID  ((XuiElementGetDescendantByIdFn)0x0006afec)
@@ -57,7 +59,7 @@ typedef HRESULT (*RawRowLabelFn)(DWORD, DWORD, const wchar_t*);
 
 /* Image-source row assign, the sibling of RAW_ROW_LABEL used by the get-image
  * pull (sub 0x3e9). The native file:// path (GemLibraryListContentScene get-image
- * 0x320dc → 0x28754 type 0xfc) calls it as (out_8, out_c, scheme, &out_8, &out_c, 0). */
+ * 0x320dc to 0x28754 type 0xfc) calls it as (out_8, out_c, scheme, &out_8, &out_c, 0). */
 typedef HRESULT (*ImgRowAssignFn)(DWORD, DWORD, const wchar_t*, DWORD*, DWORD*, int);
 #define IMG_ROW_ASSIGN  ((ImgRowAssignFn)0x00083a14)
 
@@ -94,7 +96,7 @@ struct DataSourceSubStruct {
  * result rows into the named shared section; the UI side reads them. Completion
  * is delivered on the UI thread by joining the daemon's auto-reset DONE event to
  * gemstone's message-pump wait set (the MsgWaitForMultipleObjectsEx IAT hook
- * below), the same out-of-process→UI pathway the modkit/zune-cast notify uses,
+ * below), the same out-of-process to UI pathway the modkit/zune-cast notify uses,
  * specialised to one producer + one consumer (no MsgQueue fan-out needed). */
 #define MSGWAIT_IAT_GEMSTONE  0x00096244u   /* coredll ord871 import slot, gemstone image */
 #define MWMO_WAITALL          0x00000001u
@@ -102,8 +104,8 @@ struct DataSourceSubStruct {
 typedef DWORD (WINAPI *MsgWaitFn)(DWORD, const HANDLE*, DWORD, DWORD, DWORD);
 static MsgWaitFn      g_orig_wait = NULL;   /* real MsgWaitForMultipleObjectsEx */
 static YtSearchBlock* g_search    = NULL;   /* shared section (daemon writes, we read) */
-static HANDLE         g_wake      = NULL;   /* we SetEvent → daemon wakes */
-static HANDLE         g_done      = NULL;   /* daemon SetEvents → our pump wakes */
+static HANDLE         g_wake      = NULL;   /* we SetEvent to daemon wakes */
+static HANDLE         g_done      = NULL;   /* daemon SetEvents to our pump wakes */
 
 /* Per-category result cache. Each tab keeps its own loaded rows, displayed count,
  * and continuation token, so switching back to a category shows its results
@@ -146,7 +148,7 @@ static wchar_t  g_browse_subtitle[YT_SEARCH_ARTIST_LEN];   /* tapped entity subt
 static void yt_browse_submit(const char* browse_id, const wchar_t* title, const wchar_t* subtitle);
 static void yt_row_activate(const YtSearchRow* r);         /* play (song) / album drill / artist drill */
 
-/* Artist drill (UC… browseId) → a two-tab twist (Albums, Songs). Both tabs come from
+/* Artist drill (UC… browseId) to a two-tab twist (Albums, Songs). Both tabs come from
  * one /browse (the daemon caches the body), so each tab has its own UI buffer; tab 0 =
  * albums, tab 1 = songs. Mirrors g_cat but for the active artist. */
 #define YT_ARTIST_TABS 2
@@ -158,16 +160,7 @@ static void yt_artist_submit(const char* browse_id, const wchar_t* name);
 static void yt_request_artist(int tab);                    /* fetch a tab's data (or show cached) */
 
 /* ── one-shot install logging (Phase2Worker thread, not the pump) ────────── */
-static void L(const char* s) {
-    HANDLE f = CreateFileW(L"\\flash2\\automation\\youtube.log", GENERIC_WRITE,
-                           FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
-                           OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-    if (f == INVALID_HANDLE_VALUE) return;
-    SetFilePointer(f, 0, NULL, FILE_END);
-    DWORD n; WriteFile(f, s, (DWORD)strlen(s), &n, NULL); WriteFile(f, "\r\n", 2, &n, NULL);
-    CloseHandle(f);
-}
-static void Lx(const char* t, HRESULT hr) { char b[160]; _snprintf(b, sizeof(b), "%s hr=0x%08x", t, hr); L(b); }
+CE_LOGGER(L, L"\\flash2\\automation\\youtube.log")
 
 /* ════════════════════════════════ GemYtHub ════════════════════════════════ */
 
@@ -206,7 +199,7 @@ static void yt_search_submit(const wchar_t* query) {
     int i = 0;
     for (; query[i] && i < YT_SEARCH_QUERY_LEN - 1; i++) g_search->query[i] = query[i];
     g_search->query[i] = 0;
-    /* new query → drop every category's cache so each tab re-fetches; bump the
+    /* new query to drop every category's cache so each tab re-fetches; bump the
      * generation so any fetch still in flight from the previous query is ignored
      * when it lands (the daemon can't be cancelled mid-request). */
     for (int k = 0; k < YT_CATEGORY_COUNT; k++) {
@@ -701,7 +694,7 @@ static HRESULT GemYtResults_OnMessage(GemYtResultsInstance* self, void* msg) {
         if (cat >= YT_CATEGORY_COUNT) cat = 0;
         g_active_category = (LONG)cat;
         self->result_buf = (DWORD)&g_cat[cat];   /* this scene renders its category's cache */
-        /* cached → shows instantly; otherwise this queues the fetch */
+        /* cached to shows instantly; otherwise this queues the fetch */
         yt_request_category((int)cat);
         flip_visibility(self);
         __try { m[2] = 1; } __except (EXCEPTION_EXECUTE_HANDLER) {}
@@ -937,7 +930,7 @@ static void yt_search_snapshot(void) {
     yt_pump();   /* deferred category fetch, or top up the buffer, in the background */
 }
 
-/* Show `cat` (cached → instant via flip_visibility); otherwise queue its first-page
+/* Show `cat` (cached to instant via flip_visibility); otherwise queue its first-page
  * fetch. The pump issues it now if the daemon is free, else after the current one. */
 static void yt_request_category(int cat) {
     if (cat < 0 || cat >= YT_CATEGORY_COUNT) return;
@@ -961,7 +954,7 @@ static void yt_browse_submit(const char* browse_id, const wchar_t* title, const 
     nav_to_scene_by_name(L"YtAlbum.xur");
 }
 
-/* Request an artist tab's data (0=albums, 1=songs). Cached → the content scene shows
+/* Request an artist tab's data (0=albums, 1=songs). Cached to the content scene shows
  * it immediately; otherwise queue the fetch (the pump issues it, and its DONE refreshes
  * the scene). Both tabs share one cached /browse on the daemon side. */
 static void yt_request_artist(int tab) {
@@ -1028,7 +1021,7 @@ static void yt_search_install(void) {
         L("yt_search: MsgWait IAT patch faulted");
         return;
     }
-    Lx("yt_search installed orig", (HRESULT)orig);
+    L("yt_search installed orig hr=0x%08x", (HRESULT)orig);
 }
 
 /* ════════════════════════════ GemYtSearchScene ════════════════════════════
@@ -1250,8 +1243,8 @@ static HRESULT GemYtArtist_OnMessage(GemYtSearchInstance* self, void* msg) {
 
 /* ════════════════════════════ GemYtArtistContent ═══════════════════════════
  * An artist tab's list (albums or songs). Reuses GemYtResults_OnInit (element
- * lookups) + yt_list_pull (row rendering + tap → drill/play); only the buffer
- * binding differs: tab 0 → g_artist[0] (albums), tab 1 → g_artist[1] (songs). */
+ * lookups) + yt_list_pull (row rendering + tap to drill/play); only the buffer
+ * binding differs: tab 0 to g_artist[0] (albums), tab 1 to g_artist[1] (songs). */
 static HRESULT GemYtArtistContent_OnMessage(GemYtResultsInstance* self, void* msg) {
     DWORD* m = (DWORD*)msg;
     DWORD msg_id = 0;
@@ -1384,17 +1377,17 @@ extern "C" __declspec(dllexport) int YtInstall(void) {
     g_artistcontent_vtable[3] = CLASS_DESTROY_SHARED;
 
     HRESULT h1 = register_scene_class(g_desc_hub, HUB_NAME, (void*)hub_factory, GEMBASESCENE_NAME);
-    Lx("GemYtHub register", h1);                 /* 0=ok, 0x80300005=already */
+    L("GemYtHub register hr=0x%08x", h1);                 /* 0=ok, 0x80300005=already */
     HRESULT h2 = register_scene_class(g_desc_results, RESULTS_NAME, (void*)results_factory, GEMBASESCENE_NAME);
-    Lx("GemYtResultsContentScene register", h2);
+    L("GemYtResultsContentScene register hr=0x%08x", h2);
     HRESULT h3 = register_scene_class(g_desc_search, SEARCH_NAME, (void*)search_factory, GEMLIBRARYBASESCENE_NAME);
-    Lx("GemYtSearchScene register", h3);
+    L("GemYtSearchScene register hr=0x%08x", h3);
     HRESULT h4 = register_scene_class(g_desc_album, ALBUM_NAME, (void*)album_factory, GEMBASESCENE_NAME);
-    Lx("GemYtAlbum register", h4);
+    L("GemYtAlbum register hr=0x%08x", h4);
     HRESULT h5 = register_scene_class(g_desc_artisthost, ARTISTHOST_NAME, (void*)artisthost_factory, GEMLIBRARYBASESCENE_NAME);
-    Lx("GemYtArtist register", h5);
+    L("GemYtArtist register hr=0x%08x", h5);
     HRESULT h6 = register_scene_class(g_desc_artistcontent, ARTISTCONTENT_NAME, (void*)artistcontent_factory, GEMBASESCENE_NAME);
-    Lx("GemYtArtistContent register", h6);
+    L("GemYtArtistContent register hr=0x%08x", h6);
 
     yt_search_install();
     return 0;

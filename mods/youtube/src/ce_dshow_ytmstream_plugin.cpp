@@ -20,6 +20,8 @@
 // (the Receive-path AAC type that configures the NvMM block from the format).
 
 #include <winsock2.h>
+#include <stdarg.h>
+#include "ce_log.h"
 #include <windows.h>
 #include <stdio.h>
 #include <string.h>
@@ -69,13 +71,7 @@ static int g_objcount=0;
 static void* (__stdcall *g_CoTaskMemAlloc)(SIZE_T);
 static unsigned char g_wfx[18] = {0x0a,0x16, 2,0, 0x44,0xac,0,0, 0,0,0,0, 0,0, 0,0, 0,0}; // tag0x160a,2ch,44100,cbSize0
 
-static void L(const char*s){
-    wchar_t p[MAX_PATH]; _snwprintf(p,MAX_PATH-1,L"\\flash2\\automation\\plugin-result-%lu.log",GetCurrentProcessId()); p[MAX_PATH-1]=0;
-    HANDLE f=CreateFileW(p,GENERIC_WRITE,FILE_SHARE_READ|FILE_SHARE_WRITE,NULL,OPEN_ALWAYS,FILE_ATTRIBUTE_NORMAL,NULL);
-    if(f==INVALID_HANDLE_VALUE)return; SetFilePointer(f,0,NULL,FILE_END);
-    DWORD n; WriteFile(f,s,(DWORD)strlen(s),&n,NULL); WriteFile(f,"\r\n",2,&n,NULL); CloseHandle(f);
-}
-static void Lx(const char*t,HRESULT hr){char b[160];_snprintf(b,sizeof(b),"%s hr=0x%08x",t,hr);L(b);}
+CE_LOGGER(L, L"\\flash2\\automation\\plugin-result.log")
 static int geq(const GUID*a,const GUID*b){return memcmp(a,b,16)==0;}
 #define VT(o) (*(void***)(o))
 static unsigned rd32(const unsigned char*p){return ((unsigned)p[0]<<24)|((unsigned)p[1]<<16)|((unsigned)p[2]<<8)|p[3];}
@@ -136,18 +132,18 @@ static HRESULT __stdcall P_Connect(void*o,void*recv,const AM_MEDIA_TYPE*pmt){
     Pin*p=(Pin*)o; HRESULT hr; (void)pmt;
     L("Pin::Connect offering AAC type to downstream");
     hr=((HRESULT(__stdcall*)(void*,void*,const AM_MEDIA_TYPE*))VT(recv)[4])(recv,&p->v,&p->mt);
-    Lx("  ReceiveConnection",hr); if(hr) return hr;
+    L("  ReceiveConnection hr=0x%08x", hr); if(hr) return hr;
     p->peer=recv;
     hr=((HRESULT(__stdcall*)(void*,const GUID*,void**))VT(recv)[0])(recv,&IID_IMemInputPin_,&p->meminput);
-    Lx("  QI(IMemInputPin)",hr); if(hr||!p->meminput) return hr?hr:0x80004002;
+    L("  QI(IMemInputPin) hr=0x%08x", hr); if(hr||!p->meminput) return hr?hr:0x80004002;
     { void* a=NULL; ALLOC_PROPS props; ALLOC_PROPS act;
-      hr=((HRESULT(__stdcall*)(void*,void**))VT(p->meminput)[3])(p->meminput,&a); Lx("  GetAllocator",hr);
+      hr=((HRESULT(__stdcall*)(void*,void**))VT(p->meminput)[3])(p->meminput,&a); L("  GetAllocator hr=0x%08x", hr);
       if(hr||!a){ L("  no allocator"); return hr?hr:0x80004005; }
       p->alloc=a;
       memset(&props,0,sizeof(props)); props.cBuffers=8; props.cbBuffer=16384; props.cbAlign=1; props.cbPrefix=0;
-      hr=((HRESULT(__stdcall*)(void*,ALLOC_PROPS*,ALLOC_PROPS*))VT(a)[3])(a,&props,&act); Lx("  SetProperties",hr);
-      hr=((HRESULT(__stdcall*)(void*,void*,int))VT(p->meminput)[4])(p->meminput,a,0); Lx("  NotifyAllocator",hr);
-      hr=((HRESULT(__stdcall*)(void*))VT(a)[5])(a); Lx("  Commit",hr);
+      hr=((HRESULT(__stdcall*)(void*,ALLOC_PROPS*,ALLOC_PROPS*))VT(a)[3])(a,&props,&act); L("  SetProperties hr=0x%08x", hr);
+      hr=((HRESULT(__stdcall*)(void*,void*,int))VT(p->meminput)[4])(p->meminput,a,0); L("  NotifyAllocator hr=0x%08x", hr);
+      hr=((HRESULT(__stdcall*)(void*))VT(a)[5])(a); L("  Commit hr=0x%08x", hr);
     }
     L("Pin::Connect OK");
     return 0;
@@ -202,11 +198,11 @@ static HRESULT __stdcall FSF_Load(void*o,const wchar_t* name,const AM_MEDIA_TYPE
     url=(char*)malloc(2048);
     if(!url){ L("  oom"); return result; }
     { enum ce_innertube_result it=ce_innertube_audio_url(vid,url,2048);
-      if(it!=CE_IT_OK){ Lx("  audio_url failed",(HRESULT)it); free(url); return result; } }
+      if(it!=CE_IT_OK){ L("  audio_url failed hr=0x%08x", (HRESULT)it); free(url); return result; } }
     L("  got itag-140 url");
 
     f->conn=ce_https_conn_open(url, VR_HDRS, &r); free(url); url=NULL;
-    if(!f->conn){ Lx("  conn_open failed",(HRESULT)r); return result; }
+    if(!f->conn){ L("  conn_open failed hr=0x%08x", (HRESULT)r); return result; }
 
     // phase 1: walk moofs, build the moov, record fragment mdat offsets/lengths
     front=(unsigned char*)malloc(FRONT_WIN);
@@ -215,7 +211,7 @@ static HRESULT __stdcall FSF_Load(void*o,const wchar_t* name,const AM_MEDIA_TYPE
     {
         size_t got=0; unsigned long total=0, off, moov_end=0, first_moof=0; size_t s=0;
         r=ce_https_conn_get(f->conn,0,FRONT_WIN,front,FRONT_WIN,&got,&total,NULL);
-        if(r!=CE_HTTPS_OK){ Lx("  front get failed",(HRESULT)r); goto done; }
+        if(r!=CE_HTTPS_OK){ L("  front get failed hr=0x%08x", (HRESULT)r); goto done; }
         while(s+8<=got){ unsigned sz=rd32(front+s); const unsigned char* t=front+s+4;
             if(sz<8) break;
             if(!memcmp(t,"moov",4)) moov_end=(unsigned long)(s+sz);
@@ -230,14 +226,14 @@ static HRESULT __stdcall FSF_Load(void*o,const wchar_t* name,const AM_MEDIA_TYPE
             if(want>total-off) want=total-off;
             if(off+want<=got){ bp=front+off; wl=want; }
             else { r=ce_https_conn_get(f->conn,off,want,win,STREAM_WIN,&wl,NULL,NULL);
-                   if(r!=CE_HTTPS_OK){ Lx("  moof get failed",(HRESULT)r); goto done; } bp=win; }
+                   if(r!=CE_HTTPS_OK){ L("  moof get failed hr=0x%08x", (HRESULT)r); goto done; } bp=win; }
             sz=rd32(bp); t=bp+4;
             if(memcmp(t,"moof",4)){ L("  expected moof"); goto done; }
             // moof+mdat-header bigger than the fast window (long-fragment trun); refetch exactly sz+8
             if((unsigned long)sz+8>wl){
                 if((unsigned long)sz+8>STREAM_WIN){ L("  moof too large"); goto done; }
                 r=ce_https_conn_get(f->conn,off,(unsigned long)sz+8,win,STREAM_WIN,&wl,NULL,NULL);
-                if(r!=CE_HTTPS_OK){ Lx("  moof refetch failed",(HRESULT)r); goto done; }
+                if(r!=CE_HTTPS_OK){ L("  moof refetch failed hr=0x%08x", (HRESULT)r); goto done; }
                 bp=win;
                 if((unsigned long)sz+8>wl){ L("  moof short after refetch"); goto done; }
             }
@@ -367,7 +363,7 @@ static DWORD WINAPI fetch_thread(LPVOID param){
             if(wpos+want>f->total_mdat) want=f->total_mdat-wpos;
             if(!want) goto end;
             r=ce_https_conn_get(f->conn,f->mdat_off[fr]+done,want,f->mdat+wpos,want,&wl,NULL,NULL);
-            if(r!=CE_HTTPS_OK){ Lx("fetch get failed",(HRESULT)r); f->fetch_err=1; goto end; }
+            if(r!=CE_HTTPS_OK){ L("fetch get failed hr=0x%08x", (HRESULT)r); f->fetch_err=1; goto end; }
             done+=(unsigned long)wl; wpos+=(unsigned long)wl;
             InterlockedExchange(&f->avail,(LONG)wpos);
         }
@@ -400,7 +396,7 @@ static DWORD WINAPI push_worker(LPVOID param){
             if(WaitForSingleObject(f->hStop,20)==WAIT_OBJECT_0){ L("push_worker: stop (wait)"); goto eos; }
         }
         hr=((HRESULT(__stdcall*)(void*,void**,LONGLONG*,LONGLONG*,DWORD))VT(p->alloc)[7])(p->alloc,&samp,NULL,NULL,0); // GetBuffer (clock-paces)
-        if(hr||!samp){ Lx("push GetBuffer",hr); break; }
+        if(hr||!samp){ L("push GetBuffer hr=0x%08x", hr); break; }
         ((HRESULT(__stdcall*)(void*,unsigned char**))VT(samp)[3])(samp,&ptr);
         memcpy(ptr, f->mdat+off, f->sizes[k]);
         ((HRESULT(__stdcall*)(void*,unsigned long))VT(samp)[12])(samp,(unsigned long)f->sizes[k]);
@@ -410,7 +406,7 @@ static DWORD WINAPI push_worker(LPVOID param){
         hr=((HRESULT(__stdcall*)(void*,void*))VT(p->meminput)[6])(p->meminput,samp);
         if(k<3){ char b[96]; _snprintf(b,sizeof(b),"  Receive[%u] hr=0x%08x size=%lu",k,hr,(unsigned long)f->sizes[k]); L(b); }
         ((ULONG(__stdcall*)(void*))VT(samp)[2])(samp);
-        if(hr){ Lx("push Receive",hr); break; }
+        if(hr){ L("push Receive hr=0x%08x", hr); break; }
         off+=f->sizes[k]; pushed++;
         if((k%400)==0){ _snprintf(line,sizeof(line),"  pushed %d/%u off=%lu avail=%ld",pushed,f->nsamp,off,f->avail); L(line); }
     }

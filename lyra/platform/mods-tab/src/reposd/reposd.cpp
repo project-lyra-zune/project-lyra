@@ -5,9 +5,11 @@
 #include <winsock2.h>
 #include <windows.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <string.h>
 
 #include "ce_https.h"
+#include "ce_log.h"
 #include "repo_ipc.h"
 #include "repo_feed.h"
 #include "unzip.h"
@@ -24,36 +26,10 @@
 #define AUTOMATION_DIR  L"\\flash2\\automation"
 #define MODS_DIR        L"\\flash2\\automation\\mods"
 #define TMP_ZMOD        L"\\flash2\\automation\\_repo_dl.zmod"
-#define LOG_PATH        L"\\flash2\\automation\\reposd.log"
-#define LOG_MAX_BYTES   (128u * 1024u)
 #define MAX_ZMOD_BYTES  (8u * 1024u * 1024u)   /* hard ceiling against a bad feed */
 
-static void L(const char* s) {
-    HANDLE f = CreateFileW(LOG_PATH, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
-                           NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-    if (f == INVALID_HANDLE_VALUE) return;
-    SetFilePointer(f, 0, NULL, FILE_END);
-    SYSTEMTIME t; GetLocalTime(&t);
-    char ts[24];
-    int m = _snprintf(ts, sizeof(ts), "[%04d-%02d-%02d %02d:%02d:%02d] ",
-                      t.wYear, t.wMonth, t.wDay, t.wHour, t.wMinute, t.wSecond);
-    DWORD n;
-    if (m > 0) WriteFile(f, ts, (DWORD)m, &n, NULL);
-    WriteFile(f, s, (DWORD)strlen(s), &n, NULL);
-    WriteFile(f, "\r\n", 2, &n, NULL);
-    CloseHandle(f);
-}
-static void Lx(const char* t, long v) { char b[160]; _snprintf(b, sizeof(b), "%s=%ld", t, v); L(b); }
+CE_LOGGER(L, L"\\flash2\\automation\\reposd.log")
 
-static void log_rotate_if_large(void) {
-    WIN32_FILE_ATTRIBUTE_DATA fad;
-    if (GetFileAttributesExW(LOG_PATH, GetFileExInfoStandard, &fad) &&
-        fad.nFileSizeHigh == 0 && fad.nFileSizeLow > LOG_MAX_BYTES) {
-        HANDLE f = CreateFileW(LOG_PATH, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
-                               NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-        if (f != INVALID_HANDLE_VALUE) CloseHandle(f);
-    }
-}
 
 static void ascii_to_wide(const char* s, wchar_t* out, int cap) {
     int o = 0; for (int i = 0; s[i] && o < cap - 1; i++) out[o++] = (wchar_t)(unsigned char)s[i];
@@ -149,13 +125,13 @@ static int extract_zmod(const wchar_t* zmod, const wchar_t* dest) {
     unzFile uf = unzOpen2_64((const void*)zmod, &ff);
     if (!uf) { L("unpack: unzOpen2_64 NULL"); return 0; }
     int rc = unzGoToFirstFile(uf);
-    if (rc != UNZ_OK) { Lx("unpack: firstfile rc", rc); unzClose(uf); return 0; }
+    if (rc != UNZ_OK) { L("unpack: firstfile rc=%ld", rc); unzClose(uf); return 0; }
 
     int ok = 1;
     do {
         char name[512]; unz_file_info64 info;
         int gi = unzGetCurrentFileInfo64(uf, &info, name, sizeof(name), NULL, 0, NULL, 0);
-        if (gi != UNZ_OK) { Lx("unpack: getinfo rc", gi); ok = 0; break; }
+        if (gi != UNZ_OK) { L("unpack: getinfo rc=%ld", gi); ok = 0; break; }
 
         wchar_t out[MAX_PATH]; int o = 0;
         for (int i = 0; dest[i] && o < MAX_PATH - 2; i++) out[o++] = dest[i];
@@ -168,7 +144,7 @@ static int extract_zmod(const wchar_t* zmod, const wchar_t* dest) {
         mkdirs_parents(out);
 
         int oc = unzOpenCurrentFile(uf);
-        if (oc != UNZ_OK) { Lx("unpack: opencur rc", oc); ok = 0; break; }
+        if (oc != UNZ_OK) { L("unpack: opencur rc=%ld", oc); ok = 0; break; }
         HANDLE hf = CreateFileW(out, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         if (hf == INVALID_HANDLE_VALUE && GetLastError() == ERROR_SHARING_VIOLATION) {
             /* The target is in use, i.e. a mod's boot-spawned daemon binary being
@@ -181,11 +157,11 @@ static int extract_zmod(const wchar_t* zmod, const wchar_t* dest) {
             MoveFileW(out, oldp);
             hf = CreateFileW(out, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         }
-        if (hf == INVALID_HANDLE_VALUE) { Lx("unpack: createfile err", (long)GetLastError()); unzCloseCurrentFile(uf); ok = 0; break; }
+        if (hf == INVALID_HANDLE_VALUE) { L("unpack: createfile err=%ld", (long)GetLastError()); unzCloseCurrentFile(uf); ok = 0; break; }
         static BYTE buf[16384]; int r; DWORD w;
         while ((r = unzReadCurrentFile(uf, buf, sizeof(buf))) > 0) WriteFile(hf, buf, r, &w, NULL);
         CloseHandle(hf); unzCloseCurrentFile(uf);
-        if (r < 0) { Lx("unpack: read rc", r); ok = 0; break; }
+        if (r < 0) { L("unpack: read rc=%ld", r); ok = 0; break; }
     } while (unzGoToNextFile(uf) == UNZ_OK);
 
     unzClose(uf);
@@ -397,7 +373,6 @@ static void do_install_set(RepoBlock* blk, HANDLE done) {
 
 int WINAPI wWinMain(HINSTANCE a, HINSTANCE b, LPWSTR c, int d) {
     (void)a; (void)b; (void)c; (void)d;
-    log_rotate_if_large();
     L("=== reposd start ===");
     SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_LOWEST);
     { WSADATA w; WSAStartup(MAKEWORD(2, 2), &w); }

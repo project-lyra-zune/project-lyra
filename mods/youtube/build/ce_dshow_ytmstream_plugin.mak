@@ -24,6 +24,7 @@ PL_CFLAGS = $(CE_CFLAGS) \
 	/I"$(CEC)\deps\wolfssl" \
 	/I"$(HTTPS_DIR)" \
 	/I"$(CEC)\src" \
+	/I"$(CEC)\src\ce_log" \
 	/I"$(MP4_DIR)" \
 	/I"$(IT_DIR)"
 
@@ -37,7 +38,8 @@ ALL_OBJS = \
 	$(OBJ_DIR)\ce_tls_ctx.obj \
 	$(OBJ_DIR)\ce_ca_bundle.obj \
 	$(OBJ_DIR)\ce_mp4_defrag.obj \
-	$(OBJ_DIR)\ce_innertube.obj
+	$(OBJ_DIR)\ce_innertube.obj \
+	$(OBJ_DIR)\ce_log.obj
 
 all: makedirs $(DLL_OUT)
 	@copy /y "$(DLL_OUT)" "$(STAGED)" >nul
@@ -72,3 +74,6 @@ $(OBJ_DIR)\ce_mp4_defrag.obj: $(MP4_DIR)\ce_mp4_defrag.cpp
 
 $(OBJ_DIR)\ce_innertube.obj: $(IT_DIR)\ce_innertube.c
 	$(CC) $(PL_CFLAGS) /Fo"$(OBJ_DIR)\ce_innertube.obj" /c $(IT_DIR)\ce_innertube.c
+
+$(OBJ_DIR)\ce_log.obj: $(CEC)\src\ce_log\ce_log.c
+	$(CC) $(PL_CFLAGS) /Fo"$(OBJ_DIR)\ce_log.obj" /c $(CEC)\src\ce_log\ce_log.c

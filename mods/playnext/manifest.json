@@ -1,7 +1,7 @@
 {
   "mod_id": "playnext",
   "name": "Play Next",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "author": "Project Lyra",
   "category": "Media",
   "description": "Adds a Play Next item to the long-press menu on songs, albums, and artists. It drops the selection into the now-playing queue right after the current track instead of at the end.",

@@ -117,7 +117,7 @@ static int resolve_pass(ModSet* set, ModsArena* arena,
                         "conflicts with ",
                         (loser == i) ? set->mods[k].mod_id : m->mod_id);
                     changed = 1;
-                    ModsLogf(L"  resolve: %S conflicts with %S -> disable %S",
+                    ModsLogf("  resolve: %s conflicts with %s -> disable %s",
                              m->mod_id, set->mods[k].mod_id,
                              set->mods[loser].mod_id);
                     if (loser == i) break;
@@ -140,7 +140,7 @@ static int resolve_pass(ModSet* set, ModsArena* arena,
                     m->disabled = 1;
                     m->disabled_reason = reasonf(arena, "requires ", cap);
                     changed = 1;
-                    ModsLogf(L"  resolve: %S requires %S -> unsatisfied, disable",
+                    ModsLogf("  resolve: %s requires %s -> unsatisfied, disable",
                              m->mod_id, cap ? cap : "(oom)");
                     break;
                 }
@@ -161,7 +161,7 @@ static int resolve_pass(ModSet* set, ModsArena* arena,
                     m->disabled = 1;
                     m->disabled_reason = reasonf(arena, "needs ", dep);
                     changed = 1;
-                    ModsLogf(L"  resolve: %S depends_on %S -> missing, disable",
+                    ModsLogf("  resolve: %s depends_on %s -> missing, disable",
                              m->mod_id, dep ? dep : "(oom)");
                     break;
                 }
@@ -245,7 +245,7 @@ static void topo_order(ModSet* set, ModsArena* arena,
 
     for (i = 0; i < n; i++) {           /* cycle: remaining enabled, load order */
         if (!placed[i] && !set->mods[i].disabled) {
-            ModsLogf(L"  resolve: dependency cycle at %S - keeping load order",
+            ModsLogf("  resolve: dependency cycle at %s - keeping load order",
                      set->mods[i].mod_id);
             perm[np++] = i; placed[i] = 1;
         }
@@ -266,7 +266,7 @@ void ModsResolve(ModSet* set, ModsArena* arena,
                  ModsPlatformProvidesFn platform_provides) {
     int i, enabled = 0, disabled = 0;
     if (!set || set->count == 0) return;
-    ModsLogf(L"  resolve: %d mod(s) loaded", set->count);
+    ModsLogf("  resolve: %d mod(s) loaded", set->count);
     while (resolve_pass(set, arena, platform_provides)) {
         /* fixpoint: re-run until a sweep disables nothing new */
     }
@@ -275,8 +275,8 @@ void ModsResolve(ModSet* set, ModsArena* arena,
         if (set->mods[i].disabled) disabled++;
         else enabled++;
     }
-    ModsLogf(L"  resolve: %d enabled / %d disabled; apply order:", enabled, disabled);
+    ModsLogf("  resolve: %d enabled / %d disabled; apply order:", enabled, disabled);
     for (i = 0; i < set->count; i++)
         if (!set->mods[i].disabled)
-            ModsLogf(L"    %d. %S", i + 1, set->mods[i].mod_id);
+            ModsLogf("    %d. %s", i + 1, set->mods[i].mod_id);
 }

@@ -14,8 +14,6 @@
 // WSAStartup/WSACleanup here.
 extern "C" __declspec(dllexport) int RunDaemon(const void* arg, int arg_len, HANDLE stop_event)
 {
-    cast_log_init();
-
     // arg (optional) = ASCII target "ip" or "ip:port". A bare ip uses the 8009
     // control port; the ":port" form selects a Cast group (dynamic receiver
     // port). Empty -> first discovered device (else bail; no fallback).

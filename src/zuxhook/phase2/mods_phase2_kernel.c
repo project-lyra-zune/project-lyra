@@ -111,9 +111,9 @@ static void ks_kread_buf(DWORD va, unsigned char* dst, int n) {
 }
 
 /* Write `n` bytes at `va`, auto-routing by VA range:
-     0xC0000000..0xD0000000 → PT-flip + helper_v7 (kerncore_patch_code),
+     0xC0000000..0xD0000000 to PT-flip + helper_v7 (kerncore_patch_code),
      chunked ≤64 B per call.
-     Else → plain kerncore_kmemcpy (kernel heap, NK scratch, etc).
+     Else to plain kerncore_kmemcpy (kernel heap, NK scratch, etc).
    Returns 0 on success, -1 on failure. */
 static int ks_write_kernel(DWORD va, const unsigned char* bytes, int n) {
     if (va >= ZUXHOOK_KCODE_LO && va < ZUXHOOK_KCODE_HI) {
@@ -123,7 +123,7 @@ static int ks_write_kernel(DWORD va, const unsigned char* bytes, int n) {
             if (chunk > 64) chunk = 64;
             if (kerncore_patch_code(ZUXHOOK_NK_PROC, va + (DWORD)off,
                                      bytes + off, chunk) != 0) {
-                ModsLogf(L"    write_kernel(code) failed at 0x%08lx+0x%x",
+                ModsLogf("    write_kernel(code) failed at 0x%08lx+0x%x",
                          (unsigned long)va, off);
                 return -1;
             }
@@ -163,35 +163,35 @@ int apply_patch_bytes(ModAction* a, ModsArena* arena) {
     unsigned char* current;
 
     if (ModActionGetString(a, "target", arena, &target, NULL, 0) != 0 || !target) {
-        ModsLogf(L"    patch_bytes: missing 'target'");
+        ModsLogf("    patch_bytes: missing 'target'");
         return -1;
     }
     if (strcmp(target, "gemstone") == 0) {
-        ModsLogf(L"    patch_bytes target=gemstone not yet supported in Phase 2");
+        ModsLogf("    patch_bytes target=gemstone not yet supported in Phase 2");
         return -1;
     }
     if (strcmp(target, "kernel")   != 0) {
-        ModsLogf(L"    patch_bytes: target must be 'kernel' or 'gemstone'");
+        ModsLogf("    patch_bytes: target must be 'kernel' or 'gemstone'");
         return -1;
     }
     if (ModActionGetU32Required(a, "va", &va) < 0) {
-        ModsLogf(L"    patch_bytes: missing/bad 'va'");
+        ModsLogf("    patch_bytes: missing/bad 'va'");
         return -1;
     }
     rh = ks_action_get_hex(a, arena, "new", &new_buf, &new_len);
     if (rh < 0 || new_len <= 0) {
-        ModsLogf(L"    patch_bytes: missing/bad 'new'");
+        ModsLogf("    patch_bytes: missing/bad 'new'");
         return -1;
     }
     (void)ks_action_get_hex(a, arena, "expected", &expected_buf, &expected_len);
     (void)ks_action_get_hex(a, arena, "if_already", &already_buf, &already_len);
     if (expected_len && expected_len != new_len) {
-        ModsLogf(L"    patch_bytes: expected len %d != new len %d",
+        ModsLogf("    patch_bytes: expected len %d != new len %d",
                  expected_len, new_len);
         return -1;
     }
     if (already_len && already_len != new_len) {
-        ModsLogf(L"    patch_bytes: if_already len %d != new len %d",
+        ModsLogf("    patch_bytes: if_already len %d != new len %d",
                  already_len, new_len);
         return -1;
     }
@@ -203,7 +203,7 @@ int apply_patch_bytes(ModAction* a, ModsArena* arena) {
     if (vi >= 0) {
         const ModsJsonTok* rt = &a->mod->json.toks[vi];
         if (rt->type != MODS_JSON_ARRAY) {
-            ModsLogf(L"    patch_bytes: relocations is not an array");
+            ModsLogf("    patch_bytes: relocations is not an array");
             return -1;
         }
         {
@@ -215,26 +215,26 @@ int apply_patch_bytes(ModAction* a, ModsArena* arena) {
                 int off;
                 DWORD val;
                 if (et < 0 || a->mod->json.toks[et].type != MODS_JSON_OBJECT) {
-                    ModsLogf(L"    patch_bytes: relocations[%d] not object", i);
+                    ModsLogf("    patch_bytes: relocations[%d] not object", i);
                     return -1;
                 }
                 off_tok = ModsJsonObjectFind(&a->mod->json, et, "offset");
                 val_tok = ModsJsonObjectFind(&a->mod->json, et, "value");
                 if (off_tok < 0 || val_tok < 0) {
-                    ModsLogf(L"    patch_bytes: relocations[%d] missing offset/value", i);
+                    ModsLogf("    patch_bytes: relocations[%d] missing offset/value", i);
                     return -1;
                 }
                 if (a->mod->json.toks[off_tok].type != MODS_JSON_PRIMITIVE) {
-                    ModsLogf(L"    patch_bytes: relocations[%d].offset not int", i);
+                    ModsLogf("    patch_bytes: relocations[%d].offset not int", i);
                     return -1;
                 }
                 if (ModsJsonInt(&a->mod->json, off_tok, &off) < 0 || off < 0 ||
                     off + 4 > new_len) {
-                    ModsLogf(L"    patch_bytes: relocations[%d].offset out of range", i);
+                    ModsLogf("    patch_bytes: relocations[%d].offset out of range", i);
                     return -1;
                 }
                 if (ModResolveTokU32(a->mod, val_tok, &val) < 0) {
-                    ModsLogf(L"    patch_bytes: relocations[%d].value unresolved", i);
+                    ModsLogf("    patch_bytes: relocations[%d].value unresolved", i);
                     return -1;
                 }
                 new_buf[off + 0] = (unsigned char)(val & 0xFFu);
@@ -250,7 +250,7 @@ int apply_patch_bytes(ModAction* a, ModsArena* arena) {
     ks_kread_buf(va, current, new_len);
 
     if (already_len && ks_bytes_equal(current, already_buf, new_len)) {
-        ModsLogf(L"    patch_bytes 0x%08lx: already %d B (no-op)",
+        ModsLogf("    patch_bytes 0x%08lx: already %d B (no-op)",
                  (unsigned long)va, new_len);
         return 0;
     }
@@ -258,13 +258,13 @@ int apply_patch_bytes(ModAction* a, ModsArena* arena) {
         wchar_t want[64], have[64];
         ks_fmt_hex(want, 64, expected_buf, new_len > 16 ? 16 : new_len);
         ks_fmt_hex(have, 64, current,      new_len > 16 ? 16 : new_len);
-        ModsLogf(L"    patch_bytes 0x%08lx: expected %s found %s",
+        ModsLogf("    patch_bytes 0x%08lx: expected %S found %S",
                  (unsigned long)va, want, have);
         return -1;
     }
 
     if (ks_write_kernel(va, new_buf, new_len) < 0) return -1;
-    ModsLogf(L"    patch_bytes kernel 0x%08lx <- %d B",
+    ModsLogf("    patch_bytes kernel 0x%08lx <- %d B",
              (unsigned long)va, new_len);
     return 0;
 }
@@ -276,37 +276,37 @@ int apply_kcall(ModAction* a, ModsArena* arena) {
     DWORD result;
     int vi, i, n_args;
     if (ModActionGetU32Required(a, "fn_va", &fn_va) < 0) {
-        ModsLogf(L"    kcall: missing/bad 'fn_va'");
+        ModsLogf("    kcall: missing/bad 'fn_va'");
         return -1;
     }
     vi = ModsJsonObjectFind(&a->mod->json, a->action_tok, "args");
     if (vi >= 0) {
         const ModsJsonTok* at = &a->mod->json.toks[vi];
         if (at->type != MODS_JSON_ARRAY) {
-            ModsLogf(L"    kcall: args not an array");
+            ModsLogf("    kcall: args not an array");
             return -1;
         }
         n_args = at->size;
         if (n_args > 6) {
-            ModsLogf(L"    kcall: max 6 args (got %d)", n_args);
+            ModsLogf("    kcall: max 6 args (got %d)", n_args);
             return -1;
         }
         for (i = 0; i < n_args; i++) {
             int et = ModsJsonArrayAt(&a->mod->json, vi, i);
-            if (et < 0) { ModsLogf(L"    kcall: args[%d] missing", i); return -1; }
+            if (et < 0) { ModsLogf("    kcall: args[%d] missing", i); return -1; }
             if (ModResolveTokU32(a->mod, et, &args[i]) < 0) {
-                ModsLogf(L"    kcall: args[%d] unresolved", i);
+                ModsLogf("    kcall: args[%d] unresolved", i);
                 return -1;
             }
         }
     }
     result = kerncore_kcall(fn_va, args[0], args[1], args[2],
                              args[3], args[4], args[5]);
-    ModsLogf(L"    kcall 0x%08lx -> 0x%08lx",
+    ModsLogf("    kcall 0x%08lx -> 0x%08lx",
              (unsigned long)fn_va, (unsigned long)result);
     if (a->back_ref) {
         if (ModScopeSet(a->mod, arena, a->back_ref, result) < 0) return -1;
-        ModsLogf(L"      back-ref $%S = 0x%08lx",
+        ModsLogf("      back-ref $%s = 0x%08lx",
                  a->back_ref, (unsigned long)result);
     }
     return 0;
@@ -319,12 +319,12 @@ int apply_require_kernel_value(ModAction* a, ModsArena* arena) {
     int expected_len = 0;
     unsigned char* current;
     if (ModActionGetU32Required(a, "va", &va) < 0) {
-        ModsLogf(L"    require_kernel_value: missing/bad 'va'");
+        ModsLogf("    require_kernel_value: missing/bad 'va'");
         return -1;
     }
     if (ks_action_get_hex(a, arena, "expected", &expected_buf, &expected_len) < 0
         || expected_len <= 0) {
-        ModsLogf(L"    require_kernel_value: missing/bad 'expected'");
+        ModsLogf("    require_kernel_value: missing/bad 'expected'");
         return -1;
     }
     current = (unsigned char*)ModsArenaAlloc(arena, expected_len);
@@ -334,11 +334,11 @@ int apply_require_kernel_value(ModAction* a, ModsArena* arena) {
         wchar_t want[64], have[64];
         ks_fmt_hex(want, 64, expected_buf, expected_len > 16 ? 16 : expected_len);
         ks_fmt_hex(have, 64, current,      expected_len > 16 ? 16 : expected_len);
-        ModsLogf(L"    require_kernel_value 0x%08lx: expected %s found %s",
+        ModsLogf("    require_kernel_value 0x%08lx: expected %S found %S",
                  (unsigned long)va, want, have);
         return -1;
     }
-    ModsLogf(L"    require_kernel_value 0x%08lx == %d B OK",
+    ModsLogf("    require_kernel_value 0x%08lx == %d B OK",
              (unsigned long)va, expected_len);
     return 0;
 }
@@ -347,15 +347,15 @@ int apply_require_kernel_value(ModAction* a, ModsArena* arena) {
 int apply_read_kernel_va(ModAction* a, ModsArena* arena) {
     DWORD va = 0, value;
     if (ModActionGetU32Required(a, "va", &va) < 0) {
-        ModsLogf(L"    read_kernel_va: missing/bad 'va'");
+        ModsLogf("    read_kernel_va: missing/bad 'va'");
         return -1;
     }
     value = kerncore_kreadu32(va);
-    ModsLogf(L"    read_kernel_va 0x%08lx -> 0x%08lx",
+    ModsLogf("    read_kernel_va 0x%08lx -> 0x%08lx",
              (unsigned long)va, (unsigned long)value);
     if (a->back_ref) {
         if (ModScopeSet(a->mod, arena, a->back_ref, value) < 0) return -1;
-        ModsLogf(L"      back-ref $%S = 0x%08lx",
+        ModsLogf("      back-ref $%s = 0x%08lx",
                  a->back_ref, (unsigned long)value);
     }
     return 0;
@@ -368,15 +368,15 @@ int apply_require_back_ref_range(ModAction* a, ModsArena* arena) {
     if (ModActionGetU32Required(a, "value", &v) < 0 ||
         ModActionGetU32Required(a, "min",   &lo) < 0 ||
         ModActionGetU32Required(a, "max",   &hi) < 0) {
-        ModsLogf(L"    require_back_ref_range: missing/bad value/min/max");
+        ModsLogf("    require_back_ref_range: missing/bad value/min/max");
         return -1;
     }
     if (!(v >= lo && v < hi)) {
-        ModsLogf(L"    require_back_ref_range: 0x%08lx not in [0x%08lx, 0x%08lx)",
+        ModsLogf("    require_back_ref_range: 0x%08lx not in [0x%08lx, 0x%08lx)",
                  (unsigned long)v, (unsigned long)lo, (unsigned long)hi);
         return -1;
     }
-    ModsLogf(L"    require_back_ref_range: 0x%08lx in [0x%08lx, 0x%08lx) OK",
+    ModsLogf("    require_back_ref_range: 0x%08lx in [0x%08lx, 0x%08lx) OK",
              (unsigned long)v, (unsigned long)lo, (unsigned long)hi);
     return 0;
 }
@@ -387,15 +387,15 @@ int apply_require_back_ref_equal(ModAction* a, ModsArena* arena) {
     (void)arena;
     if (ModActionGetU32Required(a, "actual",   &x) < 0 ||
         ModActionGetU32Required(a, "expected", &y) < 0) {
-        ModsLogf(L"    require_back_ref_equal: missing/bad actual/expected");
+        ModsLogf("    require_back_ref_equal: missing/bad actual/expected");
         return -1;
     }
     if (x != y) {
-        ModsLogf(L"    require_back_ref_equal: 0x%08lx != 0x%08lx",
+        ModsLogf("    require_back_ref_equal: 0x%08lx != 0x%08lx",
                  (unsigned long)x, (unsigned long)y);
         return -1;
     }
-    ModsLogf(L"    require_back_ref_equal: 0x%08lx == 0x%08lx OK",
+    ModsLogf("    require_back_ref_equal: 0x%08lx == 0x%08lx OK",
              (unsigned long)x, (unsigned long)y);
     return 0;
 }
@@ -417,16 +417,16 @@ int apply_load_module(ModAction* a, ModsArena* arena) {
     mod_path[0] = 0;
     if (ModActionGetString(a, "module_ref", arena, NULL, mod_path, MODS_MAX_PATH) != 1
         || mod_path[0] == 0) {
-        ModsLogf(L"    load_module: missing or non-blob 'module_ref'");
+        ModsLogf("    load_module: missing or non-blob 'module_ref'");
         return -1;
     }
     if (ModActionGetString(a, "init", arena, &init_name, NULL, 0) != 0 || init_name == NULL) {
-        ModsLogf(L"    load_module: missing 'init' export name");
+        ModsLogf("    load_module: missing 'init' export name");
         return -1;
     }
     h = LoadLibraryW(mod_path);
     if (h == NULL) {
-        ModsLogf(L"    load_module: LoadLibrary failed err=0x%lx path=%s",
+        ModsLogf("    load_module: LoadLibrary failed err=0x%lx path=%S",
                  GetLastError(), mod_path);
         return -1;
     }
@@ -434,12 +434,12 @@ int apply_load_module(ModAction* a, ModsArena* arena) {
     init_w[k] = 0;
     fn = GetProcAddress(h, init_w);
     if (fn == NULL) {
-        ModsLogf(L"    load_module: export %S not found in %s", init_name, mod_path);
+        ModsLogf("    load_module: export %s not found in %S", init_name, mod_path);
         FreeLibrary(h);
         return -1;
     }
     rc = ((int (*)(void))fn)();
-    ModsLogf(L"    load_module: %s %S() rc=%d", mod_path, init_name, rc);
+    ModsLogf("    load_module: %S %s() rc=%d", mod_path, init_name, rc);
     if (rc != 0) {
         FreeLibrary(h);   /* init failed: the module did nothing useful, so unload it */
         return -1;
@@ -466,13 +466,13 @@ int apply_install_function_hook(ModAction* a, ModsArena* arena) {
     unsigned char* head;
     if (ModActionGetU32Required(a, "site_va",       &site_va)  < 0 ||
         ModActionGetU32Required(a, "trampoline_va", &tramp_va) < 0) {
-        ModsLogf(L"    install_function_hook: missing site_va/trampoline_va");
+        ModsLogf("    install_function_hook: missing site_va/trampoline_va");
         return -1;
     }
     if (ks_action_get_hex(a, arena, "expected_prologue",
                           &prologue_buf, &prologue_len) < 0
         || prologue_len < 4 || prologue_len > 64) {
-        ModsLogf(L"    install_function_hook: bad expected_prologue (4..64 B)");
+        ModsLogf("    install_function_hook: bad expected_prologue (4..64 B)");
         return -1;
     }
     /* Idempotency: already a jump to the same tramp? */
@@ -482,7 +482,7 @@ int apply_install_function_hook(ModAction* a, ModsArena* arena) {
     current_dst = (DWORD)current8[4] | ((DWORD)current8[5] << 8)
                 | ((DWORD)current8[6] << 16) | ((DWORD)current8[7] << 24);
     if (current_opc == HOOK_LDR_PC_OPCODE && current_dst == tramp_va) {
-        ModsLogf(L"    install_function_hook 0x%08lx -> 0x%08lx (already)",
+        ModsLogf("    install_function_hook 0x%08lx -> 0x%08lx (already)",
                  (unsigned long)site_va, (unsigned long)tramp_va);
         return 0;
     }
@@ -495,7 +495,7 @@ int apply_install_function_hook(ModAction* a, ModsArena* arena) {
         ks_fmt_hex(want, 64, prologue_buf,
                    prologue_len > 16 ? 16 : prologue_len);
         ks_fmt_hex(have, 64, head, prologue_len > 16 ? 16 : prologue_len);
-        ModsLogf(L"    install_function_hook 0x%08lx: prologue %s != %s",
+        ModsLogf("    install_function_hook 0x%08lx: prologue %S != %S",
                  (unsigned long)site_va, want, have);
         return -1;
     }
@@ -509,11 +509,11 @@ int apply_install_function_hook(ModAction* a, ModsArena* arena) {
     jump_image[6] = (unsigned char)((tramp_va >> 16) & 0xFFu);
     jump_image[7] = (unsigned char)((tramp_va >> 24) & 0xFFu);
     if (ks_write_kernel(site_va, jump_image, 8) < 0) {
-        ModsLogf(L"    install_function_hook 0x%08lx: write failed",
+        ModsLogf("    install_function_hook 0x%08lx: write failed",
                  (unsigned long)site_va);
         return -1;
     }
-    ModsLogf(L"    install_function_hook 0x%08lx -> 0x%08lx (ldr pc)",
+    ModsLogf("    install_function_hook 0x%08lx -> 0x%08lx (ldr pc)",
              (unsigned long)site_va, (unsigned long)tramp_va);
     return 0;
 }

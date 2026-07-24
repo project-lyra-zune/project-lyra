@@ -1,5 +1,6 @@
 #include "mods_state_block.h"
 #include "mods_log.h"
+#include "ce_log.h"
 #include "kerncore.h"
 
 #include <stdio.h>
@@ -13,21 +14,22 @@ static ModStateBlock* g_block   = NULL;
 static HANDLE         g_section = NULL;
 static HANDLE         g_lock    = NULL;
 
-/* ── logging (per-pid; two host processes write the block, so a single shared
-      file would interleave/contend across processes) ──────────────────────── */
+/* One file for both host processes: ce_log serializes writes per path, and
+   each line carries the writer so the two remain distinguishable. */
+static const ce_log sb_ce_log_ =
+    { L"\\flash2\\automation\\mods\\mod-state.log", 0, CE_LOG_STAMP_CLOCK };
 
-static void slog(const wchar_t* fmt, ...) {
-    wchar_t path[MAX_PATH];
+static void slog(const char* fmt, ...) {
+    char msg[512];
     va_list ap;
 
-    _snwprintf(path, MAX_PATH - 1,
-               L"\\flash2\\automation\\mods\\mod-state-%lu.log",
-               GetCurrentProcessId());
-    path[MAX_PATH - 1] = 0;
-
     va_start(ap, fmt);
-    mods_vflashlog(path, fmt, ap);
+    _vsnprintf(msg, sizeof(msg) - 1, fmt, ap);
     va_end(ap);
+    msg[sizeof(msg) - 1] = 0;
+
+    ce_logf(&sb_ce_log_, "pid=%lu %s",
+            (unsigned long)GetCurrentProcessId(), msg);
 }
 
 /* ── key helpers (fixed NUL-padded field vs C string) ─────────────────────── */
@@ -74,7 +76,7 @@ ModStateBlock* ModStateMap(void) {
     sec = CreateFileMappingW((HANDLE)INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE,
                              0, sizeof(ModStateBlock), MOD_STATE_SECTION_NAME);
     if (sec == NULL) {
-        slog(L"CreateFileMapping failed err=%lu", GetLastError());
+        slog("CreateFileMapping failed err=%lu", GetLastError());
         state_unlock();
         return NULL;
     }
@@ -82,7 +84,7 @@ ModStateBlock* ModStateMap(void) {
 
     view = MapViewOfFile(sec, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(ModStateBlock));
     if (view == NULL) {
-        slog(L"MapViewOfFile failed err=%lu", GetLastError());
+        slog("MapViewOfFile failed err=%lu", GetLastError());
         CloseHandle(sec);
         state_unlock();
         return NULL;
@@ -97,11 +99,11 @@ ModStateBlock* ModStateMap(void) {
     if (created && g_block->version == 0) {
         g_block->version = MOD_STATE_VERSION;
         g_block->count   = 0;
-        slog(L"created+initialised (pid=%lu va=0x%08x sz=%u)", GetCurrentProcessId(),
+        slog("created+initialised (va=0x%08x sz=%u)",
              (unsigned)(DWORD)g_block, (unsigned)sizeof(ModStateBlock));
     } else {
-        slog(L"mapped existing (pid=%lu va=0x%08x sz=%u version=%lu count=%lu)",
-             GetCurrentProcessId(), (unsigned)(DWORD)g_block, (unsigned)sizeof(ModStateBlock),
+        slog("mapped existing (va=0x%08x sz=%u version=%lu count=%lu)",
+             (unsigned)(DWORD)g_block, (unsigned)sizeof(ModStateBlock),
              (unsigned long)g_block->version, (unsigned long)g_block->count);
     }
 
@@ -141,7 +143,7 @@ int ModStateSlotIndex(const char* key, int assign) {
     state_lock();
     idx = find_or_assign(b, key, assign, 0, 0, &was_new);
     state_unlock();
-    if (was_new) slog(L"assigned slot %d -> %S", idx, key);
+    if (was_new) slog("assigned slot %d -> %s", idx, key);
     return idx;
 }
 
@@ -174,9 +176,9 @@ void ModStateSetState(const char* key, int state, DWORD owner_pid) {
     }
     state_unlock();
 
-    if (idx < 0) { slog(L"set %S: table full", key); return; }
+    if (idx < 0) { slog("set %s: table full", key); return; }
     if (!changed) return;       /* no change → caller skips the notify */
-    slog(L"set %S state=%d owner=0x%lx", key, (int)want, (unsigned long)owner_pid);
+    slog("set %s state=%d owner=0x%lx", key, (int)want, (unsigned long)owner_pid);
     /* The change notification rides ModStateEventPublish at the call site (one
        fan-out path to every registered consumer); this writer does not signal. */
 }
@@ -189,11 +191,11 @@ void ModStateSeed(const char* key, int state, DWORD owner_pid) {
     idx = find_or_assign(b, key, 1, state, owner_pid, &was_new);
     state_unlock();
     if (idx < 0) {
-        slog(L"seed %S: table full", key);
+        slog("seed %s: table full", key);
     } else if (was_new) {
-        slog(L"seed %S: slot %d state=%d", key, idx, state < 0 ? 0 : state);
+        slog("seed %s: slot %d state=%d", key, idx, state < 0 ? 0 : state);
     } else {
-        slog(L"seed %S: slot %d present (state=%d) - left live",
+        slog("seed %s: slot %d present (state=%d) - left live",
              key, idx, (int)b->slots[idx].state);
     }
 }
@@ -210,7 +212,7 @@ int ModStateReapDeadOwners(void) {
         if (!key_role_is_status(b->slots[i].key)) continue;
         if (kerncore_find_proc_struct(pid) != 0) continue;   /* owner alive */
         if (b->slots[i].state != 0) {
-            slog(L"reap status '%S' owner=0x%lx dead -> state 0",
+            slog("reap status '%s' owner=0x%lx dead -> state 0",
                  b->slots[i].key, (unsigned long)pid);
             b->slots[i].state = 0;
             reset++;
@@ -226,8 +228,8 @@ int ModStateReapDeadOwners(void) {
 void ModStateLogSnapshot(const wchar_t* role) {
     ModStateBlock* b = ModStateMap();
     int i;
-    if (!b) { slog(L"snapshot[%s]: block unavailable", role ? role : L"?"); return; }
-    slog(L"snapshot[%s]: version=%lu count=%lu", role ? role : L"?",
+    if (!b) { slog("snapshot[%S]: block unavailable", role ? role : L"?"); return; }
+    slog("snapshot[%S]: version=%lu count=%lu", role ? role : L"?",
          (unsigned long)b->version, (unsigned long)b->count);
     state_lock();
     for (i = 0; i < MOD_STATE_MAX_SLOTS; i++) {
@@ -235,7 +237,7 @@ void ModStateLogSnapshot(const wchar_t* role) {
         if (b->slots[i].key[0] == 0) continue;
         memcpy(id, b->slots[i].key, MOD_STATE_ID_LEN);
         id[MOD_STATE_ID_LEN] = 0;
-        slog(L"  slot %d: '%S' state=%d owner=0x%lx",
+        slog("  slot %d: '%s' state=%d owner=0x%lx",
              i, id, (int)b->slots[i].state, (unsigned long)b->slots[i].owner_pid);
     }
     state_unlock();

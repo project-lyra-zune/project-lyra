@@ -6,6 +6,7 @@
 #include <stdarg.h>
 #include <string.h>
 
+#include "ce_log.h"
 /* ── CE MsgQueue API ─────────────────────────────────────────────────────────
    Resolved from coredll at runtime so the module carries no import-lib
    dependency on the MsgQueue family. COREDLL exports (v4.5): CreateMsgQueue,
@@ -60,13 +61,7 @@ static HANDLE       g_notify_section = NULL;
 static HANDLE       g_notify_lock    = NULL;
 
 /* ── log ─────────────────────────────────────────────────────────────────── */
-#define STATE_EVENT_LOG  L"\\flash2\\automation\\mods\\state-event.log"
-static void elog(const wchar_t* fmt, ...) {
-    va_list ap;
-    va_start(ap, fmt);
-    mods_vflashlog(STATE_EVENT_LOG, fmt, ap);
-    va_end(ap);
-}
+CE_LOGGER(elog, L"\\flash2\\automation\\mods\\state-event.log")
 
 static void resolve_coredll(void) {
     HMODULE c;
@@ -96,14 +91,14 @@ static NotifyBlock* notify_map(void) {
     sec = CreateFileMappingW((HANDLE)INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE,
                              0, sizeof(NotifyBlock), MOD_NOTIFY_SECTION_NAME);
     if (sec == NULL) {
-        elog(L"notify: CreateFileMapping failed err=%lu", GetLastError());
+        elog("notify: CreateFileMapping failed err=%lu", GetLastError());
         if (g_notify_lock) ReleaseMutex(g_notify_lock);
         return NULL;
     }
     created = (GetLastError() != ERROR_ALREADY_EXISTS);
     view = MapViewOfFile(sec, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(NotifyBlock));
     if (view == NULL) {
-        elog(L"notify: MapViewOfFile failed err=%lu", GetLastError());
+        elog("notify: MapViewOfFile failed err=%lu", GetLastError());
         CloseHandle(sec);
         if (g_notify_lock) ReleaseMutex(g_notify_lock);
         return NULL;
@@ -134,7 +129,7 @@ void ModNotifyRegister(DWORD kind, const wchar_t* name) {
     }
     if (free_idx < 0) {
         if (g_notify_lock) ReleaseMutex(g_notify_lock);
-        elog(L"notify register: table full (%s)", name);
+        elog("notify register: table full (%S)", name);
         return;
     }
     nb->c[free_idx].kind      = kind;
@@ -142,7 +137,7 @@ void ModNotifyRegister(DWORD kind, const wchar_t* name) {
     for (i = 0; i < MOD_NOTIFY_NAME_LEN; i++) nb->c[free_idx].name[i] = 0;
     for (i = 0; i < MOD_NOTIFY_NAME_LEN - 1 && name[i]; i++) nb->c[free_idx].name[i] = name[i];
     if (g_notify_lock) ReleaseMutex(g_notify_lock);
-    elog(L"notify register pid=%lu slot=%d kind=%lu name=%s",
+    elog("notify register pid=%lu slot=%d kind=%lu name=%S",
          GetCurrentProcessId(), free_idx, (unsigned long)kind, name);
 }
 
@@ -231,7 +226,7 @@ void ModStateEventInstallConsumer(DWORD msgwaitIatSlot, const wchar_t* queueName
 
     resolve_coredll();
     if (p_create == 0 || p_read == 0) {
-        elog(L"consumer: coredll MsgQueue unresolved (create=%p read=%p)", p_create, p_read);
+        elog("consumer: coredll MsgQueue unresolved (create=%p read=%p)", p_create, p_read);
         return;
     }
 
@@ -242,7 +237,7 @@ void ModStateEventInstallConsumer(DWORD msgwaitIatSlot, const wchar_t* queueName
     o.bReadAccess   = TRUE;
     g_read_q = p_create(queueName, &o);
     if (g_read_q == 0) {
-        elog(L"consumer: CreateMsgQueue(read,%s) failed err=%lu", queueName, GetLastError());
+        elog("consumer: CreateMsgQueue(read,%S) failed err=%lu", queueName, GetLastError());
         return;
     }
 
@@ -254,10 +249,10 @@ void ModStateEventInstallConsumer(DWORD msgwaitIatSlot, const wchar_t* queueName
                                                 on the proxy mid-install must have it */
         *(volatile DWORD*)msgwaitIatSlot = (DWORD)&MsgWait_proxy;
     } __except (EXCEPTION_EXECUTE_HANDLER) {
-        elog(L"consumer: MsgWait IAT patch faulted @0x%08x", msgwaitIatSlot);
+        elog("consumer: MsgWait IAT patch faulted @0x%08x", msgwaitIatSlot);
         return;
     }
-    elog(L"consumer installed (pid=%lu): q=%s iat=0x%08x orig=0x%p",
+    elog("consumer installed (pid=%lu): q=%S iat=0x%08x orig=0x%p",
          GetCurrentProcessId(), queueName, msgwaitIatSlot, (void*)original);
 }
 

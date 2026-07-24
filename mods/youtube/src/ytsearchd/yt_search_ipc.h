@@ -2,8 +2,8 @@
  * ytsearchd.exe (the out-of-process search daemon). Mirrors the zune-cast
  * daemon↔UI pattern (named CreateFileMappingW section + named wake events):
  *
- *   UI → daemon:  write query into the section, bump req_seq, SetEvent(WAKE).
- *   daemon → UI:  fill rows + count, set done_seq=req_seq, ping the UI notify.
+ *   UI to daemon:  write query into the section, bump req_seq, SetEvent(WAKE).
+ *   daemon to UI:  fill rows + count, set done_seq=req_seq, ping the UI notify.
  *
  * CE6 has no OpenFileMapping, so both sides CreateFileMappingW by the same name to
  * attach to the one section. Names carry a layout version so a stale section from
@@ -13,8 +13,8 @@
 #define YT_SEARCH_IPC_H
 
 #define YT_SEARCH_SECTION_NAME  L"zune-yt-search-v6"
-#define YT_SEARCH_WAKE_EVENT    L"zune-yt-search-wake-v1"   /* UI SetEvents → daemon wakes */
-#define YT_SEARCH_DONE_EVENT    L"zune-yt-search-done-v1"   /* daemon SetEvents → UI wakes (also pinged via notify) */
+#define YT_SEARCH_WAKE_EVENT    L"zune-yt-search-wake-v1"   /* UI SetEvents to daemon wakes */
+#define YT_SEARCH_DONE_EVENT    L"zune-yt-search-done-v1"   /* daemon SetEvents to UI wakes (also pinged via notify) */
 
 /* Row thumbnail cache: ytsearchd writes <id>.jpg here, the UI reads the same path.
  * Under the mod's own dir so it is scoped to the install and cleared on update
