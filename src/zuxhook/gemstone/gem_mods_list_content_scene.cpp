@@ -26,7 +26,7 @@
      +0x2c   noItems_element        (bound by OnInit; optional)
      +0x30   view_subtype           (0=installed, 1=updates, 2=archived; msg=0x13)
      +0x34   filtered_count
-     +0x38   filter_indices_ptr     (heap array mapping filtered idx →
+     +0x38   filter_indices_ptr     (heap array mapping filtered idx
                                      ModScanGet's unfiltered idx)
      +0x3c   detail_scene_id        (ctor extra_init - id_nav_stub target)
      +0x40   nav_args_mod_row_idx   (instance storage for id_nav_stub args)
@@ -131,8 +131,8 @@ static int nav_to_scene_by_name_with_args(const wchar_t* name, void* args) {
 
 /* The canonical list/noItems flip, observed verbatim in gemstone
    0x317ac (GemLibraryListContentScene). Sequence is fixed:
-     ListInvalidate(list, 0, 1) → ListGetRowCount(list) →
-     SetShow(list, count>0) → SetShow(noItems, count==0).
+     ListInvalidate(list, 0, 1) to ListGetRowCount(list)
+     SetShow(list, count>0) to SetShow(noItems, count==0).
    Each primitive wraps an xuidll!XuiSendMessage to the element with
    a specific msg id. */
 typedef int (*ListInvalidateFn)(void* list_element, int arg2, int arg3);
@@ -325,8 +325,9 @@ HRESULT GemModsListContentScene_OnMessage(GemModsListContentSceneInstance* self,
             if (col == 0) {
                 text = (row->held_back && row->name_held_back) ? row->name_held_back : row->name;
             } else if (col == 1) {
-                text = row_has_update(row->id, row->version) ? L"update available"
-                                                             : (row->author ? row->author : L"");
+                if (row->faulted && row->fault_label)      text = row->fault_label;
+                else if (row_has_update(row->id, row->version)) text = L"update available";
+                else                                        text = row->author ? row->author : L"";
             } else if (col == 5) {
                 text = row->description ? row->description : L"";
             } else {

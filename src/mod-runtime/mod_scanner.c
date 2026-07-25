@@ -19,6 +19,7 @@
 #include "mods_json.h"
 #include "mods_manifest.h"   /* ModSet */
 #include "enabled_set.h"
+#include "mod_fault.h"
 
 #define MODS_ROOT_PATH        L"\\flash2\\automation\\mods"
 #define PLATFORM_ROOT_PATH    L"\\flash2\\automation\\platform"
@@ -147,6 +148,20 @@ static int manifest_is_experimental(const ModsJson* j, int root) {
     return (ModsJsonBool(j, ModsJsonObjectFind(j, root, "experimental"), &b) == 0 && b) ? 1 : 0;
 }
 
+/* Build L"failed: <cap>" in the arena; cap is ASCII. */
+static const wchar_t* compose_fault_label(ModsArena* arena, const char* cap) {
+    static const wchar_t pre[] = L"failed: ";
+    size_t pl = sizeof(pre) / sizeof(pre[0]) - 1;
+    size_t cl = cap ? strlen(cap) : 0;
+    size_t p = 0, i;
+    wchar_t* out = (wchar_t*)ModsArenaAlloc(arena, (pl + cl + 1) * sizeof(wchar_t));
+    if (!out) return NULL;
+    for (i = 0; i < pl; i++) out[p++] = pre[i];
+    for (i = 0; i < cl; i++) out[p++] = (wchar_t)(unsigned char)cap[i];
+    out[p] = 0;
+    return out;
+}
+
 /* Read \flash2\automation\mods\<dir>\manifest.json, parse minimal
    fields into `row`. Returns 0 on success, -1 on failure. */
 static int load_one_row(ModsArena* arena, const wchar_t* mod_dir,
@@ -211,6 +226,18 @@ static int load_one_row(ModsArena* arena, const wchar_t* mod_dir,
     row->enabled = is_enabled(row->id, ids, id_count);
     row->experimental = manifest_is_experimental(&mj, root);
     row->source  = MOD_SOURCE_LOCAL;
+
+    {
+        ModFault f;
+        char ver[MOD_FAULT_VER_LEN];
+        int k = 0;
+        if (row->version) for (; row->version[k] && k < MOD_FAULT_VER_LEN - 1; k++)
+            ver[k] = (char)row->version[k];
+        ver[k] = 0;
+        row->faulted = ModFaultRead(mod_dir, ver, &f);
+        row->fault_label = row->faulted
+            ? compose_fault_label(arena, f.cap) : NULL;
+    }
     return 0;
 }
 
@@ -268,6 +295,8 @@ static void append_lyra_row(ModsArena* arena, ModRow* row, int* loaded) {
     row->enabled        = 1;
     row->held_back      = 0;
     row->name_held_back = NULL;
+    row->faulted        = 0;
+    row->fault_label    = NULL;
     row->is_platform    = 1;
     row->experimental   = 0;
     row->source         = MOD_SOURCE_LOCAL;

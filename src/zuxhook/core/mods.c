@@ -7,6 +7,7 @@
 #include "mods_resolve.h"
 #include "mod_scanner.h"
 #include "boot_state.h"
+#include "mod_fault.h"
 #include "mods_phase2.h"     /* ModsPlatformProvides (platform-provides predicate for ModsResolve) */
 
 #include <windows.h>
@@ -152,17 +153,34 @@ int ModsLoadBackRefs(Mod* m, ModsArena* arena) {
    typical mods. Compositor has plenty of address space. */
 #define MODS_ARENA_BYTES (24 * 1024 * 1024)
 
+/* A capability that faults must not take the shell with it. Catch it, record it
+   against the mod, and let the caller drop the rest of that mod. */
+static int apply_action_guarded(ComposeState* st, ModsArena* arena,
+                                const Mod* m, int index) {
+    ModAction* a = (ModAction*)&m->actions[index];
+    int rc;
+    __try {
+        rc = ModsComposeApplyAction(st, arena, a);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        unsigned long code = (unsigned long)GetExceptionCode();
+        ModFaultRecord(m->source_dir, m->version, 1, index, a->type, code);
+        ModsLogf("    action[%d] %s FAULTED 0x%08lX", index, a->type, code);
+        rc = MODS_ACTION_FAILED;
+    }
+    return rc;
+}
+
 int ModsApplyPhase1(void) {
     ModsArena    arena;
     ModSet       mods;
     ComposeState st;
-    int i, j;
+    int i, j, mod_failed;
     int total = 0, p1 = 0, p2 = 0, skip = 0, fail = 0;
 
     /* Ensure the mods directory exists; create it lazily on first boot. */
     CreateDirectoryW(L"\\flash2\\automation\\mods", NULL);
 
-    ModsLogOpen(L"\\flash2\\automation\\mods\\boot.log");
+    ModsLogOpenRotating(L"\\flash2\\automation\\mods\\boot.log");
     ModsLogf("== ModsApplyPhase1 start ==");
     {
         BootState bs;
@@ -210,11 +228,13 @@ int ModsApplyPhase1(void) {
         }
         ModsLogf("  [%d/%d] %s v%s - %d action(s)",
                  i + 1, mods.count, m->mod_id, m->version, m->actions_count);
+        BootStateRecordInFlight(m->mod_id, 1);
+        mod_failed = 0;
         for (j = 0; j < m->actions_count; j++) {
             int rc;
             ModAction* a = &m->actions[j];
             total++;
-            rc = ModsComposeApplyAction(&st, &arena, a);
+            rc = apply_action_guarded(&st, &arena, m, j);
             if (rc == MODS_ACTION_APPLIED) {
                 p1++;
             } else if (rc == MODS_ACTION_DEFERRED) {
@@ -223,9 +243,14 @@ int ModsApplyPhase1(void) {
                 skip++;        /* unknown capability; already logged */
             } else {
                 fail++;
-                ModsLogf("    action[%d] %s FAILED", j, a->type);
+                mod_failed = 1;
+                ModsLogf("    action[%d] %s FAILED; dropping the rest of %s",
+                         j, a->type, m->mod_id);
+                break;
             }
         }
+        /* A clean pass retires any fault this mod carried from an earlier boot. */
+        if (!mod_failed) ModFaultClear(m->source_dir);
         /* Persist this mod's back-ref scope so Phase 2 (in gemstone)
            can resolve back-refs assigned by Phase 1 capabilities. */
         ModsWriteBackRefs(m);

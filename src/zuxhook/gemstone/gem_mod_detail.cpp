@@ -464,6 +464,7 @@ static void render_all(GemModDetailInstance* self) {
             s = ubuf;
         }
         else if (is_plat) s = L"installed";
+        else if (present && local->faulted)   s = L"failed to apply";
         else if (present && local->held_back) s = L"held back";
         else if (present) s = enabled ? L"enabled" : L"disabled";
         else if (feed)    s = L"not installed";

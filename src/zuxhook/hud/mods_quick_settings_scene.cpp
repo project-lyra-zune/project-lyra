@@ -255,7 +255,7 @@ HRESULT ModQuickSettingsScene_OnMessage(ModQuickSettingsSceneInstance* self, voi
             __except (EXCEPTION_EXECUTE_HANDLER) { row = -1; }
             if (g_hold_consumed) {
                 int matched = (row == g_hold_consumed_row);
-                qs_log("SET_SEL row=%d hold_row=%d -> %S",
+                qs_log("SET_SEL row=%d hold_row=%d -> %s",
                        row, g_hold_consumed_row, matched ? "SWALLOW" : "toggle(row mismatch)");
                 g_hold_consumed     = 0;
                 g_hold_consumed_row = -1;

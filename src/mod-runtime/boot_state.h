@@ -21,6 +21,8 @@ typedef enum {
 #define BOOT_MOD_ID_LEN       64    /* matches ENABLED_ID_LEN */
 #define BOOT_STATE_BUF_BYTES  256
 
+/* The in-flight suspect only. A fault that is caught belongs to the mod, not to
+   the boot, and lives in the mod's own fault.json (mod_fault.h). */
 typedef struct {
     BootLevel level;
     int       failures;                /* uncommitted boots begun at `level` */
@@ -53,6 +55,9 @@ void BootStateRead(BootState* out);
 /* Once per boot, from the Phase-1 singleton. */
 BootLevel BootStateBeginBoot(void);
 
+/* Per mod, not per action: this writes flash, and the apply loops run ~90
+   actions a boot. It answers "what was running when the boot died", which is
+   all an uncaught wedge leaves behind. */
 void BootStateRecordInFlight(const char* mod_id, int phase);
 
 /* Clears the failure count and holds the level, so a healthy demoted boot

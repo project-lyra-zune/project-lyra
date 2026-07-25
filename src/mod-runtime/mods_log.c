@@ -23,6 +23,20 @@ void ModsLogOpenAppend(const wchar_t* path) {
     ce_log_stream_open(&g_stream, path, 0, CE_LOG_STAMP_CLOCK, 0);
 }
 
+void ModsLogOpenRotating(const wchar_t* path) {
+    wchar_t prev[MAX_PATH];
+    int n = 0;
+    if (g_stream.h != INVALID_HANDLE_VALUE) return;
+    while (path[n] && n < MAX_PATH - 6) { prev[n] = path[n]; n++; }
+    if (n < MAX_PATH - 6) {
+        prev[n] = L'.'; prev[n+1] = L'p'; prev[n+2] = L'r';
+        prev[n+3] = L'e'; prev[n+4] = L'v'; prev[n+5] = 0;
+        DeleteFileW(prev);
+        MoveFileW(path, prev);
+    }
+    ce_log_stream_open(&g_stream, path, 0, CE_LOG_STAMP_CLOCK, 1);
+}
+
 void ModsLogClose(void) {
     ce_log_stream_close(&g_stream);
 }
@@ -38,6 +52,7 @@ void ModsLogf(const char* fmt, ...) {
 
 void ModsLogOpen(const wchar_t* path) { (void)path; }
 void ModsLogOpenAppend(const wchar_t* path) { (void)path; }
+void ModsLogOpenRotating(const wchar_t* path) { (void)path; }
 void ModsLogClose(void) {}
 
 void ModsLogf(const char* fmt, ...) {

@@ -26,6 +26,9 @@ void ModsLogOpen(const wchar_t* path);
    accumulates OnInit + per-tap entries; without this, every call wipes
    the prior content and only the most recent line survives). */
 void ModsLogOpenAppend(const wchar_t* path);
+/* Like ModsLogOpen, but keeps the previous boot's file as <path>.prev. The
+   recovery boot otherwise truncates the only record of the boot that failed. */
+void ModsLogOpenRotating(const wchar_t* path);
 void ModsLogClose(void);
 
 /* printf-style; %S is wchar_t*, %s is char*, %d/%x/%X/%lu as usual.

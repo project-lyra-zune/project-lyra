@@ -1368,7 +1368,7 @@ void ModsIconHostInstall(unsigned int iatSlot) {
     }
     g_orig = (XuiSceneCreateExFn)original;
     verify = *(volatile DWORD*)slot;
-    ilog("==== ModsIconHostInstall (pid=%lu): IAT %S setpos=0x%p addchild=0x%p ====",
+    ilog("==== ModsIconHostInstall (pid=%lu): IAT %s setpos=0x%p addchild=0x%p ====",
          GetCurrentProcessId(),
          verify == (DWORD)&XuiSceneCreateEx_proxy ? "OK" : "MISMATCH",
          g_setpos, g_addchild);

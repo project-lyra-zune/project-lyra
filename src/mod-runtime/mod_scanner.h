@@ -41,6 +41,14 @@ typedef struct ModRow {
                                        being enabled. */
     const wchar_t* name_held_back; /* "<name> (held back: <reason>)" - render
                                        when enabled && held_back. */
+    int            faulted;        /* a capability of this mod faulted while being
+                                       applied, recorded against the installed
+                                       version (mod_fault.h). Enabled but not
+                                       applied, like held_back, and for the same
+                                       reason: the user should see why. */
+    const wchar_t* fault_label;    /* "failed: <cap>" - renders in the status
+                                       column beside "update available", not on
+                                       the title. */
     int            is_platform;    /* the synthetic Lyra row; update-only, never removable */
     int            experimental;   /* author-declared unfinished (manifest experimental) */
     ModRowSource   source;

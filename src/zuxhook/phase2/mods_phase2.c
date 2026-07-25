@@ -11,6 +11,7 @@
 #include "mods_volume_state.h" /* VolumeStateInstall (subsystem activator) */
 #include "mods_settings.h"    /* ModSettingsLoad (restore persisted toggle state) */
 #include "boot_state.h"       /* BootStateApplyComplete (arms the boot commit) */
+#include "mod_fault.h"        /* per-mod record of a caught fault */
 #include "mods_resolve.h"     /* ModsResolve + ModsCapabilityDemanded (dependency resolution) */
 #include "mods_capability.h"  /* ModsCapParse (revision-aware capability matching) */
 #include "mods_toggles.h"     /* register_setting declared-settings registry */
@@ -342,6 +343,24 @@ static int dispatch_phase2_action(ModAction* a, ModsArena* arena) {
     return MODS_ACTION_FAILED;
 }
 
+/* A capability that faults must not take its host with it. Catch it, record it
+   against the mod, and let the caller drop the rest of that mod. Phase 2 is
+   where load_module, install_function_hook and patch_bytes run, so this is the
+   guard that matters most. */
+static int dispatch_action_guarded(const Mod* m, int index, ModsArena* arena) {
+    ModAction* a = (ModAction*)&m->actions[index];
+    int rc;
+    __try {
+        rc = dispatch_phase2_action(a, arena);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        unsigned long code = (unsigned long)GetExceptionCode();
+        ModFaultRecord(m->source_dir, m->version, 2, index, a->type, code);
+        ModsLogf("    action[%d] %s FAULTED 0x%08lX", index, a->type, code);
+        rc = MODS_ACTION_FAILED;
+    }
+    return rc;
+}
+
 /* Does this action run in `host`? target_proc "all" runs in every host, an
    absent target_proc means gemstone-only, otherwise it runs in the named host.
    Lets one manifest target gemstone (NowPlaying) and servicesd (HUD) with the
@@ -372,8 +391,8 @@ static DWORD WINAPI Phase2Worker(LPVOID lpParam) {
        (servicesd HUD host). */
     sentinel = is_sd ? L"HudMediaControllerMusicScene" : SENTINEL_CLASS;
 
-    ModsLogOpen(is_sd ? L"\\flash2\\automation\\mods\\phase2-servicesd.log"
-                      : L"\\flash2\\automation\\mods\\phase2.log");
+    ModsLogOpenRotating(is_sd ? L"\\flash2\\automation\\mods\\phase2-servicesd.log"
+                              : L"\\flash2\\automation\\mods\\phase2.log");
     ModsLogf("== ModsApplyPhase2 start (host=%s) ==", host);
 
     /* Non-gemstone hosts lack the fixed low-VA scratch region; plant into a
@@ -455,7 +474,7 @@ static DWORD WINAPI Phase2Worker(LPVOID lpParam) {
                 }
                 Sleep(200);
             }
-            ModsLogf("  phase2: kerncore %S after %d attempt(s)",
+            ModsLogf("  phase2: kerncore %s after %d attempt(s)",
                      kc_ready ? "ready" : "NOT ready",
                      kc_attempts + 1);
         }
@@ -476,18 +495,21 @@ static DWORD WINAPI Phase2Worker(LPVOID lpParam) {
             ModsLoadBackRefs(m, &arena);
             ModsLogf("  [%d/%d] %s v%s - %d action(s)",
                      i + 1, mods.count, m->mod_id, m->version, m->actions_count);
+            BootStateRecordInFlight(m->mod_id, 2);
             for (j = 0; j < m->actions_count; j++) {
                 int rc;
                 if (!action_target_matches(&m->actions[j], host, &arena)) {
                     deferred++;
                     continue;
                 }
-                rc = dispatch_phase2_action(&m->actions[j], &arena);
+                rc = dispatch_action_guarded(m, j, &arena);
                 if (rc == MODS_ACTION_APPLIED)       p2_applied++;
                 else if (rc == MODS_ACTION_DEFERRED) deferred++;
                 else if (rc == MODS_ACTION_SKIPPED)  skipped++;
                 else { failed++;
-                    ModsLogf("    action[%d] %s FAILED", j, m->actions[j].type);
+                    ModsLogf("    action[%d] %s FAILED; dropping the rest of %s",
+                             j, m->actions[j].type, m->mod_id);
+                    break;
                 }
             }
         }
@@ -634,12 +656,14 @@ int ModsApplyHostInline(const char* host) {
             if (ModActionGetString(a, "target_proc", &arena, &tp, NULL, 0) != 0
                 || tp == NULL || strcmp(tp, host) != 0)
                 continue;
-            rc = dispatch_phase2_action(a, &arena);
+            rc = dispatch_action_guarded(m, j, &arena);
             if (rc == MODS_ACTION_APPLIED) applied++;
             else if (rc == MODS_ACTION_SKIPPED) skipped++;
             else if (rc != MODS_ACTION_DEFERRED) {
                 failed++;
-                ModsLogf("    %s action[%d] %s FAILED", m->mod_id, j, a->type);
+                ModsLogf("    %s action[%d] %s FAILED; dropping the rest",
+                         m->mod_id, j, a->type);
+                break;
             }
         }
     }
