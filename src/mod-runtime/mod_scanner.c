@@ -57,6 +57,7 @@ static ModRow*   g_rows  = NULL;
 static int       g_count = 0;
 static ModRowSet g_set   = { NULL, 0 };
 
+
 /* Slurp a UTF-8 file into arena-owned memory. Returns NULL on error
    or empty. Sets *out_len to the byte length (no NUL terminator). */
 static char* slurp_file(ModsArena* arena, const wchar_t* path,
@@ -162,6 +163,48 @@ static const wchar_t* compose_fault_label(ModsArena* arena, const char* cap) {
     return out;
 }
 
+#define MODSCAN_MAX_SETTINGS  32
+static ModSettingDecl g_settings[MODSCAN_MAX_SETTINGS];
+static int            g_setting_count = 0;
+
+/* Collect the settings a manifest declares. Mirrors the lowering in
+   mods_manifest.c: settings[] entries carry `id` and an optional `label`, and
+   the runtime key is "setting/<mod_id>/<id>". */
+static void collect_settings(ModsArena* arena, ModsJson* mj, int root,
+                             const ModRow* row) {
+    int arr = ModsJsonObjectFind(mj, root, "settings");
+    int n, i;
+    if (arr < 0 || ModsJsonTypeOf(mj, arr) != MODS_JSON_ARRAY) return;
+    n = mj->toks[arr].size;
+    for (i = 0; i < n && g_setting_count < MODSCAN_MAX_SETTINGS; i++) {
+        int obj = ModsJsonArrayAt(mj, arr, i);
+        int idt, lblt, k = 0, j;
+        char* id_s;
+        ModSettingDecl* d;
+        if (obj < 0 || ModsJsonTypeOf(mj, obj) != MODS_JSON_OBJECT) continue;
+        idt = ModsJsonObjectFind(mj, obj, "id");
+        if (idt < 0) continue;
+        id_s = ModsJsonStrdup(arena, mj, idt);
+        if (!id_s) continue;
+
+        d = &g_settings[g_setting_count];
+        memset(d, 0, sizeof(*d));
+        for (j = 0; "setting/"[j]; j++) d->key[k++] = "setting/"[j];
+        for (j = 0; row->id[j] && k < MODSCAN_SETTING_KEY_LEN - 2; j++)
+            d->key[k++] = (char)row->id[j];
+        if (k < MODSCAN_SETTING_KEY_LEN - 1) d->key[k++] = '/';
+        for (j = 0; id_s[j] && k < MODSCAN_SETTING_KEY_LEN - 1; j++)
+            d->key[k++] = id_s[j];
+        d->key[k] = 0;
+
+        lblt = ModsJsonObjectFind(mj, obj, "label");
+        d->label = (lblt >= 0) ? json_strdup_w(arena, mj, lblt) : NULL;
+        if (!d->label) d->label = json_strdup_w(arena, mj, idt);
+        d->mod_name = row->name;
+        if (d->label) g_setting_count++;
+    }
+}
+
 /* Read \flash2\automation\mods\<dir>\manifest.json, parse minimal
    fields into `row`. Returns 0 on success, -1 on failure. */
 static int load_one_row(ModsArena* arena, const wchar_t* mod_dir,
@@ -222,6 +265,8 @@ static int load_one_row(ModsArena* arena, const wchar_t* mod_dir,
     desc_tok = ModsJsonObjectFind(&mj, root, "description");
     row->description = (desc_tok >= 0) ? json_strdup_w(arena, &mj, desc_tok)
                                         : NULL;
+
+    collect_settings(arena, &mj, root, row);
 
     row->enabled = is_enabled(row->id, ids, id_count);
     row->experimental = manifest_is_experimental(&mj, root);
@@ -315,6 +360,7 @@ static void build_rows(void) {
     g_count = 0;
     g_set.rows = NULL;
     g_set.count = 0;
+    g_setting_count = 0;
 
     if (ModsArenaInit(&g_arena, SCAN_ARENA_BYTES) < 0) return;
     g_arena_live = 1;
@@ -425,6 +471,13 @@ void ModScanRebuild(void) {
         g_arena_live = 0;
     }
     build_rows();
+}
+
+int ModScanSettingCount(void) { return g_setting_count; }
+
+const ModSettingDecl* ModScanSettingAt(int i) {
+    if (i < 0 || i >= g_setting_count) return NULL;
+    return &g_settings[i];
 }
 
 const ModRowSet* ModScanGet(void) {

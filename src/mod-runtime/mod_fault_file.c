@@ -74,5 +74,9 @@ int ModFaultRead(const wchar_t* mod_dir, const char* installed_version,
 void ModFaultClear(const wchar_t* mod_dir) {
     wchar_t path[MAX_PATH];
     if (fault_path(mod_dir, path, MAX_PATH) < 0) return;
+    /* Called for every mod on every clean apply, so check before deleting: an
+       unconditional DeleteFileW is a flash operation per mod per phase that
+       almost always has nothing to remove. */
+    if (GetFileAttributesW(path) == INVALID_FILE_ATTRIBUTES) return;
     DeleteFileW(path);
 }

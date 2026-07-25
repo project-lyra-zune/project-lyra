@@ -76,6 +76,22 @@ void ModScanRebuild(void);
    empty via .count == 0 / .rows == NULL. */
 const ModRowSet* ModScanGet(void);
 
+/* Settings each mod declares, projected from the manifests during the same walk
+   that builds the rows. The register_setting capability lowers to target_proc
+   servicesd, so the live toggle registry does not exist in gemstone; the UI
+   there reads the declarations from disk instead, and the current value from the
+   cross-process state block by `key`. */
+#define MODSCAN_SETTING_KEY_LEN  48    /* matches MOD_STATE_ID_LEN */
+
+typedef struct ModSettingDecl {
+    const wchar_t* mod_name;                    /* owning mod's display name */
+    const wchar_t* label;                       /* declared label, or the id */
+    char           key[MODSCAN_SETTING_KEY_LEN]; /* "setting/<mod_id>/<id>" */
+} ModSettingDecl;
+
+int                   ModScanSettingCount(void);
+const ModSettingDecl* ModScanSettingAt(int i);   /* NULL when out of range */
+
 /* Flip rows[idx].enabled and persist through enabled_set (Add/Remove the
    one mod_id, so a concurrent Browse change to the file is preserved).
    Returns 1 if the row changed state, 0 if the row is a system-kind mod,

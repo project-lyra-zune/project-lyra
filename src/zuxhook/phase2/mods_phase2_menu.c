@@ -296,6 +296,8 @@ static int ensure_nav_helper(void) {
      b POPULATE_RESUME
      .word AddItem (pool[0])
      .word descriptor_va_0..n-1                 ; pool[1..n] */
+int menu_pending_count(void) { return g_pending_menu_count; }
+
 int flush_menu_entries(void) {
     int n, i, k;
     DWORD descriptor_vas[MAX_PENDING_MENU];
@@ -396,7 +398,7 @@ int flush_menu_entries(void) {
         int ldr_r2_idx    = entry_base + 2;
         int desc_word_idx = pool_start + 1 + i;
         int addit_word_idx= pool_start;
-        int pc_r1 = (ldr_r1_idx + 2) * 4;   /* word offset → byte offset for PC */
+        int pc_r1 = (ldr_r1_idx + 2) * 4;   /* word offset to byte offset for PC */
         int pc_r2 = (ldr_r2_idx + 2) * 4;
         int off_r1 = desc_word_idx * 4 - pc_r1;
         int off_r2 = addit_word_idx * 4 - pc_r2;

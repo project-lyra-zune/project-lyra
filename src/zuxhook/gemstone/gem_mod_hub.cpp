@@ -132,9 +132,9 @@ HRESULT GemModHub_OnMessage(GemModHubInstance* self, void* msg) {
             scene_name = L"ManageMods.xur";
         } else if (target && target == self->browse_btn) {
             scene_name = L"BrowseMods.xur";
+        } else if (target && target == self->settings_btn) {
+            scene_name = L"ModSettings.xur";
         }
-        /* settings button is not yet implemented; leave scene_name NULL so
-           the tap falls through to the base. */
 
         if (scene_name) {
             /* Store the tapped button's element handle so the engine can
@@ -150,8 +150,7 @@ HRESULT GemModHub_OnMessage(GemModHubInstance* self, void* msg) {
             __try { m[2] = 1; } __except (EXCEPTION_EXECUTE_HANDLER) {}
             return 0;
         }
-        /* Unbound target or scene not implemented (browse/settings):
-           fall through to base, a harmless no-op. */
+        /* Unbound target: fall through to base, a harmless no-op. */
     }
 
     HRESULT hr = 0;

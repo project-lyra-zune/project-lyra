@@ -58,21 +58,8 @@ BootLevel BootStateBeginBoot(void) {
     st.failures      = (next == st.level) ? st.failures + 1 : 1;
     st.level         = next;
     st.shell_started = 0;
-
-    /* last_mod carries over: a demoted boot applies no feature mods, so the
-       wedged boot's suspect survives to be reported. */
     boot_state_write(&st);
     return st.level;
-}
-
-void BootStateRecordInFlight(const char* mod_id, int phase) {
-    BootState st;
-
-    BootStateRead(&st);
-    strncpy(st.last_mod, mod_id ? mod_id : "", BOOT_MOD_ID_LEN - 1);
-    st.last_mod[BOOT_MOD_ID_LEN - 1] = 0;
-    st.last_phase = phase;
-    boot_state_write(&st);
 }
 
 void BootStateCommit(void) {
@@ -80,12 +67,6 @@ void BootStateCommit(void) {
 
     BootStateRead(&st);
     st.failures = 0;
-    /* The suspect is why a demoted boot is demoted, so it outlives the commit
-       and clears only on a return to NORMAL or an explicit BootStateClear. */
-    if (st.level == BOOT_LEVEL_NORMAL) {
-        st.last_mod[0] = 0;
-        st.last_phase  = 0;
-    }
     boot_state_write(&st);
 }
 

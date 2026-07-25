@@ -214,6 +214,14 @@
 				>
 			</File>
 			<File
+				RelativePath=".\gemstone\gem_mod_settings.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\gemstone\gem_mod_settings_content.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\gemstone\gem_mod_hub.cpp"
 				>
 			</File>

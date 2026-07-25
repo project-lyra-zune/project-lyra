@@ -6,14 +6,14 @@ flat ZuneContextMenu quick-toggle. Same blob shape as the gem-side
 GemModsListContentScene (real OnInit binds the list, OnMessage answers the
 msg=0xe data-source sub-codes), but built for servicesd/zhud:
 
-  - host="servicesd"            → base VAs (allocator/parent_vtable/on_destroy)
+  - host="servicesd" selects base VAs (allocator/parent_vtable/on_destroy)
                                    resolve to the zhud values, which match
                                    HudNetworkListScene's own factory + vtable.
-  - indirect_allocator=True     → the zhud allocator (0x419d83…) is a FAR
+  - indirect_allocator=True means the zhud allocator (0x419d83…) is a FAR
                                    allocator (beyond ARM bl ±32MB from the
                                    planted scratch), so the factory reaches it
                                    via the pool+blx variant.
-  - instance_size=0x17c         → mirrors HudNetworkListScene so the base's
+  - instance_size=0x17c mirrors HudNetworkListScene so the base's
                                    writes to +0x04..+0x178 stay inside our alloc.
 
 Vtable slots 1/2 (OnMessage/OnInit) are extern_module fixups against zuxhook.dll,

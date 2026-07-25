@@ -21,6 +21,7 @@ int   patch_kernel_dword(DWORD va, DWORD value, const wchar_t* label);
 
 /* Menu family: core's Phase-2 worker drains the pending-menu table at end. */
 int   flush_menu_entries(void);
+int   menu_pending_count(void);
 
 /* Settings-row family: same shape as the menu family. Apply records pending
    rows, the worker drains them into extended section arrays + detours at end. */

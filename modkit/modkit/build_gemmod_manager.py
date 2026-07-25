@@ -86,6 +86,8 @@ def pe_export_rvas(dll_path: Path) -> dict[str, int]:
 MGR_OFF_INSTALLED_LABEL_ID = 0x48
 MGR_OFF_ARCHIVED_LABEL_ID  = 0x4c
 MGR_OFF_UPDATES_LABEL_ID   = 0x50
+SET_OFF_SYSTEM_LABEL_ID    = 0x48
+SET_OFF_MODS_LABEL_ID      = 0x4c
 
 
 def _ext(symbol: str) -> tuple[str, str]:
@@ -108,6 +110,35 @@ def build_manager_blob(installed_label_id: int, archived_label_id: int,
     })
     b.add_vtable(on_message=_ext("GemModManager_OnMessage"),
                   on_init=_ext("GemModManager_OnInit"),
+                  on_destroy="class_ondestroy_shared")
+    return b.finish()
+
+
+def build_settings_blob(system_label_id: int, mods_label_id: int):
+    """GemModSettings: outer shell for ModSettings.xur, reached from the hub's
+    settings button. Same shape as GemModManager; the twist divides settings by
+    owner (System, Mods). instance_size=0x58."""
+    b = ClassBlobBuilder("GemModSettings", instance_size=0x58)
+    b.add_factory(ctor_label="ctor")
+    b.add_ctor(extra_init={
+        SET_OFF_SYSTEM_LABEL_ID: system_label_id,
+        SET_OFF_MODS_LABEL_ID:   mods_label_id,
+    })
+    b.add_vtable(on_message=_ext("GemModSettings_OnMessage"),
+                  on_init=_ext("GemModSettings_OnInit"),
+                  on_destroy="class_ondestroy_shared")
+    return b.finish()
+
+
+def build_settings_content_blob():
+    """GemModSettingsContent: leaf list-content scene for ModSettingsContent.xur,
+    carrying the stock SettingsList visual so rows render as native settings rows
+    (one label each). instance_size=0x50."""
+    b = ClassBlobBuilder("GemModSettingsContent", instance_size=0x50)
+    b.add_factory(ctor_label="ctor")
+    b.add_ctor(extra_init={})
+    b.add_vtable(on_message=_ext("GemModSettingsContent_OnMessage"),
+                  on_init=_ext("GemModSettingsContent_OnInit"),
                   on_destroy="class_ondestroy_shared")
     return b.finish()
 
@@ -188,7 +219,7 @@ def main():
                     "blobs do not require rebuilding after every zuxhook "
                     "rebuild.")
     # Strings.xus IDs assigned by Phase 1's xus_add_string in manifest order.
-    # Existing claimedCount=637 → "mods" goes at 637, "installed" at 638,
+    # Existing claimedCount=637, so "mods" goes at 637, "installed" at 638,
     # "archived" at 639. Override if the manifest action ordering changes.
     # "updates" is NOT appended: the native Strings.xus already has an exact
     # lowercase "updates" at index 263, so the updates tab reuses it.
@@ -204,6 +235,14 @@ def main():
                     default=263,
                     help="Strings.xus index for the 'updates' tab label "
                          "(default 263, the native lowercase 'updates' string)")
+    ap.add_argument("--system-label-id", type=lambda s: int(s, 0),
+                    default=640,
+                    help="Strings.xus index for the settings 'system' tab label "
+                         "(default 640, appended after archived)")
+    ap.add_argument("--settings-mods-label-id", type=lambda s: int(s, 0),
+                    default=637,
+                    help="Strings.xus index for the settings 'mods' tab label "
+                         "(default 637, reusing the tab's own 'mods' string)")
     args = ap.parse_args()
 
     # Validate that zuxhook.dll exports all the symbols we'll reference.
@@ -219,6 +258,8 @@ def main():
         "GemModDetail_OnInit", "GemModDetail_OnMessage",
         "GemModBrowse_OnInit", "GemModBrowse_OnMessage",
         "GemModBrowseList_OnInit", "GemModBrowseList_OnMessage",
+        "GemModSettings_OnInit", "GemModSettings_OnMessage",
+        "GemModSettingsContent_OnInit", "GemModSettingsContent_OnMessage",
     )
     for nm in required:
         if nm not in exports:
@@ -255,7 +296,7 @@ def main():
 
     print()
 
-    # GemModManager → class.bin (outer shell)
+    # GemModManager: class.bin (outer shell)
     mgr_blob = build_manager_blob(installed_label_id=args.installed_label_id,
                                     archived_label_id=args.archived_label_id,
                                     updates_label_id=args.updates_label_id)
@@ -264,25 +305,35 @@ def main():
     print(f"wrote {out_dir / 'class.bin'} ({len(mgr_blob.bytes_)} bytes, "
           f"{len(mgr_blob.fixups)} fixups, GemModManager)")
 
-    # GemModHub → class_hub.bin
+    # GemModHub: class_hub.bin
     hub_blob = build_hub_blob()
     _write_named(hub_blob, "class_hub.bin", "class_hub.reloc.json")
 
-    # GemModsListContentScene → class_content.bin
+    # GemModsListContentScene: class_content.bin
     content_blob = build_content_blob()
     _write_named(content_blob, "class_content.bin", "class_content.reloc.json")
 
-    # GemModDetail → class_detail.bin
+    # GemModDetail: class_detail.bin
     detail_blob = build_detail_blob()
     _write_named(detail_blob, "class_detail.bin", "class_detail.reloc.json")
 
-    # GemModBrowse → class_browse.bin
+    # GemModBrowse: class_browse.bin
     browse_blob = build_browse_blob()
     _write_named(browse_blob, "class_browse.bin", "class_browse.reloc.json")
 
-    # GemModBrowseList → class_browse_list.bin
+    # GemModBrowseList: class_browse_list.bin
     browse_list_blob = build_browse_list_blob()
     _write_named(browse_list_blob, "class_browse_list.bin", "class_browse_list.reloc.json")
+
+    # GemModSettings: class_settings.bin
+    settings_blob = build_settings_blob(system_label_id=args.system_label_id,
+                                        mods_label_id=args.settings_mods_label_id)
+    _write_named(settings_blob, "class_settings.bin", "class_settings.reloc.json")
+
+    # GemModSettingsContent: class_settings_content.bin
+    settings_content_blob = build_settings_content_blob()
+    _write_named(settings_content_blob, "class_settings_content.bin",
+                 "class_settings_content.reloc.json")
 
 
 if __name__ == "__main__":

@@ -88,17 +88,6 @@ void BootStateParse(const char* buf, size_t len, BootState* out) {
     v = ModsJsonObjectFind(&j, 0, "shell_started");
     if (v >= 0 && ModsJsonInt(&j, v, &n) == 0 && n > 0) out->shell_started = 1;
 
-    v = ModsJsonObjectFind(&j, 0, "last_phase");
-    if (v >= 0 && ModsJsonInt(&j, v, &n) == 0 && n >= 0) out->last_phase = n;
-
-    v = ModsJsonObjectFind(&j, 0, "last_mod");
-    if (v >= 0 && ModsJsonTypeOf(&j, v) == MODS_JSON_STRING) {
-        char* s = ModsJsonStrdup(&arena, &j, v);
-        if (s != NULL) {
-            strncpy(out->last_mod, s, BOOT_MOD_ID_LEN - 1);
-            out->last_mod[BOOT_MOD_ID_LEN - 1] = 0;
-        }
-    }
 
 done:
     ModsArenaFree(&arena);
@@ -107,10 +96,9 @@ done:
 int BootStateFormat(const BootState* st, char* out, size_t cap) {
     int n = BOOT_SNPRINTF(out, cap,
                           "{\"version\":1,\"level\":\"%s\",\"failures\":%d,"
-                          "\"shell_started\":%d,"
-                          "\"last_mod\":\"%s\",\"last_phase\":%d}",
+                          "\"shell_started\":%d}",
                           BootLevelName(st->level), st->failures,
-                          st->shell_started, st->last_mod, st->last_phase);
+                          st->shell_started);
     if (n < 0 || (size_t)n >= cap) return -1;
     return n;
 }

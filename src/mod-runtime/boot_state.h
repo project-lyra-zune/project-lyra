@@ -21,14 +21,15 @@ typedef enum {
 #define BOOT_MOD_ID_LEN       64    /* matches ENABLED_ID_LEN */
 #define BOOT_STATE_BUF_BYTES  256
 
-/* The in-flight suspect only. A fault that is caught belongs to the mod, not to
-   the boot, and lives in the mod's own fault.json (mod_fault.h). */
+/* The boot ladder only. What was in flight when a boot died is already in the
+   rotated boot log ("[i/n] <mod>" per mod, kept as .prev), and a fault that is
+   caught belongs to the mod, in its own fault.json (mod_fault.h). Recording the
+   suspect here too meant a flash write per mod per phase for something already
+   written. */
 typedef struct {
     BootLevel level;
     int       failures;                /* uncommitted boots begun at `level` */
     int       shell_started;           /* a shell instance has run this boot */
-    int       last_phase;              /* 1 or 2, 0 when nothing was in flight */
-    char      last_mod[BOOT_MOD_ID_LEN];
 } BootState;
 
 #ifdef __cplusplus
@@ -54,11 +55,6 @@ void BootStateRead(BootState* out);
 
 /* Once per boot, from the Phase-1 singleton. */
 BootLevel BootStateBeginBoot(void);
-
-/* Per mod, not per action: this writes flash, and the apply loops run ~90
-   actions a boot. It answers "what was running when the boot died", which is
-   all an uncaught wedge leaves behind. */
-void BootStateRecordInFlight(const char* mod_id, int phase);
 
 /* Clears the failure count and holds the level, so a healthy demoted boot
    neither escalates nor returns to a full apply. */

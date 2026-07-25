@@ -132,7 +132,7 @@ HRESULT ModContextListScene_OnMessage(ModContextListSceneInstance* self, void* m
     if (!sub || !self) return 0;
 
     if (sub_code == SUB_DS_SET_SEL) {
-        /* Tap-off (cancel button) → dismiss; row tap → select then dismiss. */
+        /* Tap-off (cancel button) to dismiss; row tap to select then dismiss. */
         if (self->cancel_element && target == self->cancel_element) {
             ModsHudContextRequestDismiss();
             __try { m[2] = 1; } __except (EXCEPTION_EXECUTE_HANDLER) {}

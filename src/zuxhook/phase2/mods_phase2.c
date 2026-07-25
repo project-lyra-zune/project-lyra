@@ -433,7 +433,7 @@ static DWORD WINAPI Phase2Worker(LPVOID lpParam) {
     {
         ModsArena arena;
         ModSet mods;
-        int i, j;
+        int i, j, menu_before = 0;
         int p2_applied = 0, deferred = 0, skipped = 0, failed = 0;
 
         /* The loader now parses every manifest on disk (to discover
@@ -495,7 +495,7 @@ static DWORD WINAPI Phase2Worker(LPVOID lpParam) {
             ModsLoadBackRefs(m, &arena);
             ModsLogf("  [%d/%d] %s v%s - %d action(s)",
                      i + 1, mods.count, m->mod_id, m->version, m->actions_count);
-            BootStateRecordInFlight(m->mod_id, 2);
+            menu_before = menu_pending_count();
             for (j = 0; j < m->actions_count; j++) {
                 int rc;
                 if (!action_target_matches(&m->actions[j], host, &arena)) {
@@ -512,6 +512,13 @@ static DWORD WINAPI Phase2Worker(LPVOID lpParam) {
                     break;
                 }
             }
+            /* Flush as soon as THIS mod's actions are applied, rather than after
+               every later mod's load_module: a tile otherwise waits on work it
+               does not depend on (youtube's DllMain alone costs ~3s), and the
+               start menu renders long before that. Per-mod, not hoisted wholesale,
+               because a mod's tile must not exist before the module that registers
+               its scenes has loaded. */
+            if (menu_pending_count() > menu_before) flush_menu_entries();
         }
         ModsLogf("  phase2: %d applied / %d deferred / %d skipped / %d failed",
                  p2_applied, deferred, skipped, failed);

@@ -49,6 +49,18 @@
       "content_blob_ref": "@/scenes/BrowseModsContent.xur"
     },
     {
+      "type": "lyra.gem_add_entry",
+      "gem": "scenes_standard.gem",
+      "entry_name": "ModSettings.xur",
+      "content_blob_ref": "@/scenes/ModSettings.xur"
+    },
+    {
+      "type": "lyra.gem_add_entry",
+      "gem": "scenes_standard.gem",
+      "entry_name": "ModSettingsContent.xur",
+      "content_blob_ref": "@/scenes/ModSettingsContent.xur"
+    },
+    {
       "type": "lyra.register_visuals",
       "content_blob_ref": "@/skin/ModsCustomVisuals.xur",
       "verify_visual_id": "ModsDisableButton"
@@ -76,6 +88,14 @@
       "locale": "en",
       "value": "archived",
       "manifest_back_reference": "archived_label"
+    },
+    {
+      "type": "lyra.xus_add_string",
+      "gem": "strings.gem",
+      "table": "Strings.xus",
+      "locale": "en",
+      "value": "system",
+      "manifest_back_reference": "system_label"
     },
     {
       "type": "lyra.register_xui_class",
@@ -124,6 +144,22 @@
       "parent_name": "GemBaseScene",
       "class_ref": "@/class_browse_list.bin",
       "reloc_ref": "@/class_browse_list.reloc.json"
+    },
+    {
+      "type": "lyra.register_xui_class",
+      "target_proc": "gemstone",
+      "name": "GemModSettings",
+      "parent_name": "GemLibraryBaseScene",
+      "class_ref": "@/class_settings.bin",
+      "reloc_ref": "@/class_settings.reloc.json"
+    },
+    {
+      "type": "lyra.register_xui_class",
+      "target_proc": "gemstone",
+      "name": "GemModSettingsContent",
+      "parent_name": "GemBaseScene",
+      "class_ref": "@/class_settings_content.bin",
+      "reloc_ref": "@/class_settings_content.reloc.json"
     },
     {
       "type": "lyra.inject_menu_entry",

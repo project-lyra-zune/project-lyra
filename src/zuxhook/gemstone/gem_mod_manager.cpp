@@ -3,9 +3,9 @@
    Canonical shell+content structure (matches MarketplaceGames +
    MarketplaceGamesListContent + MarketplaceGamesDetailsContent):
 
-     ManageMods.xur          → this class (shell: chrome + twist)
-     ManageModsContent.xur   → GemModsListContentScene (list, swapped per tab)
-     ManageModDetail.xur     → GemModDetail (drilldown via id_nav_stub)
+     ManageMods.xur to this class (shell: chrome + twist)
+     ManageModsContent.xur to GemModsListContentScene (list, swapped per tab)
+     ManageModDetail.xur to GemModDetail (drilldown via id_nav_stub)
 
    Content load is driven by the inherited GemLibraryBaseScene helper:
    the helper self-dispatches msg=0x1800001c (its 0x3ed94) to our outer
@@ -87,8 +87,8 @@ typedef HRESULT (*XuiSceneCreateFn)(const wchar_t* base, const wchar_t* path,
 /* ── Message constants ─────────────────────────────────────────────────── */
 
 #define MSG_CONTENT_LOAD    0x1800001c   /* sent by the inherited helper's
-                                             0x3ed94 to XuiGetOuter(scene)
-                                             → routes to OUR OnMessage.
+                                             0x3ed94 to XuiGetOuter(scene),
+                                             which routes to OUR OnMessage.
                                              Payload[0]=idx; we fill
                                              payload[+4]=new scene handle. */
 #define MSG_NAV_SOURCE      0x18000022
@@ -96,7 +96,7 @@ typedef HRESULT (*XuiSceneCreateFn)(const wchar_t* base, const wchar_t* path,
 /* Content swap is now handled by the canonical GemLibraryBaseScene
    helper class; our class inherits from it via parent_name in the
    manifest. The helper's 0x3ef40 OnMessage handles twist commits, its
-   0x3ed94 builds msg=0x1800001c → calls 0x1c250 → 0x3eb54 adopts the
+   0x3ed94 builds msg=0x1800001c to calls 0x1c250 to 0x3eb54 adopts the
    new content. No manual content-load code needed here. */
 
 /* ── Class entry points ────────────────────────────────────────────────── */

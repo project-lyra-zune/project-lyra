@@ -185,9 +185,8 @@ int ModsApplyPhase1(void) {
     {
         BootState bs;
         BootStateRead(&bs);
-        ModsLogf("  boot level: %s (failures %d, last %s phase %d)",
-                 BootLevelName(bs.level), bs.failures,
-                 bs.last_mod[0] ? bs.last_mod : "-", bs.last_phase);
+        ModsLogf("  boot level: %s (failures %d)",
+                 BootLevelName(bs.level), bs.failures);
     }
 
     /* Clear rename-aside leftovers before daemons spawn: a *.old binary from a
@@ -228,7 +227,6 @@ int ModsApplyPhase1(void) {
         }
         ModsLogf("  [%d/%d] %s v%s - %d action(s)",
                  i + 1, mods.count, m->mod_id, m->version, m->actions_count);
-        BootStateRecordInFlight(m->mod_id, 1);
         mod_failed = 0;
         for (j = 0; j < m->actions_count; j++) {
             int rc;
