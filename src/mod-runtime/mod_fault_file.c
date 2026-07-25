@@ -17,34 +17,47 @@ static int fault_path(const wchar_t* mod_dir, wchar_t* out, int cap) {
     return 0;
 }
 
-int ModFaultRecord(const wchar_t* mod_dir, const char* mod_version,
-                   int phase, int action, const char* cap, unsigned long code) {
-    wchar_t  path[MAX_PATH];
-    char     buf[FAULT_BUF_BYTES];
-    ModFault f;
-    HANDLE   h;
-    DWORD    w = 0;
-    BOOL     ok;
-    int      n;
+static int fault_write(const wchar_t* mod_dir, const ModFault* f) {
+    wchar_t path[MAX_PATH];
+    char    buf[FAULT_BUF_BYTES];
+    HANDLE  h;
+    DWORD   w = 0;
+    BOOL    ok;
+    int     n;
 
     if (fault_path(mod_dir, path, MAX_PATH) < 0) return -1;
-
-    memset(&f, 0, sizeof(f));
-    f.phase  = phase;
-    f.action = action;
-    f.code   = code;
-    strncpy(f.cap, cap ? cap : "", MOD_FAULT_CAP_LEN - 1);
-    strncpy(f.version, mod_version ? mod_version : "", MOD_FAULT_VER_LEN - 1);
-
-    n = ModFaultFormat(&f, buf, sizeof(buf));
+    n = ModFaultFormat(f, buf, sizeof(buf));
     if (n < 0) return -1;
-
     h = CreateFileW(path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
                     FILE_ATTRIBUTE_NORMAL, NULL);
     if (h == INVALID_HANDLE_VALUE) return -1;
     ok = WriteFile(h, buf, (DWORD)n, &w, NULL);
     CloseHandle(h);
     return (ok && w == (DWORD)n) ? 0 : -1;
+}
+
+void ModFaultMarkReported(const wchar_t* mod_dir) {
+    ModFault f;
+    if (!ModFaultRead(mod_dir, NULL, &f) || f.reported) return;
+    f.reported = 1;
+    fault_write(mod_dir, &f);
+}
+
+int ModFaultRecord(const wchar_t* mod_dir, const char* mod_version,
+                   int phase, int action, const char* cap, unsigned long code,
+                   int disabled) {
+    ModFault f;
+
+    memset(&f, 0, sizeof(f));
+    f.phase  = phase;
+    f.action = action;
+    f.code     = code;
+    f.disabled = disabled;
+    f.reported = 0;
+    strncpy(f.cap, cap ? cap : "", MOD_FAULT_CAP_LEN - 1);
+    strncpy(f.version, mod_version ? mod_version : "", MOD_FAULT_VER_LEN - 1);
+
+    return fault_write(mod_dir, &f);
 }
 
 int ModFaultRead(const wchar_t* mod_dir, const char* installed_version,

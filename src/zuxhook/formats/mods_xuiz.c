@@ -171,7 +171,7 @@ int ModsXuizEncode(ModsArena* arena, const ModsXuiz* x,
             name_byte_len -= 1;
         entry_len = 4 /*offset*/ + 2 /*name_len*/ + name_byte_len;
         if (i >= 2 && sz_bytes == 4)
-            entry_len += 3;      /* u32 with overlap → only 3 bytes contributed */
+            entry_len += 3;      /* u32 with overlap to only 3 bytes contributed */
         else if (i >= 2 && sz_bytes == 2)
             entry_len += 1 + 2;  /* pad + u16 */
         else

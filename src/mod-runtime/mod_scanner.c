@@ -149,10 +149,14 @@ static int manifest_is_experimental(const ModsJson* j, int root) {
     return (ModsJsonBool(j, ModsJsonObjectFind(j, root, "experimental"), &b) == 0 && b) ? 1 : 0;
 }
 
-/* Build L"failed: <cap>" in the arena; cap is ASCII. */
-static const wchar_t* compose_fault_label(ModsArena* arena, const char* cap) {
-    static const wchar_t pre[] = L"failed: ";
-    size_t pl = sizeof(pre) / sizeof(pre[0]) - 1;
+/* Build L"failed: <cap>", or the disabled form when Lyra switched the mod off
+   itself, so the row does not read as something the user did. */
+static const wchar_t* compose_fault_label(ModsArena* arena, const char* cap,
+                                          int disabled) {
+    static const wchar_t pre_off[] = L"disabled after failing: ";
+    static const wchar_t pre_on[]  = L"failed: ";
+    const wchar_t* pre = disabled ? pre_off : pre_on;
+    size_t pl = (disabled ? sizeof(pre_off) : sizeof(pre_on)) / sizeof(wchar_t) - 1;
     size_t cl = cap ? strlen(cap) : 0;
     size_t p = 0, i;
     wchar_t* out = (wchar_t*)ModsArenaAlloc(arena, (pl + cl + 1) * sizeof(wchar_t));
@@ -281,7 +285,8 @@ static int load_one_row(ModsArena* arena, const wchar_t* mod_dir,
         ver[k] = 0;
         row->faulted = ModFaultRead(mod_dir, ver, &f);
         row->fault_label = row->faulted
-            ? compose_fault_label(arena, f.cap) : NULL;
+            ? compose_fault_label(arena, f.cap, f.disabled) : NULL;
+        row->fault_disabled = row->faulted ? f.disabled : 0;
     }
     return 0;
 }
@@ -342,6 +347,7 @@ static void append_lyra_row(ModsArena* arena, ModRow* row, int* loaded) {
     row->name_held_back = NULL;
     row->faulted        = 0;
     row->fault_label    = NULL;
+    row->fault_disabled = 0;
     row->is_platform    = 1;
     row->experimental   = 0;
     row->source         = MOD_SOURCE_LOCAL;

@@ -282,7 +282,6 @@ static void do_install_one(RepoBlock* blk, HANDLE done) {
     if (!row || !row->url[0]) { blk->status = 1; blk->install_status = REPO_INSTALL_ERROR; L("install: unknown id"); return; }
     { char line[128]; _snprintf(line, sizeof(line), "install: start id=%s", id); line[sizeof(line) - 1] = 0; L(line); }
 
-    blk->reboot_required = 0;
     blk->install_total = row->size; blk->install_done = 0;
     blk->install_status = REPO_INSTALL_FETCHING; SetEvent(done);
     DeleteFileW(TMP_ZMOD);
@@ -318,7 +317,6 @@ static void do_install_one(RepoBlock* blk, HANDLE done) {
             L("install: platform unpack fail"); return;
         }
         DeleteFileW(TMP_ZMOD);
-        blk->reboot_required = 1;
         blk->status = 0; blk->install_status = REPO_INSTALL_DONE;
         L("install: platform done, reboot required");
         return;

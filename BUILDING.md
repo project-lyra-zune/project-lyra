@@ -66,6 +66,20 @@ tools\build-local.cmd exploiter
 (`lyra\platform\mods-tab\src\reposd\build_reposd.bat`). A failing devenv build writes
 `BuildLog.htm` under the project's `obj\...\` directory.
 
+## Tests
+
+The windows-free half of `src/mod-runtime` has host tests that need no device and
+no VS2008, only a C compiler:
+
+```
+src/mod-runtime/tests/run-tests.sh
+```
+
+They cover the boot-failsafe ladder, the `boot.state` codec and the per-mod fault
+record, including that an unreadable marker resolves to safe mode and that a fault
+is scoped to the mod version that produced it. The flash I/O halves
+(`boot_state_file.c`, `mod_fault_file.c`) are not covered and still need the device.
+
 ## Phase 2: packaging (.NET 8 machine)
 
 Run on Windows 10+/macOS/Linux with:

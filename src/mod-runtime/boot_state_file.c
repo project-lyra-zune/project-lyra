@@ -90,6 +90,10 @@ void BootStateApplyComplete(void) {
     InterlockedExchange(&g_apply_done, 1);
 }
 
+int BootStateApplyIsComplete(void) {
+    return g_apply_done != 0;
+}
+
 void BootStateTick(void) {
     static int claimed = 0;   /* UI thread only; no locking */
     static int ticks   = 0;

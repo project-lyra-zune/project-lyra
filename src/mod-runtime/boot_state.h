@@ -67,6 +67,9 @@ void BootStateCommit(void);
    patch_bytes have run. */
 void BootStateApplyComplete(void);
 
+/* 1 once this process's apply pass has finished. */
+int  BootStateApplyIsComplete(void);
+
 /* One UI message-loop iteration. UI thread only. Only the boot's first shell
    instance may commit: gemstone restarts in place when it wedges, and a
    respawn that pumps briefly before dying again would otherwise clear the

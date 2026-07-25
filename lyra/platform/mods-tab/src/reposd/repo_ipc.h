@@ -93,7 +93,6 @@ typedef struct {
     char          install_set[REPO_MAX_INSTALL_SET][REPO_ID_LEN];
     long          install_set_count;
     long          install_set_index;
-    long          reboot_required;         /* set by a platform apply; UI prompts to restart */
     /* The platform authority: the `lyra` version and advertised capabilities from the pinned
        official channel (reposd REPO_HOST), the source of truth for the update remedy. Kept in
        dedicated fields, not looked up from `rows`, so the remedy stays correct when `rows` come
@@ -104,6 +103,6 @@ typedef struct {
     RepoRow       rows[REPO_MAX_ROWS];
 } RepoBlock;
 
-#define REPO_VERSION  12u
+#define REPO_VERSION  13u
 
 #endif /* REPO_IPC_H */

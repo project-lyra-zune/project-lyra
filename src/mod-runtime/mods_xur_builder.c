@@ -293,7 +293,7 @@ int ModsBuildStatusIconFragmentXur(ModsArena* arena,
     strings[4].ascii = modicon;         strings[4].wide = NULL;
     strings[5].ascii = "ModStatusIcon"; strings[5].wide = NULL;
     /* One frame element per non-NULL state, named "frame<k>" so the icon host
-       shows frame<state>. NULL states (e.g. "off") get no element → hidden. */
+       shows frame<state>. NULL states (e.g. "off") get no element to hidden. */
     for (k = 0; k < nstates; k++) {
         if (!visual_ids[k]) continue;
         _snprintf(frame_names[nframes], sizeof(frame_names[0]) - 1, "frame%d", k);

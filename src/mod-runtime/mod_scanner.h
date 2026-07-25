@@ -49,6 +49,8 @@ typedef struct ModRow {
     const wchar_t* fault_label;    /* "failed: <cap>" - renders in the status
                                        column beside "update available", not on
                                        the title. */
+    int            fault_disabled; /* Lyra removed it from the enabled set after
+                                       the fault, rather than the user doing so */
     int            is_platform;    /* the synthetic Lyra row; update-only, never removable */
     int            experimental;   /* author-declared unfinished (manifest experimental) */
     ModRowSource   source;

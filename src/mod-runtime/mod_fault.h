@@ -24,6 +24,8 @@ typedef struct {
     int           phase;                   /* 1 or 2 */
     int           action;                  /* index within the mod */
     unsigned long code;                    /* exception code */
+    int           disabled;                /* Lyra removed it from the enabled set */
+    int           reported;                /* the boot notice has announced it */
     char          cap[MOD_FAULT_CAP_LEN];
     char          version[MOD_FAULT_VER_LEN];
 } ModFault;
@@ -40,13 +42,18 @@ int  ModFaultParse(const char* buf, size_t len, const char* installed_version,
 
 /* Flash-backed (mod_fault_file.c). */
 int  ModFaultRecord(const wchar_t* mod_dir, const char* mod_version,
-                    int phase, int action, const char* cap, unsigned long code);
+                    int phase, int action, const char* cap, unsigned long code,
+                    int disabled);
 
 /* 1 when a fault is recorded against `installed_version`, else 0. */
 int  ModFaultRead(const wchar_t* mod_dir, const char* installed_version,
                   ModFault* out);
 
 void ModFaultClear(const wchar_t* mod_dir);
+
+/* Mark an existing record announced, so the notice names a disable once
+   rather than on every boot until the user re-enables the mod. */
+void ModFaultMarkReported(const wchar_t* mod_dir);
 
 #ifdef __cplusplus
 }

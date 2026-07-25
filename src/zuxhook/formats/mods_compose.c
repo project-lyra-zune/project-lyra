@@ -112,7 +112,7 @@ static int read_blob(ModsArena* arena, const wchar_t* path,
     return 0;
 }
 
-/* Build a per-locale xus entry name. "en"/empty → table; else "<loc>\<table>". */
+/* Build a per-locale xus entry name. "en"/empty to table; else "<loc>\<table>". */
 static void make_xus_entry_name(char* out, int cap,
                                 const char* table, const char* locale) {
     if (!locale || !*locale || strcmp(locale, "en") == 0) {
@@ -637,7 +637,7 @@ int ModsComposeFlushAll(ComposeState* st, ModsArena* arena) {
             continue;
         }
 
-        /* Round-trip-safety check: encode → decode → encode and verify
+        /* Round-trip-safety check: encode to decode to encode and verify
            byte-identical with the first encode. Catches subtle codec
            inconsistencies before we clobber \Windows\. */
         {

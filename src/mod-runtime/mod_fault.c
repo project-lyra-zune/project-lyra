@@ -32,8 +32,10 @@ static unsigned long parse_hex(const char* s) {
 int ModFaultFormat(const ModFault* f, char* out, size_t cap) {
     int n = FAULT_SNPRINTF(out, cap,
                            "{\"version\":1,\"mod_version\":\"%s\",\"phase\":%d,"
-                           "\"action\":%d,\"cap\":\"%s\",\"code\":\"0x%08lX\"}",
-                           f->version, f->phase, f->action, f->cap, f->code);
+                           "\"action\":%d,\"cap\":\"%s\",\"code\":\"0x%08lX\","
+                           "\"disabled\":%d,\"reported\":%d}",
+                           f->version, f->phase, f->action, f->cap, f->code,
+                           f->disabled, f->reported);
     if (n < 0 || (size_t)n >= cap) return -1;
     return n;
 }
@@ -76,6 +78,12 @@ int ModFaultParse(const char* buf, size_t len, const char* installed_version,
             out->cap[MOD_FAULT_CAP_LEN - 1] = 0;
         }
     }
+    v = ModsJsonObjectFind(&j, 0, "reported");
+    if (v >= 0 && ModsJsonInt(&j, v, &n) == 0 && n > 0) out->reported = 1;
+
+    v = ModsJsonObjectFind(&j, 0, "disabled");
+    if (v >= 0 && ModsJsonInt(&j, v, &n) == 0 && n > 0) out->disabled = 1;
+
     v = ModsJsonObjectFind(&j, 0, "code");
     if (v >= 0 && ModsJsonTypeOf(&j, v) == MODS_JSON_STRING) {
         char* s = ModsJsonStrdup(&arena, &j, v);

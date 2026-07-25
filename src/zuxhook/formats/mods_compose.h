@@ -4,6 +4,7 @@
 #include "mods_arena.h"
 #include "mods_manifest.h"
 #include "mods_xuiz.h"
+#include "mods_compose_state.h"
 
 /* In-memory composition of .gem files plus Layer 2/4 capability dispatch.
 
@@ -18,21 +19,7 @@
    (write .new, delete the original, then MoveFileW the .new into place;
    WinCE 6 has no MoveFileExW REPLACE_EXISTING). */
 
-typedef struct {
-    char           basename[64];      /* e.g. "scenes_standard.gem" */
-    int            modified;
-    ModsXuiz       xuiz;
-} GemComp;
 
-typedef struct {
-    GemComp**  gems;                  /* heap-of-pointers; each owned by arena */
-    int        count;
-    int        cap;
-} ComposeState;
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 /* Apply one action. Returns:
      0  - applied successfully (Phase 1 capability)

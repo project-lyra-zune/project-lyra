@@ -155,7 +155,7 @@ int ModsXusEncode(ModsArena* arena, const ModsXus* x,
     return -1;
 }
 
-/* ASCII UTF-8 → UTF-16BE bytes. Rejects any byte ≥ 0x80. */
+/* ASCII UTF-8 to UTF-16BE bytes. Rejects any byte ≥ 0x80. */
 static int ascii_utf8_to_utf16be(ModsArena* arena, const char* s,
                                   const unsigned char** out, int* out_len) {
     int n = (int)strlen(s);

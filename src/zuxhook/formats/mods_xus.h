@@ -19,7 +19,7 @@
 
    For ModsXusAppendDense / ModsXusSetDense, the caller passes ASCII
    UTF-8 input (mods are ASCII-only by manifest convention); the codec
-   handles UTF-8 → UTF-16BE conversion. */
+   handles UTF-8 to UTF-16BE conversion. */
 
 #define MODS_XUS_V_DENSE      0x0102
 #define MODS_XUS_V_ID_TAGGED  0x0101

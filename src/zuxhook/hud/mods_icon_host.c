@@ -1,4 +1,5 @@
 #include "mods_icon_host.h"
+#include "mods_boot_notice.h"
 #include "mods_state_block.h"
 #include "mods_curation.h"
 #include "mods_icons.h"
@@ -492,7 +493,7 @@ static HRESULT ModStatusIcon_Factory(void* ctx, void** out) {
 /* Register ModStatusIcon once for this host process (is_sd selects the VA set).
    Called from ModsIconHostInstall, after XuiRegisterClass's registry is primed by
    Phase 2 and after g_get_desc/g_set_show resolve. Idempotent across gemstone
-   hot-restarts (the registry persists in the compositor → 0x80300005). */
+   hot-restarts (the registry persists in the compositor to 0x80300005). */
 static void ModStatusIconRegister(int is_sd) {
     HMODULE hxui;
     XuiRegisterClassFn2 fn;
@@ -980,7 +981,7 @@ static void inject_icons(void* grid) {
     /* Register the ModStatusIcon class lazily here; we are mid scene-create, so
        xuidll's registry + the XuiControl parent are live (registering at
        ModsIconHostInstall was too early: Phase 2 spawns its worker async, so the
-       registry wasn't primed yet → XuiRegisterClass 0x80300006). Idempotent +
+       registry wasn't primed yet to XuiRegisterClass 0x80300006). Idempotent +
        retries on a prior failure; must precede inject_one's fragment create,
        which instantiates ClassOverride=ModStatusIcon. */
     ModStatusIconRegister(GetModuleHandleW(L"zhud_serv.dll") != NULL);
@@ -1164,6 +1165,12 @@ static HRESULT XuiSceneCreateEx_proxy(DWORD a1, const wchar_t* uri,
     } __except (EXCEPTION_EXECUTE_HANDLER) {}
 
     if (grid_hr == 0 && grid) inject_icons(grid);
+
+    /* Any live scene will host the boot notice; it only needs somewhere to route
+       a result we ignore. Self-guards to once per boot, gemstone only, and to
+       having something worth saying. */
+    __try { if (scene) ModBootNoticeShow(scene); }
+    __except (EXCEPTION_EXECUTE_HANDLER) {}
 
     /* Recolor stock icons (e.g. WifiIcon orange while "Keep WiFi on" is on). The
        wifi control resolves from the iconGrid front (with the scene as fallback),

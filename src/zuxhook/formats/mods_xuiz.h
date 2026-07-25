@@ -80,7 +80,7 @@ int ModsXuizReplaceData(ModsXuiz* x, int idx,
 /* Remove an entry by index. Shifts the tail down. */
 int ModsXuizRemove(ModsXuiz* x, int idx);
 
-/* Helper: ASCII → UTF-16LE bytes (no NUL terminator). Rejects non-ASCII. */
+/* Helper: ASCII to UTF-16LE bytes (no NUL terminator). Rejects non-ASCII. */
 int ModsXuizAsciiToLe(ModsArena* arena, const char* ascii,
                       const unsigned char** out_le, int* out_chars);
 

@@ -8,6 +8,8 @@
 #include "mod_scanner.h"
 #include "boot_state.h"
 #include "mod_fault.h"
+#include "enabled_set.h"
+#include "failed_set.h"
 #include "mods_phase2.h"     /* ModsPlatformProvides (platform-provides predicate for ModsResolve) */
 
 #include <windows.h>
@@ -153,6 +155,17 @@ int ModsLoadBackRefs(Mod* m, ModsArena* arena) {
    typical mods. Compositor has plenty of address space. */
 #define MODS_ARENA_BYTES (24 * 1024 * 1024)
 
+/* A caught fault is strong attribution: the mod was mid-execution, not merely
+   the last one applied. Drop it from the enabled set so it is not retried on
+   every future boot, and report whether that actually happened, since platform
+   components are not in the enabled set and cannot be disabled this way. */
+static int disable_faulted_mod(const Mod* m) {
+    static char ids[ENABLED_ID_MAX][ENABLED_ID_LEN];
+    int n = EnabledSetRead(ids, ENABLED_ID_MAX);
+    if (n <= 0 || !EnabledSetContains(ids, n, m->mod_id)) return 0;
+    return EnabledSetRemove(m->mod_id) == 0 ? 1 : 0;
+}
+
 /* A capability that faults must not take the shell with it. Catch it, record it
    against the mod, and let the caller drop the rest of that mod. */
 static int apply_action_guarded(ComposeState* st, ModsArena* arena,
@@ -163,8 +176,10 @@ static int apply_action_guarded(ComposeState* st, ModsArena* arena,
         rc = ModsComposeApplyAction(st, arena, a);
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         unsigned long code = (unsigned long)GetExceptionCode();
-        ModFaultRecord(m->source_dir, m->version, 1, index, a->type, code);
-        ModsLogf("    action[%d] %s FAULTED 0x%08lX", index, a->type, code);
+        int off = disable_faulted_mod(m);
+        ModFaultRecord(m->source_dir, m->version, 1, index, a->type, code, off);
+        ModsLogf("    action[%d] %s FAULTED 0x%08lX%s", index, a->type, code,
+                 off ? "; mod disabled" : "");
         rc = MODS_ACTION_FAILED;
     }
     return rc;
@@ -175,6 +190,7 @@ int ModsApplyPhase1(void) {
     ModSet       mods;
     ComposeState st;
     int i, j, mod_failed;
+    ComposeCheckpoint ckpt;
     int total = 0, p1 = 0, p2 = 0, skip = 0, fail = 0;
 
     /* Ensure the mods directory exists; create it lazily on first boot. */
@@ -195,6 +211,7 @@ int ModsApplyPhase1(void) {
      * files, so their dirs survive. */
     ModScanSweepOld();
     ModScanSweepPlatformOld();
+    FailedSetClear();
 
     if (ModsArenaInit(&arena, MODS_ARENA_BYTES) < 0) {
         ModsLogf("  arena init (%lu bytes) failed",
@@ -228,6 +245,7 @@ int ModsApplyPhase1(void) {
         ModsLogf("  [%d/%d] %s v%s - %d action(s)",
                  i + 1, mods.count, m->mod_id, m->version, m->actions_count);
         mod_failed = 0;
+        ModsComposeCheckpoint(&st, &arena, &ckpt);
         for (j = 0; j < m->actions_count; j++) {
             int rc;
             ModAction* a = &m->actions[j];
@@ -247,8 +265,14 @@ int ModsApplyPhase1(void) {
                 break;
             }
         }
-        /* A clean pass retires any fault this mod carried from an earlier boot. */
-        if (!mod_failed) ModFaultClear(m->source_dir);
+        if (mod_failed) {
+            /* Discard the half-applied mod rather than flushing part of it, and
+               tell Phase 2 not to give it the rest of its capabilities. */
+            ModsComposeRollback(&st, &ckpt);
+            FailedSetAdd(m->mod_id);
+        } else {
+            ModFaultClear(m->source_dir);
+        }
         /* Persist this mod's back-ref scope so Phase 2 (in gemstone)
            can resolve back-refs assigned by Phase 1 capabilities. */
         ModsWriteBackRefs(m);

@@ -12,6 +12,8 @@
 #include "mods_settings.h"    /* ModSettingsLoad (restore persisted toggle state) */
 #include "boot_state.h"       /* BootStateApplyComplete (arms the boot commit) */
 #include "mod_fault.h"        /* per-mod record of a caught fault */
+#include "enabled_set.h"      /* disable a mod whose capability faulted */
+#include "failed_set.h"       /* skip a mod Phase 1 could not finish */
 #include "mods_resolve.h"     /* ModsResolve + ModsCapabilityDemanded (dependency resolution) */
 #include "mods_capability.h"  /* ModsCapParse (revision-aware capability matching) */
 #include "mods_toggles.h"     /* register_setting declared-settings registry */
@@ -20,6 +22,7 @@
 #include "mods_state_event.h" /* ModStateEventPublish (status reaper wakes the UI) */
 
 static void ModStateReaperStart(void);   /* defined below; used in the servicesd Phase 2 init */
+
 #include "mods_scene_suppress.h" /* ModSceneSuppressAdd (suppress_scene cap) */
 #include "mods_phase2_internal.h"
 #include "mod_scanner.h"      /* ModScanBuild - build the mods-tab row set on this
@@ -343,6 +346,17 @@ static int dispatch_phase2_action(ModAction* a, ModsArena* arena) {
     return MODS_ACTION_FAILED;
 }
 
+/* A caught fault is strong attribution: the mod was mid-execution, not merely
+   the last one applied. Drop it from the enabled set so it is not retried on
+   every future boot, and report whether that actually happened, since platform
+   components are not in the enabled set and cannot be disabled this way. */
+static int disable_faulted_mod(const Mod* m) {
+    static char ids[ENABLED_ID_MAX][ENABLED_ID_LEN];
+    int n = EnabledSetRead(ids, ENABLED_ID_MAX);
+    if (n <= 0 || !EnabledSetContains(ids, n, m->mod_id)) return 0;
+    return EnabledSetRemove(m->mod_id) == 0 ? 1 : 0;
+}
+
 /* A capability that faults must not take its host with it. Catch it, record it
    against the mod, and let the caller drop the rest of that mod. Phase 2 is
    where load_module, install_function_hook and patch_bytes run, so this is the
@@ -354,8 +368,10 @@ static int dispatch_action_guarded(const Mod* m, int index, ModsArena* arena) {
         rc = dispatch_phase2_action(a, arena);
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         unsigned long code = (unsigned long)GetExceptionCode();
-        ModFaultRecord(m->source_dir, m->version, 2, index, a->type, code);
-        ModsLogf("    action[%d] %s FAULTED 0x%08lX", index, a->type, code);
+        int off = disable_faulted_mod(m);
+        ModFaultRecord(m->source_dir, m->version, 2, index, a->type, code, off);
+        ModsLogf("    action[%d] %s FAULTED 0x%08lX%s", index, a->type, code,
+                 off ? "; mod disabled" : "");
         rc = MODS_ACTION_FAILED;
     }
     return rc;
@@ -490,6 +506,11 @@ static DWORD WINAPI Phase2Worker(LPVOID lpParam) {
                          i + 1, mods.count, m->mod_id);
                 continue;
             }
+            if (FailedSetContains(m->mod_id)) {
+                ModsLogf("  [%d/%d] %s - skipped (failed in Phase 1)",
+                         i + 1, mods.count, m->mod_id);
+                continue;
+            }
             /* Load Phase 1 back-refs (from disk; Phase 1 ran in the
                compositor's process, so scope doesn't cross processes). */
             ModsLoadBackRefs(m, &arena);
@@ -584,6 +605,7 @@ static DWORD WINAPI Phase2Worker(LPVOID lpParam) {
    died back to state 0, so a crashed daemon (e.g. castd) can't leave a stale
    "casting"/"error" icon lit. Generalises the wifi lease reap to all
    actor-written status. Wakes the UI to re-render on any reset. */
+
 static DWORD WINAPI state_reaper_thread(LPVOID param) {
     (void)param;
     for (;;) {
