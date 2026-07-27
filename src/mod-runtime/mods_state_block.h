@@ -3,6 +3,8 @@
 
 #include <windows.h>
 
+#include "mod_state_abi.h"   /* ModStateBlock / ModFeatureSlot / section names */
+
 /* ModStateBlock - the cross-process shared buffer of current mod-feature state,
    pulled at each consumer's tick (shared buffer + pull, not an event chain).
    servicesd (HUD icons, quick-toggle host, settings writers), gemstone
@@ -26,29 +28,6 @@
 
    Steady-state `state` reads are a single aligned byte (atomic on ARM); the
    lock serialises slot assignment and the infrequent writes. */
-
-/* Section/lock/event names carry the layout version: the slot stride is part of
-   the cross-process ABI and a CE6 named kernel object can outlive a soft
-   reboot, so a stale section from a prior layout must never be mapped at the
-   new stride. Bump all three in lockstep with any layout change. */
-#define MOD_STATE_SECTION_NAME   L"zune-mod-state-v3"
-#define MOD_STATE_LOCK_NAME      L"zune-mod-state-lock-v3"
-#define MOD_STATE_VERSION        3u
-#define MOD_STATE_MAX_SLOTS      32
-#define MOD_STATE_ID_LEN         48     /* role-namespaced key, NUL-padded; not NUL-terminated at full length */
-
-typedef struct {
-    char  key[MOD_STATE_ID_LEN];   /* "setting/<mod>/<id>" | "status/<mod>/<id>" */
-    BYTE  state;                   /* current state 0..N-1 (bool: 0/1) */
-    BYTE  _pad[3];
-    DWORD owner_pid;               /* 0 = control/subsystem-owned; else daemon pid (status reaping) */
-} ModFeatureSlot;                  /* 48 + 1 + 3 + 4 = 56 bytes */
-
-typedef struct {
-    DWORD          version;
-    DWORD          count;          /* high-water count of assigned slots */
-    ModFeatureSlot slots[MOD_STATE_MAX_SLOTS];
-} ModStateBlock;
 
 #ifdef __cplusplus
 extern "C" {
@@ -75,6 +54,12 @@ void ModStateSetState(const char* key, int state, DWORD owner_pid);
 /* Initialise a slot the first time it is seen this boot (idempotent across
    processes and re-applies: an existing slot keeps its live state). */
 void ModStateSeed(const char* key, int state, DWORD owner_pid);
+
+/* A slot's MOD_SLOT_FLAG_* bits: per-setting attributes a control surface owns,
+   independent of the value. -1 if the key has no slot. The state and flag
+   writers never touch each other's field, so either may be set alone. */
+int  ModStateGetFlags(const char* key);
+void ModStateSetFlags(const char* key, int flags);
 
 /* Reset every `status/` slot whose owner_pid names a dead process back to state
    0 and clear its owner. Returns the number reset (the caller republishes the

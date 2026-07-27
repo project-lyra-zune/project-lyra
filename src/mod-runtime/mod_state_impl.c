@@ -125,9 +125,9 @@ static int find_or_assign(ModStateBlock* b, const char* key, int assign,
 
     pack_key(b->slots[free_idx].key, key);
     b->slots[free_idx].state     = (BYTE)(init_state < 0 ? 0 : init_state);
+    b->slots[free_idx].flags     = 0;
     b->slots[free_idx]._pad[0]   = 0;
     b->slots[free_idx]._pad[1]   = 0;
-    b->slots[free_idx]._pad[2]   = 0;
     b->slots[free_idx].owner_pid = init_owner;
     if ((DWORD)(free_idx + 1) > b->count) b->count = (DWORD)(free_idx + 1);
     if (was_new) *was_new = 1;
@@ -181,6 +181,32 @@ void ModStateSetState(const char* key, int state, DWORD owner_pid) {
     slog("set %s state=%d owner=0x%lx", key, (int)want, (unsigned long)owner_pid);
     /* The change notification rides ModStateEventPublish at the call site (one
        fan-out path to every registered consumer); this writer does not signal. */
+}
+
+int ModStateGetFlags(const char* key) {
+    ModStateBlock* b = ModStateMap();
+    int idx;
+    if (!b) return -1;
+    idx = ModStateSlotIndex(key, 0);
+    if (idx < 0) return -1;
+    return (int)b->slots[idx].flags;   /* aligned single-byte read; no lock */
+}
+
+void ModStateSetFlags(const char* key, int flags) {
+    ModStateBlock* b = ModStateMap();
+    int idx, was_new = 0, changed;
+    BYTE want = (BYTE)(flags < 0 ? 0 : flags);
+    if (!b || !key) return;
+
+    state_lock();
+    idx = find_or_assign(b, key, 1, 0, 0, &was_new);
+    changed = (idx >= 0) && (was_new || b->slots[idx].flags != want);
+    if (idx >= 0) b->slots[idx].flags = want;
+    state_unlock();
+
+    if (idx < 0) { slog("flags %s: table full", key); return; }
+    if (!changed) return;
+    slog("flags %s = 0x%02x", key, (unsigned)want);
 }
 
 void ModStateSeed(const char* key, int state, DWORD owner_pid) {

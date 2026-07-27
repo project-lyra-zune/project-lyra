@@ -378,7 +378,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\state\mods_state_block.c"
+				RelativePath="..\mod-runtime\mod_state_impl.c"
+				>
+			</File>
+			<File
+				RelativePath="..\mod-runtime\mod_notify.c"
 				>
 			</File>
 			<File
@@ -512,7 +516,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\state\mods_state_block.h"
+				RelativePath="..\mod-runtime\mods_state_block.h"
 				>
 			</File>
 			<File

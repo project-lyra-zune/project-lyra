@@ -3,6 +3,8 @@
 
 #include <windows.h>
 
+#include "mod_notify.h"      /* the registry + the fan-out, shared by every platform binary */
+
 /* Cross-process mod-state change notification - Layer 2, built on the same
    primitive native uses for transport play-state.
 
@@ -30,20 +32,6 @@
 extern "C" {
 #endif
 
-/* Notification-endpoint kinds in the shared consumer registry. Values are part
-   of the cross-process ABI (castd mirrors them); names may differ per side. */
-enum {
-    MOD_NOTIFY_FREE         = 0,
-    MOD_NOTIFY_UI_QUEUE     = 1,   /* CreateMsgQueue + WriteMsgQueue ping */
-    MOD_NOTIFY_DAEMON_EVENT = 2    /* CreateEventW + SetEvent, one per daemon */
-};
-
-/* Register this process's notification endpoint in the shared registry. Dedup
-   is by name (re-register updates in place), so stable role-based names
-   (zune-mod-state-q-gem, ...-q-svc, zune-mod-state-evt-castd) let a restarted
-   process reclaim its slot without growth. */
-void ModNotifyRegister(DWORD kind, const wchar_t* name);
-
 /* COREDLL ord#871 (MsgWaitForMultipleObjectsEx) import slot, per host. Single
    caller in each module (the UI main loop), so redirecting the slot is exactly a
    one-call-site detour. */
@@ -54,10 +42,6 @@ void ModNotifyRegister(DWORD kind, const wchar_t* name);
    endpoint, and redirect its UI main loop's MsgWait so the queue joins the
    loop's wait set. */
 void ModStateEventInstallConsumer(DWORD msgwaitIatSlot, const wchar_t* queueName);
-
-/* Producer: notify every registered consumer that a slot changed. Call AFTER
-   the ModStateBlock write. */
-void ModStateEventPublish(void);
 
 #ifdef __cplusplus
 }
