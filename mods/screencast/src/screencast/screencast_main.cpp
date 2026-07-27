@@ -1,6 +1,6 @@
 /* screencastd.exe: the screencast daemon. The mod's `daemons` capability
  * boot-spawns it (CreateProcessW, no args). It owns its own Winsock and reads
- * its run-state from the ModStateBlock "Screen share" quick-toggle.
+ * its run-state from the "Screen share" quick-toggle slot.
  *
  * The toggle's long-press picker chooses the frontend: Browser (MJPEG over HTTP,
  * the default) or Desktop (the binary delta protocol zune-screencast.py speaks).
@@ -8,7 +8,7 @@
  * sub-label to show where to reach it (e.g. "View at 192.168.0.100:8080").
  *
  * Serving runs only while the toggle is on. The toggle and the picker selection
- * are discrete user actions, so the daemon blocks on the ModStateBlock change
+ * are discrete user actions, so the daemon blocks on the runtime's change
  * event and reacts on wake: a pushed edge, never polled. */
 
 #include <winsock2.h>
@@ -18,14 +18,14 @@
 #include "screencast_engine.h"
 #include "screencast_frontend.h"
 #include "screencast_keys.h"
-#include "mod_list_channel.h"
+#include "lyra.h"
 
 /* Connected-client count; drives the Ready/Live status. on_client runs on
  * frontend threads, so the count is interlocked. */
 static volatile LONG g_clients = 0;
 static void on_client(int active) {
     LONG n = active ? InterlockedIncrement(&g_clients) : InterlockedDecrement(&g_clients);
-    mod_state_set_status(SC_STATUS_KEY, n > 0 ? SC_STATUS_LIVE : SC_STATUS_READY);
+    lyra_state_set_status(SC_STATUS_KEY, n > 0 ? SC_STATUS_LIVE : SC_STATUS_READY);
 }
 
 static HANDLE g_serve_stop = NULL;
@@ -43,20 +43,14 @@ static DWORD WINAPI serve_thread(LPVOID p) {
 /* Publish the two picker options once. Row value is the mode token the picker
  * writes back as the selection. */
 static void publish_modes(void) {
-    ModListChannelRow rows[2];
-    memset(rows, 0, sizeof(rows));
-    wcscpy(rows[0].name, L"Browser");
-    wcscpy(rows[0].sub,  L"Watch in a web browser");
-    _snprintf(rows[0].value, MODLISTCH_VAL_LEN, "%s", SC_MODE_VAL_BROWSER);
-    wcscpy(rows[1].name, L"Desktop");
-    wcscpy(rows[1].sub,  L"zune-screencast.py");
-    _snprintf(rows[1].value, MODLISTCH_VAL_LEN, "%s", SC_MODE_VAL_DESKTOP);
-    mod_channel_publish(rows, 2);
+    lyra_channel_stage_row(SC_TOGGLE_KEY, 0, L"Browser", L"Watch in a web browser", SC_MODE_VAL_BROWSER);
+    lyra_channel_stage_row(SC_TOGGLE_KEY, 1, L"Desktop", L"zune-screencast.py",     SC_MODE_VAL_DESKTOP);
+    lyra_channel_commit(SC_TOGGLE_KEY, 2);
 }
 
 static int read_mode(void) {
-    char token[MODLISTCH_VAL_LEN];
-    if (mod_channel_get_selection(token, sizeof(token)) &&
+    char token[LYRA_CHANNEL_VALUE_MAX];
+    if (lyra_channel_get_selection(SC_TOGGLE_KEY, token, sizeof(token)) &&
         strcmp(token, SC_MODE_VAL_DESKTOP) == 0)
         return SC_MODE_DESKTOP;
     return SC_MODE_BROWSER;   /* default (empty or "browser") */
@@ -82,7 +76,7 @@ static void local_ip(char* out, int out_sz) {
 static void update_sublabel(int mode) {
     char  ip[40];
     char  line[96];
-    wchar_t wide[MODLISTCH_SUBLABEL_LEN];
+    wchar_t wide[LYRA_CHANNEL_SUBLABEL_MAX];
     int i;
     local_ip(ip, sizeof(ip));
     if (mode == SC_MODE_DESKTOP)
@@ -90,13 +84,13 @@ static void update_sublabel(int mode) {
     else
         _snprintf(line, sizeof(line), "View at %s:%d", ip, SC_HTTP_PORT);
     line[sizeof(line) - 1] = 0;
-    for (i = 0; i < MODLISTCH_SUBLABEL_LEN - 1 && line[i]; i++) wide[i] = (wchar_t)(unsigned char)line[i];
+    for (i = 0; i < LYRA_CHANNEL_SUBLABEL_MAX - 1 && line[i]; i++) wide[i] = (wchar_t)(unsigned char)line[i];
     wide[i] = 0;
-    mod_channel_set_sublabel(wide);
+    lyra_channel_set_sublabel(SC_TOGGLE_KEY, wide);
 }
 
 static void wait_change(void) {
-    HANDLE e = mod_state_change_event();
+    HANDLE e = lyra_state_change_event(SC_DAEMON_EVENT);
     if (e) WaitForSingleObject(e, INFINITE);
     else   Sleep(200);
 }
@@ -104,17 +98,15 @@ static void wait_change(void) {
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrev, LPWSTR lpCmdLine, int nShow) {
     (void)hInstance; (void)hPrev; (void)lpCmdLine; (void)nShow;
 
-    mod_state_daemon_init(SC_DAEMON_EVENT);
-    mod_channel_init(SC_TOGGLE_KEY);
 
     WSADATA wsa;
     if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) { sc_log("screencastd: WSA-STARTUP-FAIL"); return 1; }
-    if (!mod_state_change_event()) { sc_log("screencastd: STATE-EVT-FAIL"); WSACleanup(); return 1; }
+    if (!lyra_state_change_event(SC_DAEMON_EVENT)) { sc_log("screencastd: STATE-EVT-FAIL"); WSACleanup(); return 1; }
     publish_modes();
     sc_log("screencastd: start");
 
     for (;;) {
-        while (mod_state_get_state(SC_TOGGLE_KEY) != 1) wait_change();
+        while (lyra_state_get(SC_TOGGLE_KEY) != 1) wait_change();
 
         if (!sc_engine_ready()) { sc_log("screencastd: kerncore not ready"); wait_change(); continue; }
         sc_engine_init();
@@ -123,12 +115,12 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrev, LPWSTR lpCmdLine, int 
         update_sublabel(mode);
         g_clients = 0;
         g_serve_mode = mode;
-        mod_state_set_status(SC_STATUS_KEY, SC_STATUS_READY);
+        lyra_state_set_status(SC_STATUS_KEY, SC_STATUS_READY);
 
         g_serve_stop = CreateEventW(NULL, TRUE, FALSE, NULL);   /* manual reset */
         if (!g_serve_stop) {
             sc_log("screencastd: SERVE-EVT-FAIL");
-            mod_state_set_status(SC_STATUS_KEY, SC_STATUS_OFF);
+            lyra_state_set_status(SC_STATUS_KEY, SC_STATUS_OFF);
             wait_change();
             continue;
         }
@@ -139,7 +131,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrev, LPWSTR lpCmdLine, int 
         /* Hold until the toggle goes off or the picker switches the mode. */
         for (;;) {
             wait_change();
-            if (mod_state_get_state(SC_TOGGLE_KEY) != 1) break;   /* toggled off */
+            if (lyra_state_get(SC_TOGGLE_KEY) != 1) break;   /* toggled off */
             if (read_mode() != mode) break;                       /* mode switched */
         }
 
@@ -148,9 +140,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrev, LPWSTR lpCmdLine, int 
         CloseHandle(g_serve_stop);
         g_serve_stop = NULL;
 
-        if (mod_state_get_state(SC_TOGGLE_KEY) != 1) {
-            mod_state_set_status(SC_STATUS_KEY, SC_STATUS_OFF);
-            mod_channel_set_sublabel(L"");
+        if (lyra_state_get(SC_TOGGLE_KEY) != 1) {
+            lyra_state_set_status(SC_STATUS_KEY, SC_STATUS_OFF);
+            lyra_channel_set_sublabel(SC_TOGGLE_KEY, L"");
             sc_log("screencastd: stopped");
         }
         /* else: mode switched while on; the loop re-serves with the new frontend. */

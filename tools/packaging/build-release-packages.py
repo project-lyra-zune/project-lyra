@@ -231,6 +231,30 @@ public static class CreateXCabInfo {
     return pkg
 
 
+def emit_sdk(out: Path) -> Path:
+    """Zip the mod SDK beside the release. A mod author needs these two files and
+    nothing else from this repo, so shipping them with the platform they target is
+    what keeps `requires: lyra.mod_runtime` honest: the SDK and the runtime that
+    serves it are the same release."""
+    sdk_src = LYRA_ROOT / "sdk"
+    version = json.loads((LYRA_ROOT / "lyra" / "manifest.json").read_text())["version"]
+    stage = out / f"lyra-sdk-{version}"
+    if stage.exists():
+        shutil.rmtree(stage)
+    shutil.copytree(sdk_src, stage)
+    # ce_log rides along under optional/: every mod daemon wants a logger on day
+    # one and cannot otherwise get one without this repo. It is a copy of
+    # canonical source taken at release time, not a fork, and it is NOT api: a
+    # mod may use it or replace it, and nothing in lyra.h depends on it.
+    optional = stage / "optional"
+    optional.mkdir()
+    for f in sorted((LYRA_ROOT / "src" / "ce-common" / "src" / "ce_log").glob("ce_log.*")):
+        shutil.copy2(f, optional / f.name)
+    archive = shutil.make_archive(str(stage), "zip", root_dir=str(out), base_dir=stage.name)
+    shutil.rmtree(stage)
+    return Path(archive)
+
+
 def main():
     ap = argparse.ArgumentParser(description="Build Project Lyra release packages (deploykit + ccgame).")
     ap.add_argument("--exploiter", required=True, help="prebuilt exploiter.exe")
@@ -265,10 +289,12 @@ def main():
         pkg = emit_ccgame(payload, Path(args.thumbnail), out, work)
 
     kit_zip = shutil.make_archive(str(kit), "zip", root_dir=str(out), base_dir=kit.name)
+    sdk_zip = emit_sdk(out)
     n = sum(1 for _ in (kit / "payload").rglob("*") if _.is_file())
     print(f"deploykit: {kit}  ({n} payload files)")
     print(f"deploykit zip: {kit_zip}")
     print(f"ccgame:    {pkg}")
+    print(f"mod sdk:   {sdk_zip}")
 
 
 if __name__ == "__main__":

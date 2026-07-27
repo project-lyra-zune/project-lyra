@@ -156,11 +156,11 @@ int ModStateGetState(const char* key) {
     return (int)b->slots[idx].state;   /* aligned single-byte read; no lock */
 }
 
-void ModStateSetState(const char* key, int state, DWORD owner_pid) {
+int ModStateSetState(const char* key, int state, DWORD owner_pid) {
     ModStateBlock* b = ModStateMap();
     int idx, was_new = 0, changed;
     BYTE want = (BYTE)(state < 0 ? 0 : state);
-    if (!b || !key) return;
+    if (!b || !key) return 0;
 
     /* Assign + write under the lock: the assign-then-mutate sequence must be
        atomic against a concurrent writer in the other host process. */
@@ -176,11 +176,12 @@ void ModStateSetState(const char* key, int state, DWORD owner_pid) {
     }
     state_unlock();
 
-    if (idx < 0) { slog("set %s: table full", key); return; }
-    if (!changed) return;       /* no change → caller skips the notify */
+    if (idx < 0) { slog("set %s: table full", key); return 0; }
+    if (!changed) return 0;     /* caller skips the notify */
     slog("set %s state=%d owner=0x%lx", key, (int)want, (unsigned long)owner_pid);
     /* The change notification rides ModStateEventPublish at the call site (one
        fan-out path to every registered consumer); this writer does not signal. */
+    return 1;
 }
 
 int ModStateGetFlags(const char* key) {

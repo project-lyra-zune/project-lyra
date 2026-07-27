@@ -19,7 +19,7 @@ from __future__ import annotations
 DESC_DESTRUCTOR        = 0x0002acf4   # descriptor +0x14 (registration-shared)
 DESC_FINALIZER         = 0x0002a7ac   # descriptor +0x1c (registration-shared)
 GEMBASESCENE_NAME_PTR  = 0x00011be0   # L"GemBaseScene" wstring in gemstone RO
-XUI_REGISTER_CLASS     = 0x0006b39c   # gemstone thunk → xuidll!XuiRegisterClass
+XUI_REGISTER_CLASS     = 0x0006b39c   # gemstone thunk to xuidll!XuiRegisterClass
 
 # ─── Class factory/ctor/vtable ABI ──────────────────────────────────────
 # (per docs/{start,setting}-scene.md, RE'd live on-device)
@@ -32,7 +32,7 @@ ICON_VTABLE_SLOT2_STUB = 0x0002acec   # element-controller slot2 "mov r0,#0; bx 
 FIND_ELEMENT_CHAIN     = 0x0006afec   # used by OnInit's FindElement wstring chain
 ID_NAV_STUB            = 0x0001c284   # id-based scene navigation entry point
 
-# ─── Symbol table (name → VA), used by the assembler ──────────────────
+# ─── Symbol table (name to VA), used by the assembler ──────────────────
 # gemstone.exe is the default host. Symbols that live in a HOST PROCESS's
 # image (allocator, vtable slots, OnDestroy, slot2 stub) differ per host and
 # are overridden in EXTERNS_BY_HOST below; xuidll-resident symbols are
@@ -54,7 +54,7 @@ EXTERNS: dict[str, int] = {
 
 # Per-host overrides for symbols resident in a host process's own image.
 # "servicesd" = zhud_serv.dll (base 0x419b0000), the HUD scene host. Values
-# RE'd from zhud's ZunePlayIcon (ctor 0x419d5348 → vtable 0x419b4c48 record0).
+# RE'd from zhud's ZunePlayIcon (ctor 0x419d5348, vtable 0x419b4c48 record0).
 # See project memory `project_zos_status_icon_gemstone_zhud_abi`.
 EXTERNS_BY_HOST: dict[str, dict[str, int]] = {
     "gemstone": {

@@ -1,11 +1,11 @@
-/* zune-cast's ModStateBlock keys and status vocabulary. The daemon logic lives
+/* zune-cast's runtime slot keys and status vocabulary. The daemon logic lives
  * in the shared src/mod-runtime/mod_state; only these keys are mod-specific. */
 #ifndef CAST_KEYS_H
 #define CAST_KEYS_H
 
-#include "mod_state.h"
+#include "lyra.h"
 
-/* The cast control (intent) and status (effect) ModStateBlock keys. */
+/* The cast control (intent) and status (effect) slot keys. */
 #define CAST_TOGGLE_KEY  "setting/zune-cast/cast"
 #define CAST_STATUS_KEY  "status/zune-cast/casting"
 
@@ -17,7 +17,7 @@
 #define CAST_STATUS_CASTING     3   /* active media session (queue playing) */
 #define CAST_STATUS_ERROR       4   /* connect failure / communication failure */
 
-/* zune-cast's unique daemon wake-event name (mod_state_daemon_init). */
+/* zune-cast's unique daemon wake-event name (lyra_state_change_event). */
 #define CAST_DAEMON_EVENT  L"zune-mod-state-evt-castd"
 
 #endif /* CAST_KEYS_H */

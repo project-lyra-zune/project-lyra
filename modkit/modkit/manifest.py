@@ -135,7 +135,7 @@ def resolve_blob_ref(value: Any, mod: Mod) -> Any:
         full = mod.source_dir / rel
         if not full.is_file():
             raise ManifestError(
-                f"{mod.mod_id}: blob ref {value!r} → {full} not found")
+                f"{mod.mod_id}: blob ref {value!r} ({full}) not found")
         return full
     return value
 
@@ -145,11 +145,11 @@ def resolve_back_ref(value: Any, scope: dict[str, Any], *,
     """Resolve a back-reference string against `scope`.
 
     Forms accepted:
-      "$name"          → scope[name]
-      "$name + 0xN"    → scope[name] + N  (hex offset)
-      "$name + N"      → scope[name] + N  (decimal offset)
-      "$name - 0xN"    → scope[name] - N
-      "$name - N"      → scope[name] - N
+      "$name" to scope[name]
+      "$name + 0xN" to scope[name] + N  (hex offset)
+      "$name + N" to scope[name] + N  (decimal offset)
+      "$name - 0xN" to scope[name] - N
+      "$name - N" to scope[name] - N
     Whitespace around the operator is optional.
 
     Non-back-ref values pass through unchanged. With strict=False, an

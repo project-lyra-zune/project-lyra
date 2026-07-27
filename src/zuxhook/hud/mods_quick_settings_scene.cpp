@@ -22,7 +22,6 @@ extern "C" {
 #include "mods_toggles.h"
 #include "mods_state_block.h"   /* ModStateGetState / ModStateSetState */
 #include "mods_state_event.h"   /* ModStateEventPublish */
-#include "mods_settings.h"      /* ModSettingsSave */
 #include "mods_wifi_awake.h"    /* WifiAwake_Notify */
 #include "mods_list_model.h"    /* ModListModel / ModListSource / ModListRefresh */
 #include "mods_curation.h"      /* ModCurationVisibleCount / ModCurationVisibleIndex */
@@ -147,8 +146,7 @@ static void toggle_on_tap(void* ctx, int row) {
         int cur = ModStateGetState(key);
         if (cur < 0) cur = 0;
         ModStateSetState(key, cur ? 0 : 1, 0);   /* control slot, owner 0 */
-        ModStateEventPublish();   /* notify every consumer process */
-        ModSettingsSave();         /* persist across reboot */
+        ModStateEventPublish();   /* notify every consumer; the drain persists */
         WifiAwake_Notify();        /* re-evaluate keepalive now */
     }
 }
@@ -243,7 +241,7 @@ HRESULT ModQuickSettingsScene_OnMessage(ModQuickSettingsSceneInstance* self, voi
     if (!sub || !self) return 0;
 
     if (sub_code == SUB_DS_SET_SEL) {
-        /* Tap-off (cancel button) → intentional dismiss; row tap → toggle. */
+        /* Tap-off (cancel button) to intentional dismiss; row tap to toggle. */
         if (self->cancel_element && target == self->cancel_element) {
             ModsHudMenuRequestDismiss();   /* tick removes our AddChild'd overlay */
             __try { m[2] = 1; } __except (EXCEPTION_EXECUTE_HANDLER) {}

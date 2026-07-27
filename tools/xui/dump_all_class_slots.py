@@ -84,7 +84,7 @@ def dump_class(r, pid, slot_va, ci_ptr, log):
     name = read_utf16(r, pid, name_p, log)
     parent = read_utf16(r, pid, parent_p, log)
 
-    log.w(f"\n=== {name!r} (slot {slot_va:#x} → ci {ci_ptr:#x}) ===")
+    log.w(f"\n=== {name!r} (slot {slot_va:#x} to ci {ci_ptr:#x}) ===")
     log.w(f"  parent={parent!r}, count={cnt}, array={arr:#x}, flags={flags:#x}")
 
     propdefs = []
@@ -145,9 +145,9 @@ def main():
             slot_va = base + i * 4
             if ptr:
                 all_slots.append((slot_va, ptr))
-                log.w(f"  slot {slot_va:#x} → {ptr:#x}")
+                log.w(f"  slot {slot_va:#x} to {ptr:#x}")
             else:
-                log.w(f"  slot {slot_va:#x} → 0 (empty)")
+                log.w(f"  slot {slot_va:#x} to 0 (empty)")
 
     log.w(f"\n{len(all_slots)} non-null slots to dump")
 

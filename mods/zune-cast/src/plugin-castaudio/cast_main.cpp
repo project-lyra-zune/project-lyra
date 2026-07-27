@@ -1,11 +1,11 @@
 // castd.exe: the zune-cast daemon. The mod's `daemons` capability boot-spawns it
 // (CreateProcessW, no args). Unlike the nativeapp plugin (RunDaemon, which shares
 // nativeapp's Winsock and takes its target from the spawn arg), castd is its own
-// process: it owns Winsock and reads its run-state from the ModStateBlock toggle.
+// process: it owns Winsock and reads its run-state from the toggle slot.
 //
 // It lives for the device's uptime, but a cast session (capture + HTTP + TLS) runs
 // only while the "Cast audio" toggle is on. The toggle is a discrete user action,
-// so castd blocks on the ModStateBlock change event and reads the value on wake:
+// so castd blocks on the runtime's change event and reads the value on wake:
 // a pushed edge, never polled.
 
 #include "castaudio.h"
@@ -110,12 +110,12 @@ static int resolve_target(char* ip, int ipsz, unsigned short* out_port)
 static DWORD WINAPI discovery_thread(LPVOID arg)
 {
     HANDLE ev = cast_channel_scan_event();
-    MdnsDevice devs[MODLISTCH_MAX_ROWS];
+    MdnsDevice devs[LYRA_CHANNEL_ROWS_MAX];
     (void)arg;
     for (;;) {
         // 5 s window with periodic re-queries: mDNS is lossy and some receivers
         // answer slowly, so a short single-query scan under-reports the LAN.
-        int n = mdns_enumerate_chromecast(devs, MODLISTCH_MAX_ROWS, 5000);
+        int n = mdns_enumerate_chromecast(devs, LYRA_CHANNEL_ROWS_MAX, 5000);
         cast_channel_publish(devs, n);
         if (!ev) break;   // no trigger available: one-shot, degrade gracefully
         WaitForSingleObject(ev, INFINITE);
@@ -128,7 +128,7 @@ static DWORD WINAPI discovery_thread(LPVOID arg)
 // when a session's watcher shares the wait.
 static void wait_for_state_change(HANDLE also_stop)
 {
-    HANDLE evt = mod_state_change_event();
+    HANDLE evt = lyra_state_change_event(CAST_DAEMON_EVENT);
     if (also_stop) {
         HANDLE h[2]; h[0] = also_stop; h[1] = evt;
         WaitForMultipleObjects(2, h, FALSE, INFINITE);
@@ -145,7 +145,7 @@ static DWORD WINAPI gate_watch_thread(LPVOID arg)
     (void)arg;
     for (;;) {
         if (WaitForSingleObject(g_session_stop, 0) == WAIT_OBJECT_0) break;
-        if (mod_state_get_state(CAST_TOGGLE_KEY) == 0) {
+        if (lyra_state_get(CAST_TOGGLE_KEY) == 0) {
             SetEvent(g_session_stop);
             break;
         }
@@ -171,8 +171,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrev, LPWSTR lpCmdLine, int 
 {
     (void)hInstance; (void)hPrev; (void)lpCmdLine; (void)nShow;
 
-    mod_state_daemon_init(CAST_DAEMON_EVENT);
-    mod_channel_init(CAST_TOGGLE_KEY);
 
     WSADATA wsa;
     if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
@@ -186,7 +184,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrev, LPWSTR lpCmdLine, int 
     }
     // The toggle change event is the daemon's wakeup source; fail fast if it
     // can't be created rather than degrade to polling.
-    if (!mod_state_change_event()) {
+    if (!lyra_state_change_event(CAST_DAEMON_EVENT)) {
         cast_log("STATE-EVT-FAIL");
         wolfSSL_Cleanup();
         WSACleanup();
@@ -205,7 +203,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrev, LPWSTR lpCmdLine, int 
     int scan_sent = 0;   // one discovery request per no-device episode
     for (;;) {
         // Idle until casting is on: block on the change event, no poll.
-        while (mod_state_get_state(CAST_TOGGLE_KEY) != 1) {
+        while (lyra_state_get(CAST_TOGGLE_KEY) != 1) {
             scan_sent = 0;
             wait_for_state_change(NULL);
         }
@@ -218,7 +216,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrev, LPWSTR lpCmdLine, int 
             // hardcoded address. A publish, a user selection, or a toggle wakes
             // us; scan_sent gates one request per episode so an empty result
             // can't spin a rescan loop.
-            mod_state_set_status(CAST_STATUS_KEY, CAST_STATUS_CONNECTING);
+            lyra_state_set_status(CAST_STATUS_KEY, CAST_STATUS_CONNECTING);
             if (!scan_sent) {
                 cast_channel_set_sublabel(L"SCANNING\x2026");   // animated … while discovering
                 HANDLE se = cast_channel_scan_event();
@@ -255,7 +253,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrev, LPWSTR lpCmdLine, int 
 
         // Publish the connecting status; cast_run_session bumps to "casting"
         // once the receiver link is live.
-        mod_state_set_status(CAST_STATUS_KEY, CAST_STATUS_CONNECTING);
+        lyra_state_set_status(CAST_STATUS_KEY, CAST_STATUS_CONNECTING);
 
         cast_run_session(target, ctrl_port, CAST_MEDIA_PORT_DEFAULT, g_session_stop);
 
@@ -271,14 +269,14 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrev, LPWSTR lpCmdLine, int 
         //  - toggle still on  -> it aborted abnormally (receiver unreachable /
         //                        stream dropped): surface error and wait for the
         //                        next change so a persistent failure can't hot-loop.
-        if (mod_state_get_state(CAST_TOGGLE_KEY) != 1) {
-            mod_state_set_status(CAST_STATUS_KEY, CAST_STATUS_OFF);
+        if (lyra_state_get(CAST_TOGGLE_KEY) != 1) {
+            lyra_state_set_status(CAST_STATUS_KEY, CAST_STATUS_OFF);
             cast_channel_set_sublabel(L"OFF");
         } else if (g_reselect) {
             cast_log("RESELECT -> reconnecting to new target");
             // fall through: the outer loop re-resolves and reconnects.
         } else {
-            mod_state_set_status(CAST_STATUS_KEY, CAST_STATUS_ERROR);
+            lyra_state_set_status(CAST_STATUS_KEY, CAST_STATUS_ERROR);
             cast_channel_set_sublabel(L"ERROR");
             wait_for_state_change(NULL);
         }

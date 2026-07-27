@@ -12,7 +12,7 @@
          "quick_toggles": [ "owner/id", ... ] }        // curated HUD list, ordered
    `values` is restored into ModStateBlock at boot. `quick_toggles` is the
    user's curated quick-menu set, seeded from the quick_toggle:"default"
-   settings. A file lacking a `values` object is treated as absent → declared
+   settings. A file lacking a `values` object is treated as absent to declared
    defaults stand. */
 
 #ifdef __cplusplus
@@ -26,8 +26,13 @@ extern "C" {
 void ModSettingsLoad(void);
 
 /* Write the current ModStateBlock value of every registered setting to
-   mod-settings.json. Call after a menu flip persists the change. */
+   mod-settings.json. */
 void ModSettingsSave(void);
+
+/* Write only when the composed store differs from what was last written. The
+   host that owns the file calls this on every state-change notification, so a
+   control surface in any process just writes its slot and publishes. */
+void ModSettingsPersistIfChanged(void);
 
 #ifdef __cplusplus
 }

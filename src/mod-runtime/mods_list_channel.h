@@ -24,6 +24,10 @@
 extern "C" {
 #endif
 
+/* Initialise the process-local lock. Called once at DLL process attach, before
+   any verb is reachable. */
+void ModListChannelProcessAttach(void);
+
 /* Map (creating if absent) the channel for a setting key. Cached per key for the
    process lifetime; returns NULL only if the section can't be created. */
 ModListChannelBlock* ModListChannelMap(const char* setting_key);
@@ -31,6 +35,15 @@ ModListChannelBlock* ModListChannelMap(const char* setting_key);
 /* Signal the channel's scan-request event so the daemon refreshes its list.
    Called when the picker opens. No-op if the event can't be created. */
 void ModListChannelSignalScan(const char* setting_key);
+
+/* The same event, for a waiter rather than a signaller. */
+HANDLE ModListChannelScanEvent(const char* setting_key);
+
+/* Stage a row privately, then publish the first `count` staged rows. Staging is
+   per channel so two mods in one host cannot trample each other. */
+int  ModListChannelStage(const char* setting_key, int idx, const wchar_t* name,
+                         const wchar_t* sub, const char* value);
+void ModListChannelCommit(const char* setting_key, int count);
 
 /* Publish a selection: write `value` into sel_value and bump sel_seq. The caller
    wakes the daemon separately (ModStateEventPublish). */

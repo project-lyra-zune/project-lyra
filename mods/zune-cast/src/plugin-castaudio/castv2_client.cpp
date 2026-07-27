@@ -505,7 +505,7 @@ static void enqueue_set_volume(CastLink* L, unsigned long vol, unsigned long max
 
 // ── reconcile thread (owns ZDKMedia / ZME0; may block) ──────────────────────
 // Single decision point that keeps the receiver's queue mirroring the device's.
-// Every device→receiver index change is a full QUEUE_LOAD reload: the receiver
+// Every device to receiver index change is a full QUEUE_LOAD reload: the receiver
 // ignores a relative QUEUE_UPDATE jump while mid-streaming a BUFFERED item, so a
 // reload is the only primitive that propagates an in-flight skip. The reload
 // re-windows around the new active track (base = active-3), so forward skip,
@@ -549,21 +549,21 @@ static DWORD WINAPI reconcile_thread(LPVOID arg)
 
         // Effective status from the live link: an active media session (msid>0)
         // is "casting" a queue; connected with no session is "connected" (idle).
-        // mod_state_set_status dedups, so the per-iteration call is cheap.
-        mod_state_set_status(CAST_STATUS_KEY,
+        // lyra_state_set_status dedups, so the per-iteration call is cheap.
+        lyra_state_set_status(CAST_STATUS_KEY,
                              L->msid > 0 ? CAST_STATUS_CASTING : CAST_STATUS_CONNECTED);
         // Row sub-label follows the same live link state (set dedups internally):
         // CASTING - {name} while a queue plays, CONNECTED TO {name} when idle.
         // Name is looked up each pass (not precomposed) so it self-heals from the
         // bare ip to the friendly name once discovery publishes the device.
         {
-            wchar_t nm[MODLISTCH_NAME_LEN], sl[MODLISTCH_SUBLABEL_LEN];
-            if (!cast_channel_name_for_target(L->target_ip, L->target_port, nm, MODLISTCH_NAME_LEN))
-                _snwprintf(nm, MODLISTCH_NAME_LEN, L"%S", L->target_ip);
-            nm[MODLISTCH_NAME_LEN - 1] = 0;
-            _snwprintf(sl, MODLISTCH_SUBLABEL_LEN,
+            wchar_t nm[LYRA_CHANNEL_NAME_MAX], sl[LYRA_CHANNEL_SUBLABEL_MAX];
+            if (!cast_channel_name_for_target(L->target_ip, L->target_port, nm, LYRA_CHANNEL_NAME_MAX))
+                _snwprintf(nm, LYRA_CHANNEL_NAME_MAX, L"%S", L->target_ip);
+            nm[LYRA_CHANNEL_NAME_MAX - 1] = 0;
+            _snwprintf(sl, LYRA_CHANNEL_SUBLABEL_MAX,
                        L->msid > 0 ? L"CASTING - %s" : L"CONNECTED TO %s", nm);
-            sl[MODLISTCH_SUBLABEL_LEN - 1] = 0;
+            sl[LYRA_CHANNEL_SUBLABEL_MAX - 1] = 0;
             cast_channel_set_sublabel(sl);
         }
 

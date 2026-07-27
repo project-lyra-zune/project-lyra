@@ -1,11 +1,11 @@
-/* screencast's ModStateBlock keys and daemon config. The daemon logic lives in
+/* screencast's runtime slot keys and daemon config. The daemon logic lives in
  * the shared src/mod-runtime/mod_state; only these keys are mod-specific. */
 #ifndef SCREENCAST_KEYS_H
 #define SCREENCAST_KEYS_H
 
-#include "mod_state.h"
+#include "lyra.h"
 
-/* The share control (intent) and status (effect) ModStateBlock keys. */
+/* The share control (intent) and status (effect) slot keys. */
 #define SC_TOGGLE_KEY  "setting/screencast/screencast"
 #define SC_STATUS_KEY  "status/screencast/sharing"
 
@@ -22,7 +22,7 @@
 #define SC_STATUS_READY  1   /* server up, no client connected */
 #define SC_STATUS_LIVE   2   /* a browser or desktop client is streaming */
 
-/* screencast's unique daemon wake-event name (mod_state_daemon_init). */
+/* screencast's unique daemon wake-event name (lyra_state_change_event). */
 #define SC_DAEMON_EVENT  L"zune-mod-state-evt-screencastd"
 
 /* Serving config. HTTP for browsers, the delta protocol for zune-screencast.py. */

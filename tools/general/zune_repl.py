@@ -288,7 +288,7 @@ class ZuneREPL:
         original_l2 = _s.unpack("<I", self.kread(l2_entry_kva, 4))[0]
 
         try:
-            # Flip AP[2] → PL1 RW
+            # Flip AP[2] to PL1 RW
             self.kwrite(l2_entry_kva, _s.pack("<I", original_l2 & ~0x200))
             _t.sleep(throttle)
             self.kcall(TLB_FLUSH)
@@ -315,11 +315,11 @@ class ZuneREPL:
         with TTBR swap, at 0x80015220) and v4 (bx with TTBR swap, at
         0x80015280).
 
-          1. kwrite shellcode → KSCRATCH (0x800152D0)
-          2. helper v3 read original target_va → KORIG (0x80015320)
-          3. helper v3 write KSCRATCH → target_va
+          1. kwrite shellcode to KSCRATCH (0x800152D0)
+          2. helper v3 read original target_va to KORIG (0x80015320)
+          3. helper v3 write KSCRATCH to target_va
           4. helper v4 execute target_va (returns shellcode's r0)
-          5. helper v3 restore KORIG → target_va
+          5. helper v3 restore KORIG to target_va
 
         REQUIRES helpers v3 (88 bytes) + v4 (68 bytes) planted at the
         addresses above. Re-plant per session. The kernel reuses the scratch

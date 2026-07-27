@@ -242,7 +242,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\hud\mods_list_channel.c"
+				RelativePath="..\mod-runtime\mod_channel_impl.c"
 				>
 			</File>
 			<File
@@ -383,6 +383,10 @@
 			</File>
 			<File
 				RelativePath="..\mod-runtime\mod_notify.c"
+				>
+			</File>
+			<File
+				RelativePath="..\mod-runtime\lyra_api.c"
 				>
 			</File>
 			<File
@@ -536,7 +540,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\hud\mods_list_channel.h"
+				RelativePath="..\mod-runtime\mods_list_channel.h"
 				>
 			</File>
 			<File

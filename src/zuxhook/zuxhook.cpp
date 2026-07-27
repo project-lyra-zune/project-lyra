@@ -8,6 +8,7 @@
 #include "mods_state_block.h"
 #include "mods_icon_host.h"
 #include "mods_state_event.h"
+#include "mods_settings.h"
 #include "mods_wifi_awake.h"
 #include "mod_scanner.h"
 #include "boot_state.h"
@@ -283,6 +284,10 @@ extern "C" __declspec(dllexport) HRESULT ZUxHookInit(void* arg0, HANDLE* out_han
 				ModStateEventInstallConsumer(STATE_EVENT_MSGWAIT_IAT_SERVICESD,
 				                             L"zune-mod-state-q-svc");
 
+				// servicesd holds the settings registry, so it owns the durable
+				// store: any process may write a slot, and this host notices.
+				ModStateEventSetDrainHook(ModSettingsPersistIfChanged);
+
 				// The on-screen volume publisher (ZAM-writer detour to the
 				// zune-volume-state section) and the WiFi Awake authority
 				// activate on demand, not at boot: each starts when a mod
@@ -331,6 +336,12 @@ extern "C" __declspec(dllexport) HRESULT ZUxHookSendEvent(void* a, void* b, void
 	return S_OK;
 }
 
+extern "C" void LyraRuntimeProcessAttach(void);
+
 extern "C" BOOL WINAPI DllMain(HANDLE hinstDLL, DWORD dwReason, LPVOID lpvReserved) {
+	// A mod daemon loads this binary purely for the exported runtime, so the
+	// locks over this process's caches are armed here: attach runs before any
+	// export is reachable, which a lazy initialiser cannot promise.
+	if (dwReason == DLL_PROCESS_ATTACH) LyraRuntimeProcessAttach();
 	return TRUE;
 }

@@ -43,6 +43,11 @@ extern "C" {
    loop's wait set. */
 void ModStateEventInstallConsumer(DWORD msgwaitIatSlot, const wchar_t* queueName);
 
+/* Run `fn` after each drain on this host. The host that owns a durable store
+   registers its writer here, so a change made in any process reaches disk
+   without every writer knowing how. */
+void ModStateEventSetDrainHook(void (*fn)(void));
+
 #ifdef __cplusplus
 }
 #endif

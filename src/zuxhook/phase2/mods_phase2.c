@@ -257,16 +257,21 @@ static int enable_debug_button_launch(void) {
    each, in the subsystem's host, by activate_demanded_subsystems below. */
 
 typedef void (*SubsystemActivateFn)(void);
-static const struct { const char* name; const char* host; SubsystemActivateFn activate; }
+static const struct { const char* name; const char* host; int cur; int min_compat;
+                      SubsystemActivateFn activate; }   /* activate NULL: a facility, nothing to start */
 SUBSYSTEMS[] = {
-    { "lyra.wifi_awake",  "servicesd", WifiAwake_EnsureActive },
-    { "lyra.volume_state", "servicesd", VolumeStateInstall },
+    { "lyra.wifi_awake",   "servicesd", 1, 1, WifiAwake_EnsureActive },
+    { "lyra.volume_state", "servicesd", 1, 1, VolumeStateInstall },
+    { "lyra.mod_runtime",  "servicesd", 1, 1, NULL },
 };
 
 /* The compatibility window [min_compat, cur] at which this platform provides `name`.
-   Returns 1 and fills the bounds if advertised; 0 if not. A subsystem is [1,1]; wired
-   action capabilities come from CAPS. The two tables (SUBSYSTEMS here, CAPS in
-   mods_manifest.c) are the single source. */
+   Returns 1 and fills the bounds if advertised; 0 if not. Both tables carry their own
+   window (SUBSYSTEMS here, CAPS in mods_manifest.c) and are the single source.
+
+   A platform that cannot serve a capability does not name it: the table ships in the
+   same binary as the code behind it, so an older platform has no entry and the
+   resolver holds the requiring mod back. */
 int ModsPlatformCapabilityRange(const char* name, int* cur, int* min_compat) {
     int i;
     if (cur) *cur = 0;
@@ -274,8 +279,8 @@ int ModsPlatformCapabilityRange(const char* name, int* cur, int* min_compat) {
     if (!name) return 0;
     for (i = 0; i < (int)(sizeof(SUBSYSTEMS) / sizeof(SUBSYSTEMS[0])); i++)
         if (strcmp(name, SUBSYSTEMS[i].name) == 0) {
-            if (cur) *cur = 1;
-            if (min_compat) *min_compat = 1;
+            if (cur) *cur = SUBSYSTEMS[i].cur;
+            if (min_compat) *min_compat = SUBSYSTEMS[i].min_compat;
             return 1;
         }
     return ModsCapabilityProvidedRange(name, cur, min_compat);
@@ -299,6 +304,7 @@ static void activate_demanded_subsystems(const ModSet* set, const char* host) {
     int i;
     for (i = 0; i < (int)(sizeof(SUBSYSTEMS) / sizeof(SUBSYSTEMS[0])); i++) {
         if (strcmp(SUBSYSTEMS[i].host, host) != 0) continue;
+        if (!SUBSYSTEMS[i].activate) continue;
         if (ModsCapabilityDemanded(set, SUBSYSTEMS[i].name)) {
             SUBSYSTEMS[i].activate();
             ModsLogf("  phase2: subsystem %s activated", SUBSYSTEMS[i].name);

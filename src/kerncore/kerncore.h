@@ -23,13 +23,13 @@
    different vtables for trusted vs untrusted callers; patching only
    the trusted entry leaves untrusted processes silently falling
    through to the real GetFSHeapInfo (which returns small heap-info
-   values, making kreadu32 < 0x80000000 → kerncore_is_ready returns
+   values, making kreadu32 < 0x80000000, so kerncore_is_ready returns
    false, exactly what untrusted callers observe pre-bootstrap).
 
    Wire magics used by the trampoline at 0x80015020:
      0x1337  byte write   (r0=va, r1=byte)
-     0x1338  byte read    (r0=va) → returns byte in low 8 bits
-     0x1339  kcall        (r0=u32[7] {fn, a0..a5}) → returns fn's r0
+     0x1338  byte read    (r0=va) returns the byte in low 8 bits
+     0x1339  kcall        (r0=u32[7] {fn, a0..a5}) returns fn's r0
 
    All primitives are safe to call multiple times. They are SEH-safe
    internally where it matters. */
@@ -50,11 +50,11 @@ void          kerncore_kwriteb(DWORD va, unsigned char val);
 /* Helper: read a little-endian u32 (4 kreadb calls). */
 DWORD         kerncore_kreadu32(DWORD va);
 
-/* Bulk read: `len` bytes from va → buf, one lock held for the range.
+/* Bulk read: `len` bytes from va to buf, one lock held for the range.
    Faults on a bad VA propagate to the caller's __except (lock released). */
 void          kerncore_kread(DWORD va, void* buf, DWORD len);
 
-/* Bulk write (KMEMCPY_F, u32-stride atomic). `len` bytes from buf → va. */
+/* Bulk write (KMEMCPY_F, u32-stride atomic). `len` bytes from buf to va. */
 void          kerncore_kmemcpy(DWORD va, const void* buf, size_t len);
 
 /* Call kernel function at `fn` with up to 6 args (r0..r3 + 2 stack
@@ -94,7 +94,7 @@ DWORD         kerncore_find_proc_struct(DWORD pid);
 
 /* Patch RO code via L2 PT-flip (the "cydia-flip"):
      1. walk L1/L2 page tables for target_va in target_proc
-     2. clear AP[2] (bit 9) on the L2 entry → page PL1-writable
+     2. clear AP[2] (bit 9) on the L2 entry to page PL1-writable
      3. TLB flush (kcall TLB_FLUSH)
      4. byte-by-byte write via the gadget (now succeeds in PL1)
      5. restore L2 entry

@@ -29,9 +29,14 @@ CE_LOGGER(elog, L"\\flash2\\automation\\mods\\state-event.log")
    and re-render this process's icons. Runs on the UI thread, the thread the
    firmware main loop calls MsgWait on. The record is a bare ping; the icons
    read the authoritative values from the shared block. */
+static void (*g_drain_hook)(void) = NULL;
+
+void ModStateEventSetDrainHook(void (*fn)(void)) { g_drain_hook = fn; }
+
 static void drain_render(void) {
     ModNotifyDrainQueue(g_read_q);
     ModsIconOnStateChanged();
+    if (g_drain_hook) g_drain_hook();
 }
 
 /* The redirected MsgWaitForMultipleObjectsEx: append our queue handle to the

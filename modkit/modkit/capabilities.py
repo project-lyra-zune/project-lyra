@@ -3,7 +3,7 @@ feed's `lyra` entry lists exactly what the packaged zuxhook provides.
 
 The `CAPS` table in `src/mod-runtime/mods_manifest.c` (wired action capabilities, each with a
 `[min_compat, cur]` window) and the `SUBSYSTEMS` table in `src/zuxhook/phase2/mods_phase2.c`
-(each [1,1]). Each capability is emitted in the range form (`name` at `[1,1]`, else
+(each carrying its own window too). Each capability is emitted in the range form (`name` at `[1,1]`, else
 `name@min_compat:cur`). The device gate checks a mod's footprint against this set;
 `test_capabilities.py` cross-checks the parse against the source.
 """
@@ -18,7 +18,7 @@ _SUBS_SRC = _REPO / "src" / "zuxhook" / "phase2" / "mods_phase2.c"
 _CAPS_BLOCK = re.compile(r"CAPS\[\]\s*=\s*\{(.*?)\};", re.S)
 _CAPS_ENTRY = re.compile(r'\{\s*"([^"]+)"\s*,\s*\d+\s*,\s*(\d+)\s*,\s*(\d+)\s*\}')
 _SUBS_BLOCK = re.compile(r"SUBSYSTEMS\[\]\s*=\s*\{(.*?)\};", re.S)
-_SUBS_ENTRY = re.compile(r'\{\s*"([^"]+)"\s*,')
+_SUBS_ENTRY = re.compile(r'\{\s*"([^"]+)"\s*,\s*"[^"]*"\s*,\s*(\d+)\s*,\s*(\d+)\s*[,}]')
 
 
 def _block(path: Path, block_re: re.Pattern) -> str:
@@ -33,15 +33,17 @@ def _range_str(name: str, cur: int, min_compat: int) -> str:
 
 
 def platform_capability_ranges() -> dict[str, tuple[int, int]]:
-    """Each advertised capability -> (cur, min_compat). A CAPS entry with cur 0 is not
-    advertised and is excluded; subsystems are [1,1]."""
+    """Each advertised capability -> (cur, min_compat). An entry with cur 0 is not
+    advertised and is excluded."""
     out: dict[str, tuple[int, int]] = {}
     for name, cur, min_compat in _CAPS_ENTRY.findall(_block(_CAPS_SRC, _CAPS_BLOCK)):
         c, m = int(cur), int(min_compat)
         if c >= 1:
             out[name] = (c, m)
-    for name in _SUBS_ENTRY.findall(_block(_SUBS_SRC, _SUBS_BLOCK)):
-        out.setdefault(name, (1, 1))
+    for name, cur, min_compat in _SUBS_ENTRY.findall(_block(_SUBS_SRC, _SUBS_BLOCK)):
+        c, m = int(cur), int(min_compat)
+        if c >= 1:
+            out.setdefault(name, (c, m))
     return out
 
 

@@ -11,8 +11,8 @@ terms.
 
 Lyra's `nativeapp` is adapted from **zuneslayer**, the Zune kernel-exploit suite by
 **CUB3D**. CUB3D's work provides the arbitrary kernel read/write
-primitive in `kerncore` (the `libnmvwavedev.dll` bug that repurposes `GetExitCodeThread`
-→ `GetFSHeapInfo`), the Wi-Fi RPC daemon and its opcode protocol, and the code-execution
+primitive in `kerncore` (the `libnmvwavedev.dll` bug that repurposes
+`GetExitCodeThread` as `GetFSHeapInfo`), the Wi-Fi RPC daemon and its opcode protocol, and the code-execution
 entrypoints Lyra builds on, including the XNA/EDT kernel exploit and the alternative CVE-2019-1367
 browser ROP chain.
 

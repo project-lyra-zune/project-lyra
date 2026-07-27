@@ -2,7 +2,7 @@
 #define CAST_CHANNEL_H
 
 #include <windows.h>
-#include "mod_list_channel.h"   /* the generic picker channel + its ABI */
+#include "lyra.h"                /* the Lyra mod runtime */
 #include "mdns.h"               /* MdnsDevice */
 
 #ifdef __cplusplus
@@ -10,7 +10,7 @@ extern "C" {
 #endif
 
 /* Cast-specific wrappers over the shared mod_list_channel: the receiver picker.
- * The channel is bound to CAST_TOGGLE_KEY via mod_channel_init at daemon startup;
+ * The channel is bound to CAST_TOGGLE_KEY via lyra_channel_init at daemon startup;
  * these adapt discovered MdnsDevices to rows and "ip:port" selection tokens. */
 
 /* The scan-request event the HUD signals when the picker opens. */

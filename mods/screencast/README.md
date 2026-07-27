@@ -17,7 +17,7 @@ a WiFi Awake lease for the session. The `sharing` status shows Off / Ready (serv
 up, no client) / Live (a client is connected).
 
 Its JPEG encode comes from the shared `src/ce-common` ce_image (native imaging.dll);
-its ModStateBlock toggle/status and the picker channel come from the shared
+its toggle, status and picker channel all come through the shared
 `src/mod-runtime` (mod_state + mod_list_channel); its framebuffer read and touch
 injection from the canonical `src/kerncore`.
 
@@ -36,7 +36,7 @@ src/screencast/
   screencast_delta.cpp       desktop frontend: the zune-screencast.py binary protocol
   screencast_serve.cpp       run-both helper (used by the picker-less plugin entry)
   viewer_html.h              the embedded browser viewer page
-  screencast_keys.h          ModStateBlock keys + serving config
+  screencast_keys.h          runtime slot keys + serving config
 build/                       nmake makefile + build bat
 ```
 

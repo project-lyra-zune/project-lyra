@@ -1,6 +1,6 @@
 #include "castaudio.h"
 #include "avp_capture.h"
-#include "kerncore.h"
+#include "lyra.h"
 
 #include <string.h>
 
@@ -44,21 +44,21 @@
 
 static void kbulk(DWORD ksrc, void* udst, DWORD len)
 {
-    kerncore_kcall(KMEMCPY_F, (DWORD)udst, ksrc, len, 0, 0, 0);
+    lyra_kcall(KMEMCPY_F, (DWORD)udst, ksrc, len, 0, 0, 0);
 }
 
 static DWORD nvmap(DWORD phys, DWORD size)
 {
     DWORD z = 0;
-    kerncore_kmemcpy(KERNCORE_KSCRATCH, &z, 4);
-    DWORD e = kerncore_kcall(NVRM_MAP, phys, size, 3u, KERNCORE_KSCRATCH, 0, 0);
+    lyra_kmemcpy(lyra_kscratch(), &z, 4);
+    DWORD e = lyra_kcall(NVRM_MAP, phys, size, 3u, lyra_kscratch(), 0, 0);
     if (e != 0) return 0;
-    return kerncore_kreadu32(KERNCORE_KSCRATCH);
+    return lyra_kreadu32(lyra_kscratch());
 }
 
 static void nvunmap(DWORD va)
 {
-    if (va) kerncore_kcall(NVRM_UNMAP, va, 0, 0, 0, 0, 0);
+    if (va) lyra_kcall(NVRM_UNMAP, va, 0, 0, 0, 0, 0);
 }
 
 // Snap a computed rate to the nearest standard PCM sample rate.
@@ -88,17 +88,17 @@ static DWORD osc_hz(DWORD osc_ctrl)
 // The I2S clock derives from PLLA_OUT0, NOT the raw PLLA VCO: PLLA_BASE gives the
 // VCO; PLLA_OUT0 (@0xB4) applies a post-divider (out = VCO*2/(ratio+2), ratio @
 // [15:8]); and the device reprograms PLLA per rate so PLLA_OUT0 scales with it
-// (44.1k→4.704 MHz, 48k→5.120 MHz; PLLA_OUT0/rate = 320/3 exactly). Folding in
+// (44.1k to 4.704 MHz, 48k to 5.120 MHz; PLLA_OUT0/rate = 320/3 exactly). Folding in
 // the CLK_SOURCE_I2S1 divider (DIV @ [7:0]):  rate = PLLA_OUT0 * 6 / ((DIV+2)*80).
 // CAR-only: the I2S1 controller page (0x70002800) HANGS the read when its clock
 // is gated, so it is never touched here.
 static DWORD read_i2s_rate(DWORD car_kva)
 {
     if (!car_kva) return 0;
-    DWORD osc  = kerncore_kreadu32(car_kva + CAR_OSC_CTRL);
-    DWORD plla = kerncore_kreadu32(car_kva + CAR_PLLA_BASE);
-    DWORD pout = kerncore_kreadu32(car_kva + 0xb4);      // PLLA_OUT0 (the I2S source)
-    DWORD i2s  = kerncore_kreadu32(car_kva + CAR_CLK_I2S1);
+    DWORD osc  = lyra_kreadu32(car_kva + CAR_OSC_CTRL);
+    DWORD plla = lyra_kreadu32(car_kva + CAR_PLLA_BASE);
+    DWORD pout = lyra_kreadu32(car_kva + 0xb4);      // PLLA_OUT0 (the I2S source)
+    DWORD i2s  = lyra_kreadu32(car_kva + CAR_CLK_I2S1);
 
     DWORD ref  = osc_hz(osc);
     DWORD divm = plla & 0x1f, divn = (plla >> 8) & 0x3ff, divp = (plla >> 20) & 7;
@@ -140,7 +140,7 @@ static DWORD rd2(DWORD reg)
 static DWORD find_ch15_ahb(DWORD chan_kva)
 {
     for (DWORD ch = 0; ch < 16; ch++) {
-        if (kerncore_kreadu32(chan_kva + ch * CH_STRIDE + CH_APB_OFF) == I2S1_FIFO)
+        if (lyra_kreadu32(chan_kva + ch * CH_STRIDE + CH_APB_OFF) == I2S1_FIFO)
             return chan_kva + ch * CH_STRIDE + CH_AHB_OFF;
     }
     return 0;
@@ -152,10 +152,10 @@ static DWORD find_ch15_ahb(DWORD chan_kva)
 // offset is fixed boot-loader placement; chreg_base is the determinism check.
 static DWORD locate_avp_ctx(void)
 {
-    DWORD carveout = kerncore_kreadu32(NK_CARVEOUT_KVA);
+    DWORD carveout = lyra_kreadu32(NK_CARVEOUT_KVA);
     if (carveout < 0xc0000000u) return 0;
     DWORD ctx = carveout + AVP_IMG_OFFSET + AVP_CTX_AVPVA;
-    if (kerncore_kreadu32(ctx + AVP_CTX_CHREG) != AVP_CTX_CHREG_CH15) return 0;
+    if (lyra_kreadu32(ctx + AVP_CTX_CHREG) != AVP_CTX_CHREG_CH15) return 0;
     return ctx;
 }
 
@@ -205,11 +205,11 @@ DWORD WINAPI avp_capture_thread(LPVOID arg)
     CeSetThreadPriority(GetCurrentThread(), 110);
 
     DWORD t0 = GetTickCount();
-    while (!kerncore_is_ready()) {
+    while (!lyra_kernel_ready()) {
         if (WaitForSingleObject(ring->stop_event, 200) == WAIT_OBJECT_0) return 0;
         if (GetTickCount() - t0 > 10000) { cast_log("CAP kerncore not ready"); return 1; }
     }
-    kerncore_ensure_helpers();
+    lyra_kernel_ensure_helpers();
 
     DWORD chan_kva = nvmap(DMA_CH_PAGE, 0x1000u);
     if (!chan_kva) { cast_log("CAP map DMA page fail"); return 2; }

@@ -8,7 +8,7 @@
 #include <windows.h>
 #include <stdarg.h>
 #include "playnext_queue.h"
-#include "kerncore.h"
+#include "lyra.h"
 #include "ce_log.h"
 
 #define GEM_EXECUTOR       0x00067f94u
@@ -62,8 +62,8 @@ extern "C" int PlayNext_Handle(DWORD command_id, DWORD ctx, DWORD item) {
 static int install_executor_hook(void) {
     DWORD proc, orig0, orig1, entry[2];
     DWORD* t;
-    if (!kerncore_is_ready() || !kerncore_ensure_helpers()) return -1;
-    proc = kerncore_find_proc_struct(GetCurrentProcessId());
+    if (!lyra_kernel_ready() || !lyra_kernel_ensure_helpers()) return -1;
+    proc = lyra_find_proc_struct(GetCurrentProcessId());
     if (!proc) return -1;
     __try {
         orig0 = *(volatile DWORD*)GEM_EXECUTOR;
@@ -91,7 +91,7 @@ static int install_executor_hook(void) {
 
     entry[0] = 0xe51ff004u;                            /* ldr pc,[pc,#-4]      */
     entry[1] = (DWORD)t;
-    if (kerncore_patch_code(proc, GEM_EXECUTOR, entry, 8) != 0) {
+    if (lyra_patch_code(proc, GEM_EXECUTOR, entry, 8) != 0) {
         VirtualFree(t, 0, MEM_RELEASE);
         return -1;
     }
@@ -135,15 +135,15 @@ extern "C" int PlayNext_RowAdd(DWORD idx, DWORD max, DWORD* items, DWORD cmd, DW
 /* Redirect a function entry straight to a replacement (no trampoline). */
 static int install_replace(DWORD target, void* func) {
     DWORD proc, orig0, entry[2];
-    if (!kerncore_is_ready() || !kerncore_ensure_helpers()) return -1;
-    proc = kerncore_find_proc_struct(GetCurrentProcessId());
+    if (!lyra_kernel_ready() || !lyra_kernel_ensure_helpers()) return -1;
+    proc = lyra_find_proc_struct(GetCurrentProcessId());
     if (!proc) return -1;
     __try { orig0 = *(volatile DWORD*)target; }
     __except (EXCEPTION_EXECUTE_HANDLER) { return -1; }
     if (orig0 == 0xe51ff004u) return -1;               /* already redirected */
     entry[0] = 0xe51ff004u;                            /* ldr pc,[pc,#-4]    */
     entry[1] = (DWORD)func;                            /* &replacement (Thumb bit set) */
-    if (kerncore_patch_code(proc, target, entry, 8) != 0) return -1;
+    if (lyra_patch_code(proc, target, entry, 8) != 0) return -1;
     FlushInstructionCache(GetCurrentProcess(), (void*)target, 8);
     return 0;
 }

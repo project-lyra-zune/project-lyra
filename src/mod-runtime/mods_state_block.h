@@ -48,8 +48,11 @@ int ModStateGetState(const char* key);
 /* Set a slot's state (assigning on first use). The caller MUST own the slot per
    its role: a control surface for `setting/`, the feature's actor for
    `status/`. `owner_pid` is recorded for status reaping: pass 0 for
-   control/subsystem slots, GetCurrentProcessId() for daemon-written status. */
-void ModStateSetState(const char* key, int state, DWORD owner_pid);
+   control/subsystem slots, GetCurrentProcessId() for daemon-written status.
+
+   Returns 1 only if the value moved. Publish on that: re-asserting the same
+   state every iteration is normal here, and each fan-out wakes every UI host. */
+int ModStateSetState(const char* key, int state, DWORD owner_pid);
 
 /* Initialise a slot the first time it is seen this boot (idempotent across
    processes and re-applies: an existing slot keeps its live state). */

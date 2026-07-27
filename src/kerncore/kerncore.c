@@ -2,7 +2,7 @@
 
 #include <string.h>
 
-/* GetFSHeapInfo signature: (DWORD r0, DWORD r1, DWORD r2) → DWORD r0.
+/* GetFSHeapInfo signature: (DWORD r0, DWORD r1, DWORD r2) returns DWORD r0.
    After nativeapp's hax() patches the kernel function pointer at
    0x80060da0, every call from any process hits the gadget at
    0x80015020+ which dispatches on the magic in r2. */
@@ -24,7 +24,7 @@ static PfnGhi resolve_ghi(void) {
    runs concurrently with the TCP request handler, and the modkit
    end-state has many mods. Every public entry below acquires this one
    recursive lock and holds it for the whole operation, so a multi-step
-   patch_code (PT-flip → stage KSCRATCH → HELPER_V7 → restore) is atomic
+   patch_code (PT-flip, stage KSCRATCH, HELPER_V7, restore) is atomic
    against any other kerncore user.
 
    The lock MUST be cross-process: KSCRATCH, the L2 PT-flip window, and the
@@ -35,7 +35,7 @@ static PfnGhi resolve_ghi(void) {
    staging / PT-flip and corrupt the write, surfacing as an early-boot
    gemstone crash. A NAMED mutex serialises across processes, which is what
    "atomic against any other kerncore user" requires. CE mutexes are recursive
-   for the owning thread, so the kreadu32→kreadb / patch_code→kwriteb nesting
+   for the owning thread, so the kreadu32 calling kreadb / patch_code calling kwriteb nesting
    through the public API self-recurses without deadlock. One-time lazy init:
    boot is single-threaded; the CAS guard makes it correct even if the first
    calls ever race. */
@@ -184,7 +184,7 @@ static int kc_patch_code_impl(DWORD target_proc, DWORD target_va,
     /* Save original L2 entry */
     original_l2 = kerncore_kreadu32(l2_entry_kva);
 
-    /* Clear AP[2] (bit 9) → page PL1-writable */
+    /* Clear AP[2] (bit 9) to make the page PL1-writable */
     kerncore_kwriteu32(l2_entry_kva, original_l2 & ~0x200u);
     kerncore_kcall(KERNCORE_TLB_FLUSH, 0, 0, 0, 0, 0, 0);
 
@@ -361,7 +361,7 @@ static void kc_plant_helpers_impl(void) {
 }
 
 /* ── public API: serialized wrappers ─────────────────────────────────────
-   Each holds the recursive lock for the whole op. Internal impl→impl
+   Each holds the recursive lock for the whole op. Internal impl-to-impl
    calls go through these public names (header-declared), so nesting
    re-enters the same thread's lock and stays atomic vs other threads.
 

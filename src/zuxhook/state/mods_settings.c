@@ -12,6 +12,10 @@
 #define MOD_SETTINGS_PATH    L"\\flash2\\automation\\mods\\mod-settings.json"
 #define MOD_SETTINGS_VERSION 3
 
+static int  compose_store(char* buf, int cap);
+static char g_last[2048];      /* the bytes last written, so a no-op change costs no flash */
+static int  g_last_len = -1;
+
 /* Read a whole file into the arena. 0 on success, -1 if absent / empty / short. */
 static int read_file(ModsArena* arena, const wchar_t* path,
                      unsigned char** out, size_t* outlen) {
@@ -131,6 +135,8 @@ void ModSettingsLoad(void) {
 
     ModsLogf("  mod-settings: curation %d key(s) (persisted=%d)",
              ModCurationCount(), qt_present);
+
+    g_last_len = compose_store(g_last, (int)sizeof(g_last));
 }
 
 /* Append `"key"` (JSON string) to buf at *len, guarding capacity. Returns 1 on
@@ -148,14 +154,11 @@ static int append_quoted(char* buf, int cap, int* len, int* wrote,
     return 1;
 }
 
-/* Persist the store: every registered setting's live ModStateBlock value under
-   `values`, and the curated HUD list under `quick_toggles`. Call after a menu
-   flip (value change) or a curation edit. */
-void ModSettingsSave(void) {
-    char buf[2048];
+/* Compose the store into `buf`: every registered setting's live ModStateBlock
+   value under `values`, and the curated HUD list under `quick_toggles`. Returns
+   the length, or -1 if it will not fit. */
+static int compose_store(char* buf, int cap) {
     int len = 0, i, n, c, wrote;
-    HANDLE h;
-    DWORD written;
     const char header[] = "{\"version\":3,\"values\":{";
     const char mid[]    = "},\"quick_toggles\":[";
     const char footer[] = "]}";
@@ -165,7 +168,7 @@ void ModSettingsSave(void) {
 
     n = ModTogglesCount();
     c = ModCurationCount();
-    if ((int)sizeof(buf) < hlen + mlen + flen + 1) return;
+    if (cap < hlen + mlen + flen + 1) return -1;
     memcpy(buf + len, header, hlen); len += hlen;
 
     wrote = 0;
@@ -177,7 +180,7 @@ void ModSettingsSave(void) {
            file so a stale state can't be read back at boot. */
         if (!ModToggleGetPersist(i)) continue;
         /* reserve room for the value digit + the mid/footer that must follow */
-        if (!append_quoted(buf, (int)sizeof(buf), &len, &wrote, key,
+        if (!append_quoted(buf, cap, &len, &wrote, key,
                            1 /* ':' */ + 1 /* digit */, mlen + flen + 1)) break;
         active = ModStateGetState(key);
         buf[len++] = ':';
@@ -190,16 +193,42 @@ void ModSettingsSave(void) {
     for (i = 0; i < c; i++) {
         const char* key = ModCurationGetKey(i);
         if (!key) continue;
-        if (!append_quoted(buf, (int)sizeof(buf), &len, &wrote, key, 0, flen + 1)) break;
+        if (!append_quoted(buf, cap, &len, &wrote, key, 0, flen + 1)) break;
     }
 
     memcpy(buf + len, footer, flen); len += flen;
     buf[len] = 0;
+    return len;
+}
 
+static void write_store(const char* buf, int len) {
+    HANDLE h;
+    DWORD  written;
     h = CreateFileW(MOD_SETTINGS_PATH, GENERIC_WRITE, 0, NULL,
                     CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     if (h == INVALID_HANDLE_VALUE) { ModsLogf("  mod-settings: save open failed"); return; }
     WriteFile(h, buf, (DWORD)len, &written, NULL);
     CloseHandle(h);
-    ModsLogf("  mod-settings: saved %d value(s) / %d curated", n, c);
+    ModsLogf("  mod-settings: saved %d byte(s)", len);
+}
+
+/* Compare rather than track dirty state: a slot can be written from any process,
+   and composing costs no I/O, so this writes flash exactly when content moves. */
+void ModSettingsPersistIfChanged(void) {
+    char buf[2048];
+    int  len = compose_store(buf, (int)sizeof(buf));
+    if (len < 0) return;
+    if (len == g_last_len && memcmp(buf, g_last, (size_t)len) == 0) return;
+    write_store(buf, len);
+    memcpy(g_last, buf, (size_t)len);
+    g_last_len = len;
+}
+
+void ModSettingsSave(void) {
+    char buf[2048];
+    int  len = compose_store(buf, (int)sizeof(buf));
+    if (len < 0) return;
+    write_store(buf, len);
+    memcpy(g_last, buf, (size_t)len);
+    g_last_len = len;
 }

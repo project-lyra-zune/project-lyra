@@ -61,7 +61,7 @@ int cast_run_session(const char* target, unsigned short control_port,
     while (WaitForSingleObject(session_stop, 0) != WAIT_OBJECT_0) {
         // Dialing the receiver; reconcile_thread promotes this to connected/
         // casting once the link is live.
-        mod_state_set_status(CAST_STATUS_KEY, CAST_STATUS_CONNECTING);
+        lyra_state_set_status(CAST_STATUS_KEY, CAST_STATUS_CONNECTING);
         int speak = (fail_streak == 0) ||
                     (GetTickCount() - last_fail_log >= CAST_RETRY_LOG_MS);
         int rc = castv2_run(session_stop, target, control_port, media_port,
@@ -69,7 +69,7 @@ int cast_run_session(const char* target, unsigned short control_port,
         if (WaitForSingleObject(session_stop, 0) == WAIT_OBJECT_0) break;
         // Returned while still wanted: the connect attempt failed or a live link
         // dropped. Surface error, back off, retry.
-        mod_state_set_status(CAST_STATUS_KEY, CAST_STATUS_ERROR);
+        lyra_state_set_status(CAST_STATUS_KEY, CAST_STATUS_ERROR);
         if (rc == 0) {
             backoff     = CAST_RETRY_MIN_MS;   // the link was up; treat as a fresh episode
             fail_streak = 0;

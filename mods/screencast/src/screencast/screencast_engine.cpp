@@ -4,7 +4,7 @@
 #include "screencast_engine.h"
 
 extern "C" {
-#include "kerncore.h"
+#include "lyra.h"
 #include "ce_log.h"
 }
 
@@ -30,16 +30,16 @@ static void kread_bulk(void* dst, u32 src_va, u32 len) {
     u32 off = 0;
     while (off < len) {
         u32 n = (len - off > READ_CHUNK) ? READ_CHUNK : (len - off);
-        kerncore_kcall(KMEMCPY_F, (u32)dst + off, src_va + off, n, 0, 0, 0);
+        lyra_kcall(KMEMCPY_F, (u32)dst + off, src_va + off, n, 0, 0, 0);
         off += n;
         Sleep(0);
     }
 }
-static u32 kread_u32(u32 va) { u32 v = 0; kerncore_kcall(KMEMCPY_F, (u32)&v, va, 4, 0, 0, 0); return v; }
+static u32 kread_u32(u32 va) { u32 v = 0; lyra_kcall(KMEMCPY_F, (u32)&v, va, 4, 0, 0, 0); return v; }
 
 /* Bulk write to a kernel VA via KMEMCPY_F (one kernel transition). */
 static void kwrite_bulk(u32 dst_va, const void* src, u32 len) {
-    kerncore_kcall(KMEMCPY_F, dst_va, (u32)src, len, 0, 0, 0);
+    lyra_kcall(KMEMCPY_F, dst_va, (u32)src, len, 0, 0, 0);
 }
 
 /* ── capture ────────────────────────────────────────────────────────────── */
@@ -117,7 +117,7 @@ CE_LOGGER_PUBLIC(sc_log, L"\\flash2\\automation\\screencast.log")
 static void kread_name(DWORD wstr_va, char* out, int cap) {
     int i = 0;
     for (; i < cap - 1 && wstr_va; i++) {
-        u16 ch = (u16)(kerncore_kreadu32(wstr_va + i * 2) & 0xffff);
+        u16 ch = (u16)(lyra_kreadu32(wstr_va + i * 2) & 0xffff);
         if (!ch) break;
         out[i] = (ch >= 'A' && ch <= 'Z') ? (char)(ch + 32) : (char)ch;
     }
@@ -127,12 +127,12 @@ static void kread_name(DWORD wstr_va, char* out, int cap) {
 /* Walk the NK process list (next@+0, id@+0xC, name_ptr@+0x20) for a process
  * whose name contains `want`; return its proc-struct VA and (via out_pid) PID. */
 static DWORD find_proc(const char* want, DWORD* out_pid) {
-    DWORD head = kerncore_kreadu32(NK_PROC_LIST), cur = head;
+    DWORD head = lyra_kreadu32(NK_PROC_LIST), cur = head;
     for (int i = 0; i < 64 && cur; i++) {
         char nm[24];
-        kread_name(kerncore_kreadu32(cur + 0x20), nm, sizeof(nm));
-        if (strstr(nm, want)) { *out_pid = kerncore_kreadu32(cur + 0x0c); return cur; }
-        DWORD nxt = kerncore_kreadu32(cur + 0x00);
+        kread_name(lyra_kreadu32(cur + 0x20), nm, sizeof(nm));
+        if (strstr(nm, want)) { *out_pid = lyra_kreadu32(cur + 0x0c); return cur; }
+        DWORD nxt = lyra_kreadu32(cur + 0x00);
         if (nxt == head) break;
         cur = nxt;
     }
@@ -157,8 +157,8 @@ static void resolve_targets(void) {
 
 /* Cheap per-tap staleness check: one kernel u32 read of each cached PID. */
 static int targets_alive(void) {
-    return g_gem_proc && kerncore_kreadu32(g_gem_proc + 0x0c) == g_gem_pid
-        && g_svc_proc && kerncore_kreadu32(g_svc_proc + 0x0c) == g_svc_pid
+    return g_gem_proc && lyra_kreadu32(g_gem_proc + 0x0c) == g_gem_pid
+        && g_svc_proc && lyra_kreadu32(g_svc_proc + 0x0c) == g_svc_pid
         && g_svc_h && g_ring_base;
 }
 
@@ -193,7 +193,7 @@ static void zam_emit(int x, int y, DWORD contact, DWORD phase) {
     WriteProcessMemory(g_svc_h, (void*)head, rec, sizeof(rec), &n);
     DWORD next = head + 0x40;
     WriteProcessMemory(g_svc_h, (void*)ZAM_RING_HEAD, &next, 4, &n);
-    kerncore_kcall(KERNCORE_HELPER_V4, g_gem_proc, SIG_STUB_KVA, 0, 0, 0, 0);
+    lyra_kexec_in_proc(g_gem_proc, SIG_STUB_KVA);
 }
 
 /* Spin until gemstone's input thread drains the ring (head back to base) so a
@@ -207,10 +207,10 @@ static void zam_wait_drained(int timeout_ms) {
     }
 }
 
-int sc_engine_ready(void) { return kerncore_is_ready(); }
+int sc_engine_ready(void) { return lyra_kernel_ready(); }
 
 void sc_engine_init(void) {
-    kerncore_ensure_helpers();
+    lyra_kernel_ensure_helpers();
     resolve_targets();
     plant_sig_stub();
 }
@@ -218,7 +218,7 @@ void sc_engine_init(void) {
 void sc_inject(u8 action, u32 dx, u32 dy) {
     if (!targets_alive()) resolve_targets();   /* cheap PID check; full walk only on restart */
     if (!g_gem_proc || !g_svc_h || !g_ring_base) { sc_log("inject: targets not found"); return; }
-    kerncore_ensure_helpers();
+    lyra_kernel_ensure_helpers();
     int x = (int)dx, y = (int)dy;
     switch (action) {
         case 1: g_held = 1; g_hold_x = x; g_hold_y = y; g_last_move_tick = GetTickCount(); zam_emit(x, y, 1, 1); break;  /* down */
@@ -236,6 +236,6 @@ void sc_inject(u8 action, u32 dx, u32 dy) {
 void sc_feed_hold(void) {
     if (!g_held || !g_gem_proc || !g_svc_h) return;
     if (GetTickCount() - g_last_move_tick < g_settle_ms) return;
-    kerncore_ensure_helpers();
+    lyra_kernel_ensure_helpers();
     zam_emit(g_hold_x, g_hold_y, 1, 2);
 }

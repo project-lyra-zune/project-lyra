@@ -97,3 +97,11 @@ demand for a mod that uses them. All capabilities are currently at revision 1.
 | :--- | :--- |
 | `lyra.wifi_awake` | Keep Wi-Fi powered under battery |
 | `lyra.volume_state` | Publish volume as a shared state slot |
+| `lyra.mod_runtime` | Call the platform from your own code, through the SDK |
+
+`lyra.mod_runtime` is the one every mod with code of its own needs. Add it to `requires` when
+you link the SDK (`sdk/include/lyra.h`), and a platform too old to serve those calls refuses the
+install with a reason instead of letting the mod run and quietly do nothing. Its window moves
+when the SDK does: a new verb raises `cur`, and dropping or changing one raises `min_compat`, so
+a mod built against a newer SDK than the installed platform is told to wait rather than failing
+at the call.

@@ -1,8 +1,10 @@
 {
   "mod_id": "playnext",
   "name": "Play Next",
-  "version": "0.1.2",
+  "version": "0.2.0",
+  "changelog": "Rebuilt on the Lyra mod SDK, so a platform update no longer risks breaking Play Next. Needs Lyra 1.3.0 or newer.",
   "author": "Project Lyra",
+  "requires": ["lyra.mod_runtime"],
   "category": "Media",
   "description": "Adds a Play Next item to the long-press menu on songs, albums, and artists. It drops the selection into the now-playing queue right after the current track instead of at the end.",
   "depends_on": [],

@@ -6,11 +6,14 @@
 #                          screen-mirror plugin example (nativeapp RunDaemon).
 #                          Runs both frontends; never packaged in the .zmod.
 # Links the ce-common ce_image lib (imaging.dll JPEG encode), the shared
-# mod-runtime (mod_state + mod_list_channel picker) and the canonical kerncore.
+# the Lyra SDK, which is all it uses from the platform.
 
 CEC      = ..\..\..\src\ce-common
-KC       = ..\..\..\src\kerncore
-MR       = ..\..\..\src\mod-runtime
+# The Lyra SDK: lyra.h + lyra_client.c, all this mod needs from the platform.
+# Override LYRA_SDK to build against an SDK unpacked elsewhere.
+!IFNDEF LYRA_SDK
+LYRA_SDK = ..\..\..\sdk
+!ENDIF
 PL_ROOT  = ..\src\screencast
 OUT_DIR  = ..\out\screencast
 OBJ_DIR  = $(OUT_DIR)\obj
@@ -21,12 +24,12 @@ STAGED   = ..\screencastd.exe
 CC   = $(CE_CC)
 LINK = $(CE_LINK)
 
-INCS = /I"$(KC)" /I"$(MR)" /I"$(CEC)\deps\ce_image" /I"$(CEC)\src\ce_log" /I"$(PL_ROOT)"
+INCS = /I"$(LYRA_SDK)\include" /I"$(CEC)\deps\ce_image" /I"$(CEC)\src\ce_log" /I"$(PL_ROOT)"
 
 # C++ TUs (engine + the two entries): no RTTI, EH on for the imaging COM paths.
 CPP_CFLAGS = $(CE_CFLAGS) /EHsc /GR- /D_CRT_SECURE_NO_WARNINGS /D_CRT_SECURE_NO_DEPRECATE $(INCS)
 
-# Plain-C TUs (frontends, mod-runtime, kerncore).
+# Plain-C TUs (frontends, the SDK client).
 C_CFLAGS = $(CE_CFLAGS) /D_CRT_SECURE_NO_WARNINGS /D_CRT_SECURE_NO_DEPRECATE $(INCS)
 
 LIBS = \
@@ -39,10 +42,8 @@ CORE_OBJS = \
 	$(OBJ_DIR)\screencast_http.obj \
 	$(OBJ_DIR)\screencast_delta.obj \
 	$(OBJ_DIR)\screencast_serve.obj \
-	$(OBJ_DIR)\mod_state.obj \
-	$(OBJ_DIR)\mod_list_channel.obj \
+	$(OBJ_DIR)\lyra_client.obj \
 	$(OBJ_DIR)\ce_log.obj \
-	$(OBJ_DIR)\kerncore.obj
 
 EXE_OBJS = $(CORE_OBJS) $(OBJ_DIR)\screencast_main.obj
 DLL_OBJS = $(CORE_OBJS) $(OBJ_DIR)\plugin_screencast.obj
@@ -85,14 +86,8 @@ $(OBJ_DIR)\screencast_delta.obj: $(PL_ROOT)\screencast_delta.cpp
 $(OBJ_DIR)\screencast_serve.obj: $(PL_ROOT)\screencast_serve.cpp
 	$(CC) $(CPP_CFLAGS) /Fo"$(OBJ_DIR)\screencast_serve.obj" /c $(PL_ROOT)\screencast_serve.cpp
 
-$(OBJ_DIR)\mod_state.obj: $(MR)\mod_state.c
-	$(CC) $(C_CFLAGS) /Fo"$(OBJ_DIR)\mod_state.obj" /c $(MR)\mod_state.c
-
-$(OBJ_DIR)\mod_list_channel.obj: $(MR)\mod_list_channel.c
-	$(CC) $(C_CFLAGS) /Fo"$(OBJ_DIR)\mod_list_channel.obj" /c $(MR)\mod_list_channel.c
-
-$(OBJ_DIR)\kerncore.obj: $(KC)\kerncore.c
-	$(CC) $(C_CFLAGS) /Fo"$(OBJ_DIR)\kerncore.obj" /c $(KC)\kerncore.c
+$(OBJ_DIR)\lyra_client.obj: $(LYRA_SDK)\src\lyra_client.c
+	$(CC) $(C_CFLAGS) /Fo"$(OBJ_DIR)\lyra_client.obj" /c $(LYRA_SDK)\src\lyra_client.c
 
 $(OBJ_DIR)\ce_log.obj: $(CEC)\src\ce_log\ce_log.c
 	$(CC) $(C_CFLAGS) /Fo"$(OBJ_DIR)\ce_log.obj" /c $(CEC)\src\ce_log\ce_log.c

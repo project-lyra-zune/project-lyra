@@ -146,17 +146,17 @@ FACTORY_TEMPLATE_WORDS: tuple[int, ...] = (
     0xe1a04001,   # +0x04  mov  r4, r1            ; r4 = out ptr
     0xe1a05000,   # +0x08  mov  r5, r0            ; r5 = caller ctx
     0xe3a03000,   # +0x0c  mov  r3, #0
-    0xe3a00000,   # +0x10  mov  r0, #IMM8         ; ← instance_size fixup
+    0xe3a00000,   # +0x10  mov  r0, #IMM8         ; instance_size fixup
     0xe5843000,   # +0x14  str  r3, [r4]          ; *out = NULL
-    0xeb000000,   # +0x18  bl   allocator         ; ← BL fixup
+    0xeb000000,   # +0x18  bl   allocator         ; BL fixup
     0xe3500000,   # +0x1c  cmp  r0, #0
     0x0a000001,   # +0x20  beq  +0x28             ; if alloc failed
-    0xeb000000,   # +0x24  bl   ctor              ; ← BL fixup
+    0xeb000000,   # +0x24  bl   ctor              ; BL fixup
     0xea000000,   # +0x28  b    +0x30             ; jump past failure
     0xe3a00000,   # +0x2c  mov  r0, #0
     0xe3500000,   # +0x30  cmp  r0, #0
     0x03a0313a,   # +0x34  moveq r3, #0x8000000E  ; HRESULT base
-    0x03830807,   # +0x38  orreq r0, r3, #0x70000 ; → 0x8007000E (E_OUTOFMEMORY)
+    0x03830807,   # +0x38  orreq r0, r3, #0x70000 ; gives 0x8007000E (E_OUTOFMEMORY)
     0x15805004,   # +0x3c  strne r5, [r0, #4]     ; instance+4 = caller ctx
     0x15840000,   # +0x40  strne r0, [r4]         ; *out = instance
     0x13a00000,   # +0x44  movne r0, #0           ; S_OK
@@ -170,29 +170,29 @@ assert len(FACTORY_TEMPLATE_WORDS) == 0x4c // 4   # 76 bytes
 # when the planted blob's scratch region is NOT within ±32MB of the host's
 # allocator, e.g. registering in servicesd, whose zhud allocator (0x419d…)
 # is ~1GB from the low-VA scratch region. Functionally identical to the
-# `bl` factory otherwise (alloc → ctor → fill out-ptr / E_OUTOFMEMORY).
+# `bl` factory otherwise (alloc, ctor, fill out-ptr, else E_OUTOFMEMORY).
 FACTORY_INDIRECT_WORDS: tuple[int, ...] = (
     0xe92d4030,   # +0x00  push {r4, r5, lr}
     0xe1a04001,   # +0x04  mov  r4, r1            ; r4 = out ptr
     0xe1a05000,   # +0x08  mov  r5, r0            ; r5 = caller ctx
     0xe3a03000,   # +0x0c  mov  r3, #0
-    0xe3a00000,   # +0x10  mov  r0, #IMM8         ; ← instance_size fixup
+    0xe3a00000,   # +0x10  mov  r0, #IMM8         ; instance_size fixup
     0xe5843000,   # +0x14  str  r3, [r4]          ; *out = NULL
     0xe59fc030,   # +0x18  ldr  ip, [pc, #0x30]   ; ip = allocator (pool @ +0x50)
-    0xe12fff3c,   # +0x1c  blx  ip                ; ← WORD fixup at +0x50
+    0xe12fff3c,   # +0x1c  blx  ip                ; WORD fixup at +0x50
     0xe3500000,   # +0x20  cmp  r0, #0
     0x0a000001,   # +0x24  beq  +0x30             ; if alloc failed
-    0xeb000000,   # +0x28  bl   ctor              ; ← BL fixup (intern)
+    0xeb000000,   # +0x28  bl   ctor              ; BL fixup (intern)
     0xea000000,   # +0x2c  b    +0x34             ; jump past failure
     0xe3a00000,   # +0x30  mov  r0, #0
     0xe3500000,   # +0x34  cmp  r0, #0
     0x03a0313a,   # +0x38  moveq r3, #0x8000000E  ; HRESULT base
-    0x03830807,   # +0x3c  orreq r0, r3, #0x70000 ; → 0x8007000E (E_OUTOFMEMORY)
+    0x03830807,   # +0x3c  orreq r0, r3, #0x70000 ; gives 0x8007000E (E_OUTOFMEMORY)
     0x15805004,   # +0x40  strne r5, [r0, #4]     ; instance+4 = caller ctx
     0x15840000,   # +0x44  strne r0, [r4]         ; *out = instance
     0x13a00000,   # +0x48  movne r0, #0           ; S_OK
     0xe8bd8030,   # +0x4c  pop  {r4, r5, pc}
-    0x00000000,   # +0x50  pool: allocator VA     ; ← WORD abs fixup
+    0x00000000,   # +0x50  pool: allocator VA     ; WORD abs fixup
 )
 assert len(FACTORY_INDIRECT_WORDS) == 0x54 // 4   # 84 bytes
 
@@ -211,20 +211,20 @@ FACTORY_INDIRECT_LARGE_WORDS: tuple[int, ...] = (
     0xe59f003c,   # +0x10  ldr  r0, [pc, #0x3c]   ; r0 = instance_size (pool @ +0x54)
     0xe5843000,   # +0x14  str  r3, [r4]          ; *out = NULL
     0xe59fc030,   # +0x18  ldr  ip, [pc, #0x30]   ; ip = allocator (pool @ +0x50)
-    0xe12fff3c,   # +0x1c  blx  ip                ; ← WORD abs fixup at +0x50
+    0xe12fff3c,   # +0x1c  blx  ip                ; WORD abs fixup at +0x50
     0xe3500000,   # +0x20  cmp  r0, #0
     0x0a000001,   # +0x24  beq  +0x30
-    0xeb000000,   # +0x28  bl   ctor              ; ← BL fixup (intern)
+    0xeb000000,   # +0x28  bl   ctor              ; BL fixup (intern)
     0xea000000,   # +0x2c  b    +0x34
     0xe3a00000,   # +0x30  mov  r0, #0
     0xe3500000,   # +0x34  cmp  r0, #0
     0x03a0313a,   # +0x38  moveq r3, #0x8000000E
-    0x03830807,   # +0x3c  orreq r0, r3, #0x70000 ; → 0x8007000E (E_OUTOFMEMORY)
+    0x03830807,   # +0x3c  orreq r0, r3, #0x70000 ; gives 0x8007000E (E_OUTOFMEMORY)
     0x15805004,   # +0x40  strne r5, [r0, #4]
     0x15840000,   # +0x44  strne r0, [r4]
     0x13a00000,   # +0x48  movne r0, #0           ; S_OK
     0xe8bd8030,   # +0x4c  pop  {r4, r5, pc}
-    0x00000000,   # +0x50  pool: allocator VA     ; ← WORD abs fixup
+    0x00000000,   # +0x50  pool: allocator VA     ; WORD abs fixup
     0x00000000,   # +0x54  pool: instance_size    ; baked literal (no fixup)
 )
 assert len(FACTORY_INDIRECT_LARGE_WORDS) == 0x58 // 4   # 88 bytes
@@ -395,7 +395,7 @@ def emit_ctor(at: int, instance_size: int, vtable_offset_within_blob: int,
                                  intern=target))
         elif target_kind == "value":
             # `val` is either int (literal, no fixup needed; bake into pool)
-            # or str (extern name → fixup)
+            # or str (extern name, needing a fixup)
             if isinstance(target, int):
                 pool_words[-1] = target & 0xffffffff
             elif isinstance(target, str):
@@ -456,7 +456,7 @@ class ClassBlobBuilder:
         self.bytes_ = bytearray()
         self.exports: dict[str, int] = {}
         self.fixups: list[Fixup] = []
-        # Forward-reference table: name → offset (filled when added)
+        # Forward-reference table: name to offset (filled when added)
         self._labels: dict[str, int] = {}
         # Forward fixups awaiting label resolution
         self._pending: list[tuple[Fixup, str]] = []   # (fixup, intern_label_name)
