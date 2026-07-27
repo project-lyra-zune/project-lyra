@@ -32,6 +32,7 @@ def main() -> None:
     ap.add_argument("--stub", type=pathlib.Path, default=HERE / "stub" / "stub.json")
     ap.add_argument("--chain", type=pathlib.Path, default=HERE / "chain.js")
     ap.add_argument("--template", type=pathlib.Path, default=HERE / "index.html.in")
+    ap.add_argument("--about", type=pathlib.Path, default=HERE / "about.html.in")
     ap.add_argument("--pin-url", help="bundle URL the bootstrap must already carry")
     ap.add_argument("--pin-sha", help="bundle sha256 the bootstrap must already carry")
     ap.add_argument("-o", "--out", type=pathlib.Path, required=True,
@@ -70,8 +71,12 @@ def main() -> None:
             sys.exit(f"template has no {token} to stamp")
         page = page.replace(token, value)
 
+    # Served to anything arriving over HTTPS, which the device never does.
+    about = args.about.read_text().replace("__VERSION__", args.version)
+
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "index.html").write_text(page)
+    (args.out / "about.html").write_text(about)
     shutil.copyfile(HERE / "lyra.png", args.out / "lyra.png")
     b64 = base64.b64encode(payload).decode()
     (args.out / b64_name).write_text("\n".join(b64[i:i + 76] for i in range(0, len(b64), 76)) + "\n")

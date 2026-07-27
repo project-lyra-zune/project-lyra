@@ -46,6 +46,14 @@ services:
       - traefik.http.routers.lyra-install.priority=100
       - traefik.http.routers.lyra-install.service=lyra-install-svc
       - traefik.http.services.lyra-install-svc.loadbalancer.server.port=80
+      # Reaching the same host over HTTPS gets an explainer rather than a certificate
+      # warning and a 404. No secure-headers: its HSTS would stop a normal browser ever
+      # loading the plain-HTTP installer page, which is useful when debugging.
+      - traefik.http.routers.lyra-install-tls.rule=Host("install.zune.moe")
+      - traefik.http.routers.lyra-install-tls.entrypoints=websecure
+      - traefik.http.routers.lyra-install-tls.tls=true
+      - traefik.http.routers.lyra-install-tls.tls.certresolver=le
+      - traefik.http.routers.lyra-install-tls.service=lyra-install-svc
     healthcheck:
       test:
         - CMD

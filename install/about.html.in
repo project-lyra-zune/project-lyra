@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Project Lyra</title>
+<style>
+:root { color-scheme: dark; }
+body { background: #000; color: #e8e8e8; margin: 0; padding: 40px 20px;
+       font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 34rem; margin: 0 auto; }
+img { display: block; width: 240px; max-width: 70%; height: auto; }
+.ver { color: #8a8a8a; font-size: .85rem; margin: .6rem 0 2.4rem; }
+h1 { font-size: 1.35rem; line-height: 1.35; font-weight: 600; margin: 0 0 1rem; }
+h2 { font-size: .8rem; letter-spacing: .09em; text-transform: uppercase;
+     color: #8a8a8a; font-weight: 600; margin: 2.6rem 0 .8rem; }
+p { margin: 0 0 1rem; }
+code { background: #1a1a1a; border: 1px solid #2c2c2c; border-radius: 3px;
+       padding: .1em .4em; font-size: .9em; }
+ol { margin: 0; padding-left: 1.3rem; }
+li { margin-bottom: .5rem; }
+a { color: #e8639b; }
+a:hover { color: #f0a04a; }
+footer { margin-top: 3rem; padding-top: 1.4rem; border-top: 1px solid #232323;
+         color: #6f6f6f; font-size: .85rem; }
+footer a { margin-right: 1.2rem; white-space: nowrap; }
+</style>
+</head>
+<body>
+<main>
+  <img src="lyra.png" width="280" height="85" alt="Project Lyra">
+  <p class="ver">__VERSION__ &middot; Zune HD firmware 4.5</p>
+
+  <h1>This address installs Project Lyra onto a Zune HD, from the Zune's own browser.</h1>
+  <p>You are reading this on an ordinary browser, so there is nothing here for you to run.</p>
+
+  <h2>To install</h2>
+  <ol>
+    <li>Put the Zune HD on Wi-Fi.</li>
+    <li>Open its browser and go to <code>install.zune.moe</code>.</li>
+    <li>Tap <strong>Install</strong> and leave it alone until it restarts itself.</li>
+  </ol>
+
+  <h2>What Lyra is</h2>
+  <p>A homebrew platform for the Zune HD. It adds a Mods tab to the home screen and a
+  repository the device installs mods from over Wi-Fi, and it survives reboots. Nothing
+  you already have on the device is touched, and it can be removed from the Mods tab.</p>
+
+  <h2>Why this page is not the installer</h2>
+  <p>The Zune HD shipped in 2009 and its browser cannot complete a handshake with any
+  current TLS server, so the installer is served over plain HTTP where only the device
+  will look for it. What the device downloads is checked against a digest built into the
+  installer, so the transport does not have to be trusted. Everything after the first
+  boot uses TLS.</p>
+
+  <footer>
+    <a href="https://wiki.zune.moe/getting-started/install/">Install guide</a>
+    <a href="https://wiki.zune.moe/">Wiki</a>
+    <a href="https://github.com/project-lyra-zune/project-lyra">Source</a>
+  </footer>
+</main>
+</body>
+</html>
