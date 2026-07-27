@@ -1,0 +1,190 @@
+<meta http-equiv="X-UA-Compatible" content="IE=8">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>Install Project Lyra</title>
+
+<style type="text/css">
+body { background: #000; color: #fff; font-family: Verdana, sans-serif;
+       margin: 0; padding: 16px; }
+#app { width: 100%; max-width: 420px; }
+#logo { display: block; border: 0; margin-bottom: 6px; }
+#ver { font-size: 12px; color: #9a9a9a; margin: 0 0 20px 0; }
+#go { display: block; width: 100%; height: 56px; font-size: 20px; font-weight: bold;
+      color: #000; background: #f0f0f0; border: 2px solid #fff; margin-bottom: 16px; }
+#go.off { color: #6a6a6a; background: #2a2a2a; border-color: #4a4a4a; }
+#msg { font-size: 14px; line-height: 1.5em; min-height: 6em; }
+#note { font-size: 11px; color: #8a8a8a; margin-top: 20px; line-height: 1.45em; }
+#log { font-size: 10px; color: #4ad24a; margin-top: 18px; word-wrap: break-word; }
+</style>
+
+<div id="app">
+  <!-- No alpha: this engine renders PNG transparency as grey. -->
+  <img id="logo" src="lyra.png" width="280" height="85" alt="Project Lyra">
+  <div id="ver">__VERSION__ &nbsp;&middot;&nbsp; Zune HD firmware 4.5</div>
+  <button id="go" onclick="start()">Install</button>
+  <div id="msg">Tap Install. Keep the Zune awake and on Wi-Fi until it restarts by itself.</div>
+  <div id="note">
+    This replaces nothing you own: your music, videos and settings are left alone.
+    To remove Lyra later, open the Mods tab and remove Project Lyra.
+  </div>
+  <div id="log"></div>
+</div>
+
+<script type="text/javascript">
+__CHAIN__
+</script>
+
+<script type="text/javascript">
+
+/* stub.S. The image follows it as a little-endian count, then that many bytes. */
+var STUB = __STUB_BYTES__;
+
+var IMAGE_URL   = "__IMAGE_URL__";
+var IMAGE_BYTES = __IMAGE_BYTES__;   /* count + payload + any pad, as transferred */
+
+var DEBUG = (window.location.search + "").indexOf("debug") >= 0;
+
+var busy = false;
+var cached = null;
+
+function el(id) { return document.getElementById(id); }
+function say(html) { el("msg").innerHTML = html; }
+function dbg(s) { if (DEBUG) { el("log").innerHTML += s + "<br>"; } }
+
+function arm(on) {
+    var b = el("go");
+    b.disabled = !on;
+    b.className = on ? "" : "off";
+    busy = !on;
+}
+
+/* Low byte first, matching how the chain lays bytes into a string. Chunked: one
+   fromCharCode.apply over 27 K units exceeds the argument limit. */
+var B64_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+var B64_MAP = null;
+
+function b64ToString(text) {
+    if (!B64_MAP) {
+        B64_MAP = {};
+        for (var k = 0; k < B64_ALPHABET.length; k++) {
+            B64_MAP["" + B64_ALPHABET.charAt(k)] = k;
+        }
+    }
+
+    var pieces = [], chunk = [];
+    var acc = 0, nbits = 0, carry = -1, nbytes = 0;
+
+    for (var i = 0; i < text.length; i++) {
+        var c = text.charAt(i);
+        if (c === "=") { break; }
+        var v = B64_MAP[c];
+        if (v === undefined) { continue; }
+        acc = (acc << 6) | v;
+        nbits += 6;
+        if (nbits < 8) { continue; }
+        nbits -= 8;
+        var b = (acc >> nbits) & 0xFF;
+        nbytes++;
+        if (carry < 0) {
+            carry = b;
+        } else {
+            chunk[chunk.length] = carry | (b << 8);
+            carry = -1;
+            if (chunk.length >= 4096) {
+                pieces[pieces.length] = String.fromCharCode.apply(null, chunk);
+                chunk = [];
+            }
+        }
+    }
+    if (carry >= 0) { chunk[chunk.length] = carry; nbytes++; }
+    if (chunk.length > 0) { pieces[pieces.length] = String.fromCharCode.apply(null, chunk); }
+
+    return { text: pieces.join(""), bytes: nbytes };
+}
+
+function stubString() {
+    var units = [];
+    for (var i = 0; i + 1 < STUB.length; i += 2) {
+        units[units.length] = STUB[i] | (STUB[i + 1] << 8);
+    }
+    return String.fromCharCode.apply(null, units);
+}
+
+function fail(what) {
+    say(what + "<br><br>Tap Install to try again.");
+    arm(true);
+}
+
+function start() {
+    if (busy) { return; }
+    arm(false);
+
+    if (cached) {
+        say("Installing. Your Zune will restart by itself in a minute or two.");
+        window.setTimeout(fire, 120);
+        return;
+    }
+
+    say("Downloading Project Lyra...");
+    window.setTimeout(download, 60);
+}
+
+function download() {
+    var xhr;
+    try {
+        xhr = new ActiveXObject("Microsoft.XMLHTTP");
+    } catch (e) {
+        fail("This browser cannot download the installer.");
+        return;
+    }
+
+    xhr.onreadystatechange = function () {
+        if (xhr.readyState !== 4) { return; }
+        var status = 0;
+        try { status = xhr.status; } catch (e) { status = 0; }
+        if (status !== 200) {
+            fail("Download failed (" + status + "). Check the Zune is on Wi-Fi.");
+            return;
+        }
+        var body = xhr.responseText;
+        dbg("got " + body.length + " b64 chars");
+        say("Preparing...");
+        window.setTimeout(function () { prepare(body); }, 60);
+    };
+
+    try {
+        xhr.open("GET", IMAGE_URL, true);
+        xhr.send();
+    } catch (e) {
+        fail("Could not reach the server.");
+    }
+}
+
+function prepare(body) {
+    var got = b64ToString(body);
+    dbg("decoded " + got.bytes + " bytes, want " + IMAGE_BYTES);
+
+    if (got.bytes !== IMAGE_BYTES) {
+        fail("The download was incomplete (" + got.bytes + " of " + IMAGE_BYTES + " bytes).");
+        return;
+    }
+
+    cached = stubString() + got.text;
+    dbg("shellcode " + cached.length + " units");
+
+    say("Installing. Your Zune will restart by itself in a minute or two.<br><br>Do not turn it off.");
+    window.setTimeout(fire, 120);
+}
+
+function fire() {
+    var stage = null;
+    try {
+        stage = LyraChain.run(cached, dbg);
+    } catch (e) {
+        stage = "error";
+        dbg("threw: " + e.message);
+    }
+    /* Reached only on failure: success exits this thread inside run(). */
+    fail("That attempt did not take (" + stage + "). This is normal and harmless.");
+}
+
+</script>

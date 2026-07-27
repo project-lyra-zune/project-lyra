@@ -38,6 +38,14 @@ services:
       - traefik.http.routers.lyra-repo.middlewares=secure-headers@docker
       - traefik.http.routers.lyra-repo.service=lyra-repo-svc
       - traefik.http.services.lyra-repo-svc.loadbalancer.server.port=80
+      # install.zune.moe must stay reachable over plain HTTP and must not be redirected
+      # to HTTPS: this firmware cannot complete a modern TLS handshake. No
+      # secure-headers here either, since HSTS would defeat that.
+      - traefik.http.routers.lyra-install.rule=Host("install.zune.moe")
+      - traefik.http.routers.lyra-install.entrypoints=web
+      - traefik.http.routers.lyra-install.priority=100
+      - traefik.http.routers.lyra-install.service=lyra-install-svc
+      - traefik.http.services.lyra-install-svc.loadbalancer.server.port=80
     healthcheck:
       test:
         - CMD
