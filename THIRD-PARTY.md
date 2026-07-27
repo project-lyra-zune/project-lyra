@@ -46,8 +46,11 @@ CodePug` line is kept in `nativeapp/xutility.h`.
 ### CVE-2019-1367
 <https://googleprojectzero.github.io/0days-in-the-wild//0day-RCAs/2019/CVE-2019-1367.html>
 
-The jscript engine vulnerability behind zuneslayer's browser entrypoint. Referenced
-for lineage only; the chain itself lives in zuneslayer.
+The jscript engine vulnerability behind zuneslayer's browser entrypoint. A derived copy
+of CUB3D's chain is vendored here as [`install/chain.js`](install/chain.js), for the browser install at install.zune.moe. The exploit is CUB3D's and is
+kept verbatim; what changed is the entry point, which takes the shellcode as an argument
+and reports progress through a callback rather than tracing into a page-scoped div. The
+stage-1 stub it is handed ([`install/stub/stub.S`](install/stub/stub.S)) is Lyra's own.
 
 ## Vendored components (kept in-tree, under their own licenses)
 
@@ -57,6 +60,7 @@ for lineage only; the chain itself lives in zuneslayer.
 | **Khronos EGL/GLES2 headers** | `nativeapp/khronos/` | MIT (Khronos Group) | in each header |
 | **CodePug Zune Web Server** | `nativeapp/xutility.h` | BSD 2-Clause (CodePug) | `nativeapp/CodePug-LICENSE.txt` |
 | **XNA exploiter** (NativeAppLauncher) | `src/exploiter/` | Public domain / CC0 (itsnotabigtruck) | banner in each `.cs` |
+| **CVE-2019-1367 chain** (browser install) | `install/chain.js` | (CUB3D) | header in the file |
 
 `nativeapp/protocol/msg.pb.*` and `msg.proto` are Lyra's own protobuf schema and its
 nanopb-generated output, not part of nanopb.
