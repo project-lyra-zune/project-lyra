@@ -1,8 +1,7 @@
-/* repo_ceio.c: a zlib_filefunc64 over the Windows CE file API, replacing
- * minizip's desktop-only iowin32.c. Drives unzip.c with wide paths + 64-bit seek. */
+/* zlib_filefunc64 over the CE file API, replacing minizip's iowin32.c. */
 #include <windows.h>
 #include "ioapi.h"
-#include "repo_ceio.h"
+#include "zmod_io.h"
 
 static voidpf ZCALLBACK ce_open64(voidpf opaque, const void *filename, int mode) {
     DWORD access = GENERIC_READ, share = FILE_SHARE_READ, disp = OPEN_EXISTING;

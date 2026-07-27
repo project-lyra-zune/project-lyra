@@ -1,6 +1,5 @@
-/* repo_ceio.h: CE replacement for minizip's fill_win32_filefunc64W. */
-#ifndef REPO_CEIO_H
-#define REPO_CEIO_H
+#ifndef ZMOD_IO_H
+#define ZMOD_IO_H
 
 #include "ioapi.h"
 
@@ -14,4 +13,4 @@ void fill_ce_filefunc64W(zlib_filefunc64_def *p);
 }
 #endif
 
-#endif /* REPO_CEIO_H */
+#endif /* ZMOD_IO_H */

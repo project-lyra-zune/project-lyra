@@ -13,10 +13,11 @@
 #include "repo_ipc.h"
 #include "repo_feed.h"
 #include "unzip.h"
-#include "repo_ceio.h"
 #include "enabled_set.h"
-#include <wolfssl/wolfcrypt/settings.h>
-#include <wolfssl/wolfcrypt/sha256.h>
+#include "lyra_platform.h"
+#include "zmod_extract.h"
+#include "zmod_io.h"
+#include "zmod_sha256.h"
 
 /* The pinned official platform channel: the authority for the Lyra update remedy
    (version + provides), fetched here regardless of any feed a user might later
@@ -96,76 +97,6 @@ static void do_feed(RepoBlock* blk) {
               "feed %s%s -> OK http=200 rows=%d%s (connect=%dms tls=%dms recv=%dms %luB)",
               REPO_HOST, REPO_FEED_PATH, n, trunc ? " TRUNCATED" : "", ct, tl, rc, blen);
     line[sizeof(line) - 1] = 0; L(line);
-}
-
-static int sha256_file(const wchar_t* path, char* hex_out) {
-    HANDLE h = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, NULL,
-                           OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-    if (h == INVALID_HANDLE_VALUE) return 0;
-    wc_Sha256 s; wc_InitSha256(&s);
-    static BYTE buf[16384]; DWORD n;
-    while (ReadFile(h, buf, sizeof(buf), &n, NULL) && n > 0) wc_Sha256Update(&s, buf, n);
-    CloseHandle(h);
-    BYTE dig[32]; wc_Sha256Final(&s, dig);
-    static const char* HX = "0123456789abcdef";
-    for (int i = 0; i < 32; i++) { hex_out[i * 2] = HX[dig[i] >> 4]; hex_out[i * 2 + 1] = HX[dig[i] & 0xf]; }
-    hex_out[64] = 0;
-    return 1;
-}
-
-static void mkdirs_parents(const wchar_t* full) {
-    wchar_t tmp[MAX_PATH]; wcsncpy(tmp, full, MAX_PATH - 1); tmp[MAX_PATH - 1] = 0;
-    for (wchar_t* p = tmp + 1; *p; p++) {
-        if (*p == L'\\') { *p = 0; CreateDirectoryW(tmp, NULL); *p = L'\\'; }
-    }
-}
-
-static int extract_zmod(const wchar_t* zmod, const wchar_t* dest) {
-    zlib_filefunc64_def ff; fill_ce_filefunc64W(&ff);
-    unzFile uf = unzOpen2_64((const void*)zmod, &ff);
-    if (!uf) { L("unpack: unzOpen2_64 NULL"); return 0; }
-    int rc = unzGoToFirstFile(uf);
-    if (rc != UNZ_OK) { L("unpack: firstfile rc=%ld", rc); unzClose(uf); return 0; }
-
-    int ok = 1;
-    do {
-        char name[512]; unz_file_info64 info;
-        int gi = unzGetCurrentFileInfo64(uf, &info, name, sizeof(name), NULL, 0, NULL, 0);
-        if (gi != UNZ_OK) { L("unpack: getinfo rc=%ld", gi); ok = 0; break; }
-
-        wchar_t out[MAX_PATH]; int o = 0;
-        for (int i = 0; dest[i] && o < MAX_PATH - 2; i++) out[o++] = dest[i];
-        out[o++] = L'\\';
-        for (int i = 0; name[i] && o < MAX_PATH - 1; i++)
-            out[o++] = (name[i] == '/') ? L'\\' : (wchar_t)(unsigned char)name[i];
-        out[o] = 0;
-
-        if (o > 0 && out[o - 1] == L'\\') { mkdirs_parents(out); CreateDirectoryW(out, NULL); continue; }
-        mkdirs_parents(out);
-
-        int oc = unzOpenCurrentFile(uf);
-        if (oc != UNZ_OK) { L("unpack: opencur rc=%ld", oc); ok = 0; break; }
-        HANDLE hf = CreateFileW(out, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-        if (hf == INVALID_HANDLE_VALUE && GetLastError() == ERROR_SHARING_VIOLATION) {
-            /* The target is in use, i.e. a mod's boot-spawned daemon binary being
-             * updated live. Rename it aside so the new bytes land now; the running
-             * image keeps its old file until the next boot spawns the fresh one. */
-            wchar_t oldp[MAX_PATH]; int k = 0;
-            for (; out[k] && k < MAX_PATH - 5; k++) oldp[k] = out[k];
-            oldp[k] = L'.'; oldp[k+1] = L'o'; oldp[k+2] = L'l'; oldp[k+3] = L'd'; oldp[k+4] = 0;
-            DeleteFileW(oldp);
-            MoveFileW(out, oldp);
-            hf = CreateFileW(out, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-        }
-        if (hf == INVALID_HANDLE_VALUE) { L("unpack: createfile err=%ld", (long)GetLastError()); unzCloseCurrentFile(uf); ok = 0; break; }
-        static BYTE buf[16384]; int r; DWORD w;
-        while ((r = unzReadCurrentFile(uf, buf, sizeof(buf))) > 0) WriteFile(hf, buf, r, &w, NULL);
-        CloseHandle(hf); unzCloseCurrentFile(uf);
-        if (r < 0) { L("unpack: read rc=%ld", r); ok = 0; break; }
-    } while (unzGoToNextFile(uf) == UNZ_OK);
-
-    unzClose(uf);
-    return ok;
 }
 
 #define REPO_PERSIST_MAX  8
@@ -299,7 +230,7 @@ static void do_install_one(RepoBlock* blk, HANDLE done) {
 
     blk->install_status = REPO_INSTALL_VERIFYING; SetEvent(done);
     char hex[REPO_SHA_LEN];
-    if (!sha256_file(TMP_ZMOD, hex) || _stricmp(hex, row->sha256) != 0) {
+    if (!zmod_sha256_file(TMP_ZMOD, hex) || !zmod_sha256_hex_equal(hex, row->sha256)) {
         DeleteFileW(TMP_ZMOD); blk->status = 2; blk->install_status = REPO_INSTALL_ERROR;
         L("install: sha256 mismatch"); return;
     }
@@ -310,11 +241,15 @@ static void do_install_one(RepoBlock* blk, HANDLE done) {
         /* Platform bundle: extract into the automation root itself - the zip paths
          * are the real relative device paths (binaries at top, platform mods under
          * platform\<id>\, lyra.json marker). No wipe_except: the root holds other mods,
-         * logs, and state. extract_zmod renames the in-use zuxhook.dll/nativeapp.exe/
+         * logs, and state. zmod_extract renames the in-use zuxhook.dll/nativeapp.exe/
          * reposd.exe aside; the boot .old sweep clears them. Takes effect on reboot. */
-        if (!extract_zmod(TMP_ZMOD, AUTOMATION_DIR)) {
+        static const char* const defer_last[] = LYRA_INSTALL_DEFER_LAST;
+        zmod_error ze;
+        if (!zmod_extract(TMP_ZMOD, AUTOMATION_DIR, defer_last,
+                          LYRA_INSTALL_DEFER_LAST_COUNT, &ze)) {
             DeleteFileW(TMP_ZMOD); blk->status = 3; blk->install_status = REPO_INSTALL_ERROR;
-            L("install: platform unpack fail"); return;
+            L("install: platform unpack fail stage=%d rc=%ld entry=%s", ze.stage, ze.rc, ze.entry);
+            return;
         }
         DeleteFileW(TMP_ZMOD);
         blk->status = 0; blk->install_status = REPO_INSTALL_DONE;
@@ -333,10 +268,12 @@ static void do_install_one(RepoBlock* blk, HANDLE done) {
       if (read_zmod_manifest(TMP_ZMOD, mjson, sizeof(mjson))) parse_persistent(mjson, globs, REPO_PERSIST_MAX, &ng);
       wipe_except(dest, (int)wcslen(dest), globs, ng); }
     CreateDirectoryW(MODS_DIR, NULL); CreateDirectoryW(dest, NULL);
-    if (!extract_zmod(TMP_ZMOD, dest)) {
-        DeleteFileW(TMP_ZMOD); blk->status = 3; blk->install_status = REPO_INSTALL_ERROR;
-        L("install: unpack fail"); return;
-    }
+    { zmod_error ze;
+      if (!zmod_extract(TMP_ZMOD, dest, NULL, 0, &ze)) {
+          DeleteFileW(TMP_ZMOD); blk->status = 3; blk->install_status = REPO_INSTALL_ERROR;
+          L("install: unpack fail stage=%d rc=%ld entry=%s", ze.stage, ze.rc, ze.entry);
+          return;
+      } }
     DeleteFileW(TMP_ZMOD);
 
     blk->install_status = REPO_INSTALL_ENABLING; SetEvent(done);

@@ -15,6 +15,7 @@
 #include <windows.h>
 #include <string.h>
 #include "mod_scanner.h"
+#include "lyra_platform.h"
 #include "mods_arena.h"
 #include "mods_json.h"
 #include "mods_manifest.h"   /* ModSet */
@@ -668,8 +669,8 @@ void ModScanSweepPlatformOld(void) {
 }
 
 #define UNINSTALL_MARKER_PATH  L"\\flash2\\automation\\uninstall.pending"
-#define ZUXHOOK_PATH           L"\\flash2\\automation\\zuxhook.dll"
-#define ZUXHOOK_OLD_PATH       L"\\flash2\\automation\\zuxhook.dll.old"
+#define ZUXHOOK_PATH           L"\\flash2\\automation\\" LYRA_LOADER_NAME_W
+#define ZUXHOOK_OLD_PATH       L"\\flash2\\automation\\" LYRA_LOADER_NAME_W L".old"
 
 int ModScanUninstallArmed(void) {
     return GetFileAttributesW(UNINSTALL_MARKER_PATH) != INVALID_FILE_ATTRIBUTES ? 1 : 0;
@@ -712,7 +713,7 @@ void ModScanUninstall(void) {
             if (fd.cFileName[0] == L'.' &&
                 (fd.cFileName[1] == 0 ||
                  (fd.cFileName[1] == L'.' && fd.cFileName[2] == 0))) continue;
-            if (wide_eq_ascii(fd.cFileName, "zuxhook.dll")) continue;
+            if (wide_eq_ascii(fd.cFileName, LYRA_LOADER_NAME)) continue;
             if (wide_eq_ascii(fd.cFileName, "uninstall.pending")) continue;
             _snwprintf(child, MAX_PATH - 1, L"%s\\%s", AUTOMATION_ROOT_PATH, fd.cFileName);
             child[MAX_PATH - 1] = 0;

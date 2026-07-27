@@ -5,7 +5,7 @@
 	path = wiki
 	url = https://github.com/project-lyra-zune/lyra-wiki.git
 [submodule "src/zlib"]
-	path = lyra/platform/mods-tab/src/reposd/deps/zlib
+	path = src/zlib
 	url = https://github.com/madler/zlib.git
 [submodule "src/ce-common/deps/wolfssl"]
 	path = src/ce-common/deps/wolfssl

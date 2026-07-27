@@ -6,14 +6,14 @@
 # (standard ZIP) extraction.
 
 # This rich mod lives under lyra/platform/mods-tab/src/reposd; the platform + shared
-# libs (ce-common) and the platform-owned enabled.json codec live in the tree's
-# top-level src/, five levels up. zlib is reposd's own vendored dep under deps/ (only
-# reposd uses it), mirroring ce-common/deps/wolfssl.
+# libs (ce-common, zmod, zlib) and the platform-owned enabled.json codec live in the
+# tree's top-level src/, five levels up.
 SRC       = ..\..\..\..\..\src
 CEC       = $(SRC)\ce-common
 HTTPS_DIR = $(CEC)\src\ce_https
-ZLIB      = deps\zlib
-MZ        = deps\zlib\contrib\minizip
+ZLIB      = $(SRC)\zlib
+MZ        = $(SRC)\zlib\contrib\minizip
+ZMOD      = $(SRC)\zmod
 MR        = $(SRC)\mod-runtime
 OUT_DIR   = out
 OBJ_DIR   = $(OUT_DIR)\obj
@@ -37,19 +37,17 @@ WOLF_CFLAGS = $(CE_CFLAGS) \
 	/I"$(ZLIB)" \
 	/I"$(MZ)" \
 	/I"$(MR)" \
-	/I"ceshim" \
+	/I"$(ZMOD)" \
+	/I"$(ZMOD)\ceshim" \
 	/I"."
 
 # zlib/minizip CE flags. ce_extras.h supplies the CE/MSVC compat shims
 # (inline/restrict/strdup); ceshim supplies <sys/types.h>. USE_FILE32API maps
 # ftello64/fseeko64 to 32-bit ftell/fseek (CE lacks _ftelli64/_fseeki64).
-# USE_FILE32API maps minizip's ftello64/fseeko64 to 32-bit ftell/fseek (CE lacks
-# _ftelli64/_fseeki64). reposd's packages are far under 2 GB, so 32-bit is fine,
-# and the fopen path is dead anyway (reposd uses its own CE filefunc).
 ZLIB_CFLAGS = $(CE_CFLAGS) \
 	/DNO_FSEEKO /DZLIB_CONST /DSTDC /DUSE_FILE32API \
-	/FI"ce_extras.h" /I"ceshim" \
-	/I"$(ZLIB)" /I"$(MZ)" \
+	/FI"ce_extras.h" /I"$(ZMOD)\ceshim" \
+	/I"$(ZLIB)" /I"$(MZ)" /I"$(ZMOD)" /I"$(MR)" \
 	/wd4244 /wd4267 /wd4127 /wd4146
 
 LIBS = \
@@ -64,7 +62,9 @@ ALL_OBJS = \
 	$(OBJ_DIR)\ce_ca_bundle.obj \
 	$(OBJ_DIR)\unzip.obj \
 	$(OBJ_DIR)\ioapi.obj \
-	$(OBJ_DIR)\repo_ceio.obj \
+	$(OBJ_DIR)\zmod_io.obj \
+	$(OBJ_DIR)\zmod_extract.obj \
+	$(OBJ_DIR)\zmod_sha256.obj \
 	$(OBJ_DIR)\enabled_set.obj \
 	$(OBJ_DIR)\mods_json.obj \
 	$(OBJ_DIR)\mods_arena.obj \
@@ -112,8 +112,16 @@ $(OBJ_DIR)\unzip.obj: $(MZ)\unzip.c
 $(OBJ_DIR)\ioapi.obj: $(MZ)\ioapi.c
 	$(CC) $(ZLIB_CFLAGS) /Fo"$(OBJ_DIR)\ioapi.obj" /c $(MZ)\ioapi.c
 
-$(OBJ_DIR)\repo_ceio.obj: repo_ceio.c repo_ceio.h
-	$(CC) $(ZLIB_CFLAGS) /Fo"$(OBJ_DIR)\repo_ceio.obj" /c repo_ceio.c
+# The shared .zmod unpack + integrity library, linked by every installer of a
+# platform bundle (reposd here, lyraboot for the browser install).
+$(OBJ_DIR)\zmod_io.obj: $(ZMOD)\zmod_io.c $(ZMOD)\zmod_io.h
+	$(CC) $(ZLIB_CFLAGS) /Fo"$(OBJ_DIR)\zmod_io.obj" /c $(ZMOD)\zmod_io.c
+
+$(OBJ_DIR)\zmod_extract.obj: $(ZMOD)\zmod_extract.c $(ZMOD)\zmod_extract.h
+	$(CC) $(ZLIB_CFLAGS) /Fo"$(OBJ_DIR)\zmod_extract.obj" /c $(ZMOD)\zmod_extract.c
+
+$(OBJ_DIR)\zmod_sha256.obj: $(ZMOD)\zmod_sha256.c $(ZMOD)\zmod_sha256.h
+	$(CC) $(CE_CFLAGS) /I"$(ZMOD)" /Fo"$(OBJ_DIR)\zmod_sha256.obj" /c $(ZMOD)\zmod_sha256.c
 
 # The canonical enabled.json codec (mod-runtime), shared with zuxhook.dll.
 # Self-contained (windows.h + CRT only), so it needs no ce/wolf/zlib flags.
