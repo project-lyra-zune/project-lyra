@@ -4,7 +4,7 @@
   "version": "1.3.1",
   "author": "Project Lyra",
   "category": "Platform",
-  "description": "The Lyra platform: the mod manager UI, zuxhook, nativeapp daemon, and its component mods (mods-tab, wifi-power, clock-date) all wrapped in a pretty bow.",
+  "description": "A persistent jailbreak and modding platform for the Zune HD: the mod manager UI, zuxhook, nativeapp daemon, and its component mods (mods-tab, wifi-power, clock-date) all wrapped in a pretty bow.",
   "changelog": "Installing or updating the platform now writes the loader last, so an update interrupted partway leaves a device that still boots. Groundwork for installing Lyra from the Zune's own browser, with no PC. Fixes the Mods tab and its settings page showing the wrong names on their tabs when another mod adds a menu string.",
   "platform_files": ["zuxhook.dll", "nativeapp.exe"]
 }

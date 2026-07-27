@@ -42,16 +42,15 @@ footer a { margin-right: 1.2rem; white-space: nowrap; }
   </ol>
 
   <h2>What Lyra is</h2>
-  <p>A homebrew platform for the Zune HD. It adds a Mods tab to the home screen and a
+  <p>A persistent jailbreak and modding platform for the Zune HD. It adds a Mods tab to the home screen and a
   repository the device installs mods from over Wi-Fi, and it survives reboots. Nothing
   you already have on the device is touched, and it can be removed from the Mods tab.</p>
 
-  <h2>Why this page is not the installer</h2>
-  <p>The Zune HD shipped in 2009 and its browser cannot complete a handshake with any
-  current TLS server, so the installer is served over plain HTTP where only the device
-  will look for it. What the device downloads is checked against a digest built into the
-  installer, so the transport does not have to be trusted. Everything after the first
-  boot uses TLS.</p>
+  <h2>Disclaimer</h2>
+  <p>Installing Lyra changes how the device behaves and allows arbitrary third party code
+  to run. While Lyra has measures to disable mods which prevent successful booting, there
+  is always a chance that the device may be unable to start and require restoring to a
+  fresh state, losing your existing data. You do this at your own risk.</p>
 
   <footer>
     <a href="https://wiki.zune.moe/getting-started/install/">Install guide</a>

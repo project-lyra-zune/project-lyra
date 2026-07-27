@@ -7,7 +7,8 @@ body { background: #000; color: #fff; font-family: Verdana, sans-serif;
        margin: 0; padding: 16px; }
 #app { width: 100%; max-width: 420px; }
 #logo { display: block; border: 0; margin-bottom: 6px; }
-#ver { font-size: 12px; color: #9a9a9a; margin: 0 0 20px 0; }
+#ver { font-size: 12px; color: #9a9a9a; margin: 0 0 10px 0; }
+#what { font-size: 13px; color: #cfcfcf; margin: 0 0 18px 0; line-height: 1.45em; }
 #go { display: block; width: 100%; height: 56px; font-size: 20px; font-weight: bold;
       color: #000; background: #f0f0f0; border: 2px solid #fff; margin-bottom: 16px; }
 #go.off { color: #6a6a6a; background: #2a2a2a; border-color: #4a4a4a; }
@@ -20,11 +21,17 @@ body { background: #000; color: #fff; font-family: Verdana, sans-serif;
   <!-- No alpha: this engine renders PNG transparency as grey. -->
   <img id="logo" src="lyra.png" width="280" height="85" alt="Project Lyra">
   <div id="ver">__VERSION__ &nbsp;&middot;&nbsp; Zune HD firmware 4.5</div>
+  <div id="what">A persistent jailbreak and modding platform for the Zune HD.</div>
   <button id="go" onclick="start()">Install</button>
   <div id="msg">Tap Install. Keep the Zune awake and on Wi-Fi until it restarts by itself.</div>
   <div id="note">
-    This replaces nothing you own: your music, videos and settings are left alone.
+    Your music, videos and settings are left alone.
     To remove Lyra later, open the Mods tab and remove Project Lyra.
+    <br><br>
+    Installing Lyra changes how the device behaves and allows arbitrary third party code
+    to run. While Lyra has measures to disable mods which prevent successful booting,
+    there is always a chance that the device may be unable to start and require restoring
+    to a fresh state, losing your existing data. You do this at your own risk.
   </div>
   <div id="log"></div>
 </div>
@@ -119,7 +126,7 @@ function start() {
     arm(false);
 
     if (cached) {
-        say("Installing. Your Zune will restart by itself in a minute or two.");
+        say("Installing. Your device will restart in a moment.");
         window.setTimeout(fire, 120);
         return;
     }
@@ -171,7 +178,7 @@ function prepare(body) {
     cached = stubString() + got.text;
     dbg("shellcode " + cached.length + " units");
 
-    say("Installing. Your Zune will restart by itself in a minute or two.<br><br>Do not turn it off.");
+    say("Installing. Your device will restart in a moment.<br><br>Do not turn it off.");
     window.setTimeout(fire, 120);
 }
 
