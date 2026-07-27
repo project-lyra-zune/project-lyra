@@ -31,7 +31,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from modkit.classblob import ClassBlobBuilder, Fixup, FixupKind
+from modkit.classblob import BackRef, ClassBlobBuilder, Fixup, FixupKind
 from modkit.classblob_apply import apply_fixups
 from modkit.firmware_v45_abi import EXTERNS, lookup as resolve_extern
 
@@ -89,14 +89,16 @@ MGR_OFF_UPDATES_LABEL_ID   = 0x50
 SET_OFF_SYSTEM_LABEL_ID    = 0x48
 SET_OFF_MODS_LABEL_ID      = 0x4c
 
+# Ships in the firmware's own table, unlike the labels this mod appends.
+NATIVE_UPDATES_LABEL_ID = 263
+
 
 def _ext(symbol: str) -> tuple[str, str]:
     """Shorthand for an extern_module fixup against zuxhook.dll."""
     return (ZUXHOOK_MODULE_NAME, symbol)
 
 
-def build_manager_blob(installed_label_id: int, archived_label_id: int,
-                       updates_label_id: int):
+def build_manager_blob():
     """GemModManager: outer shell. Instance layout uses GemModHub's
     device-validated shape (breadcrumb at +0x08 so XuiScene base
     tail-call gives us back-nav; class-private state past +0x28 so
@@ -104,9 +106,9 @@ def build_manager_blob(installed_label_id: int, archived_label_id: int,
     b = ClassBlobBuilder("GemModManager", instance_size=0x58)
     b.add_factory(ctor_label="ctor")
     b.add_ctor(extra_init={
-        MGR_OFF_INSTALLED_LABEL_ID: installed_label_id,
-        MGR_OFF_ARCHIVED_LABEL_ID:  archived_label_id,
-        MGR_OFF_UPDATES_LABEL_ID:   updates_label_id,
+        MGR_OFF_INSTALLED_LABEL_ID: BackRef("installed_label"),
+        MGR_OFF_ARCHIVED_LABEL_ID:  BackRef("archived_label"),
+        MGR_OFF_UPDATES_LABEL_ID:   NATIVE_UPDATES_LABEL_ID,
     })
     b.add_vtable(on_message=_ext("GemModManager_OnMessage"),
                   on_init=_ext("GemModManager_OnInit"),
@@ -114,15 +116,15 @@ def build_manager_blob(installed_label_id: int, archived_label_id: int,
     return b.finish()
 
 
-def build_settings_blob(system_label_id: int, mods_label_id: int):
+def build_settings_blob():
     """GemModSettings: outer shell for ModSettings.xur, reached from the hub's
     settings button. Same shape as GemModManager; the twist divides settings by
     owner (System, Mods). instance_size=0x58."""
     b = ClassBlobBuilder("GemModSettings", instance_size=0x58)
     b.add_factory(ctor_label="ctor")
     b.add_ctor(extra_init={
-        SET_OFF_SYSTEM_LABEL_ID: system_label_id,
-        SET_OFF_MODS_LABEL_ID:   mods_label_id,
+        SET_OFF_SYSTEM_LABEL_ID: BackRef("system_label"),
+        SET_OFF_MODS_LABEL_ID:   BackRef("mods_label"),
     })
     b.add_vtable(on_message=_ext("GemModSettings_OnMessage"),
                   on_init=_ext("GemModSettings_OnInit"),
@@ -218,31 +220,6 @@ def main():
                     "plant time on device; no device query needed, and "
                     "blobs do not require rebuilding after every zuxhook "
                     "rebuild.")
-    # Strings.xus IDs assigned by Phase 1's xus_add_string in manifest order.
-    # Existing claimedCount=637, so "mods" goes at 637, "installed" at 638,
-    # "archived" at 639. Override if the manifest action ordering changes.
-    # "updates" is NOT appended: the native Strings.xus already has an exact
-    # lowercase "updates" at index 263, so the updates tab reuses it.
-    ap.add_argument("--installed-label-id", type=lambda s: int(s, 0),
-                    default=638,
-                    help="Strings.xus index for the 'installed' tab label "
-                         "(default 638, per manifest action order)")
-    ap.add_argument("--archived-label-id", type=lambda s: int(s, 0),
-                    default=639,
-                    help="Strings.xus index for the 'archived' tab label "
-                         "(default 639)")
-    ap.add_argument("--updates-label-id", type=lambda s: int(s, 0),
-                    default=263,
-                    help="Strings.xus index for the 'updates' tab label "
-                         "(default 263, the native lowercase 'updates' string)")
-    ap.add_argument("--system-label-id", type=lambda s: int(s, 0),
-                    default=640,
-                    help="Strings.xus index for the settings 'system' tab label "
-                         "(default 640, appended after archived)")
-    ap.add_argument("--settings-mods-label-id", type=lambda s: int(s, 0),
-                    default=637,
-                    help="Strings.xus index for the settings 'mods' tab label "
-                         "(default 637, reusing the tab's own 'mods' string)")
     args = ap.parse_args()
 
     # Validate that zuxhook.dll exports all the symbols we'll reference.
@@ -267,10 +244,8 @@ def main():
     print(f"  all {len(required)} required exports present")
 
     print()
-    print("manager tab labels:")
-    print(f"  installed_label_id = {args.installed_label_id}")
-    print(f"  updates_label_id   = {args.updates_label_id}")
-    print(f"  archived_label_id  = {args.archived_label_id}")
+    print(f"tab labels: back-refs resolved on device; "
+          f"updates = native {NATIVE_UPDATES_LABEL_ID}")
 
     out_dir = REPO / "lyra" / "platform" / "mods-tab"
     import json
@@ -297,9 +272,7 @@ def main():
     print()
 
     # GemModManager: class.bin (outer shell)
-    mgr_blob = build_manager_blob(installed_label_id=args.installed_label_id,
-                                    archived_label_id=args.archived_label_id,
-                                    updates_label_id=args.updates_label_id)
+    mgr_blob = build_manager_blob()
     _ = apply_fixups(mgr_blob.bytes_, mgr_blob.fixups, 0x000FF000)
     mgr_blob.write(out_dir)
     print(f"wrote {out_dir / 'class.bin'} ({len(mgr_blob.bytes_)} bytes, "
@@ -326,8 +299,7 @@ def main():
     _write_named(browse_list_blob, "class_browse_list.bin", "class_browse_list.reloc.json")
 
     # GemModSettings: class_settings.bin
-    settings_blob = build_settings_blob(system_label_id=args.system_label_id,
-                                        mods_label_id=args.settings_mods_label_id)
+    settings_blob = build_settings_blob()
     _write_named(settings_blob, "class_settings.bin", "class_settings.reloc.json")
 
     # GemModSettingsContent: class_settings_content.bin

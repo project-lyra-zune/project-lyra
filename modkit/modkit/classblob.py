@@ -15,18 +15,20 @@ Each blob ships with a sidecar JSON describing:
   - factory_offset (the byte the class descriptor's +0x18 field points at)
   - the list of plant-VA-relative fixups Phase 2 must apply
 
-External symbol references (e.g. `bl <allocator>`) are pre-resolved by
-this assembler to absolute VAs and emitted as `abs`-target fixups. The
-on-device runtime never sees a symbol name, only `(at, kind, abs)` or
-`(at, kind, intern)` tuples. Re-targeting to a different firmware is
-a rebuild, not a runtime concern.
+External symbol references (e.g. `bl <allocator>`) into the firmware are
+pre-resolved by this assembler to absolute VAs and emitted as `abs`-target
+fixups, so re-targeting to a different firmware is a rebuild, not a runtime
+concern. Names reach the device only where the value cannot exist until then:
+`extern_module` (a DLL whose base moves) and `back_ref` (a value the device
+itself assigns).
 
 Fixup kinds:
   IMM8        : write low byte at `plant_va + at`; for `mov rN, #imm` etc.
   BL          : encode 24-bit signed offset into bl/b instruction at `plant_va + at`
                   target = abs (extern) or plant_va + intern (internal label)
   WORD        : write a 32-bit value at `plant_va + at`
-                  value = abs (extern) or plant_va + intern (internal label)
+                  value = abs (extern), plant_va + intern (internal label),
+                  or a back_ref resolved from the mod's scope on device
 
 Authoring a class: see `ClassBlob.builder()` (used by the per-mod build
 scripts, e.g. `build_quicksettings.py` and `build_gemmod_manager.py`).
@@ -50,10 +52,19 @@ class FixupKind(str, Enum):
 
 
 @dataclass
+class BackRef:
+    """A value the device assigns, named by an earlier action's
+    `manifest_back_reference`. Use wherever a host build would otherwise have
+    to predict one, such as a Strings.xus index."""
+    name: str
+
+
+@dataclass
 class Fixup:
     """One plant-VA-relative fixup applied by Phase 2 at register-time.
 
-    Exactly one of `abs` / `intern` / `value` / `extern_module` is set:
+    Exactly one of `abs` / `intern` / `value` / `extern_module` / `back_ref`
+    is set:
       - IMM8 uses `value` (a 0..255 literal)
       - BL / WORD use one of:
           * `abs`: absolute target VA, baked at build time (XIP gemstone)
@@ -62,6 +73,8 @@ class Fixup:
             GetProcAddress on the named module. Use for DLLs whose load
             base shifts per build (zuxhook). Eliminates the "rebuild every
             class blob after every zuxhook rebuild" tax.
+      - WORD may also use:
+          * `back_ref`: a name in the mod's scope, resolved at PLANT time.
     """
     at: int
     kind: FixupKind
@@ -69,6 +82,7 @@ class Fixup:
     intern: int | None = None
     value: int | None = None
     extern_module: tuple[str, str] | None = None
+    back_ref: str | None = None
 
     def to_json(self) -> dict:
         d: dict = {"at": self.at, "kind": self.kind.value}
@@ -79,6 +93,8 @@ class Fixup:
                 "module": self.extern_module[0],
                 "symbol": self.extern_module[1],
             }
+        elif self.back_ref is not None:
+            d["back_ref"] = self.back_ref
         elif self.abs is not None:
             d["abs"] = self.abs
         elif self.intern is not None:
@@ -285,7 +301,7 @@ def emit_factory(at: int, instance_size: int,
 # ─── Ctor template ──────────────────────────────────────────────────────
 
 def emit_ctor(at: int, instance_size: int, vtable_offset_within_blob: int,
-              extra_init: dict[int, int] | None = None,
+              extra_init: dict[int, int | str | BackRef] | None = None,
               host: str = "gemstone") -> tuple[bytes, list[Fixup]]:
     """Emit a constructor at offset `at`.
 
@@ -294,7 +310,8 @@ def emit_ctor(at: int, instance_size: int, vtable_offset_within_blob: int,
 
     extra_init maps `{instance_offset: word_value}` for slots that should
     hold non-zero constants (e.g. Settings's instance+0x18 = 0x17480).
-    `word_value` is either an int (literal) or a str (extern symbol name).
+    `word_value` is an int (literal), a str (extern symbol name), or a
+    BackRef (a value the device assigns, resolved at plant time).
 
     Returns (bytes, fixups).
     """
@@ -398,6 +415,10 @@ def emit_ctor(at: int, instance_size: int, vtable_offset_within_blob: int,
             # or str (extern name, needing a fixup)
             if isinstance(target, int):
                 pool_words[-1] = target & 0xffffffff
+            elif isinstance(target, BackRef):
+                fixups.append(Fixup(at=word_byte_offset_within_blob,
+                                     kind=FixupKind.WORD,
+                                     back_ref=target.name))
             elif isinstance(target, str):
                 fixups.append(Fixup(at=word_byte_offset_within_blob,
                                      kind=FixupKind.WORD,
@@ -480,7 +501,7 @@ class ClassBlobBuilder:
         self.fixups.extend(fx)
         self.exports["factory"] = at
 
-    def add_ctor(self, extra_init: dict[int, int] | None = None,
+    def add_ctor(self, extra_init: dict[int, int | str | BackRef] | None = None,
                   vtable_label: str = "vtable") -> None:
         at = self.cursor()
         body, fx = emit_ctor(at, self.instance_size,

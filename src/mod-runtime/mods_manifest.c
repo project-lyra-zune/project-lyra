@@ -131,6 +131,15 @@ static int scope_find(const ModsBackRefScope* s, const char* name) {
     return -1;
 }
 
+int ModScopeGet(const Mod* m, const char* name, DWORD* out) {
+    int idx;
+    if (!m || !name || !out) return -1;
+    idx = scope_find(&m->scope, name);
+    if (idx < 0) return -1;
+    *out = m->scope.refs[idx].value;
+    return 0;
+}
+
 int ModScopeSet(Mod* m, ModsArena* arena, const char* name, DWORD value) {
     int existing = scope_find(&m->scope, name);
     if (existing >= 0) {

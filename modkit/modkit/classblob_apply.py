@@ -21,10 +21,8 @@ def apply_fixups(blob: bytes | bytearray, fixups: list[Fixup],
     """
     out = bytearray(blob)
     for fx in fixups:
-        # extern_module fixups can only be resolved on-device via
-        # GetProcAddress; skip them in the host-side applier (the binary
-        # slot remains 0; the device-side fixup pass writes the real VA).
-        if fx.extern_module is not None:
+        # Resolvable only on device; the slot stays 0 for its pass to write.
+        if fx.extern_module is not None or fx.back_ref is not None:
             continue
         if fx.kind == FixupKind.IMM8:
             if fx.value is None:

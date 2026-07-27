@@ -178,6 +178,9 @@ int ModResolveTokU32(const Mod* m, int tok_idx, DWORD* out);
 /* Add or overwrite a back-ref in the mod's scope. */
 int ModScopeSet(Mod* m, ModsArena* arena, const char* name, DWORD value);
 
+/* Read a back-ref. Phase 1 values reach Phase 2 through backrefs.json. */
+int ModScopeGet(const Mod* m, const char* name, DWORD* out);
+
 #ifdef __cplusplus
 }
 #endif

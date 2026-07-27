@@ -74,7 +74,7 @@ typedef enum {
 typedef enum {
     CFX_ABS           = 0,    /* target is an absolute VA (host pre-resolved extern) */
     CFX_INTERN        = 1,    /* target is a byte offset within the planted blob */
-    CFX_VALUE         = 2,    /* target is a literal value (imm8 only) */
+    CFX_VALUE         = 2,    /* literal: an imm8, or a back_ref resolved at parse */
     CFX_EXTERN_MODULE = 3     /* resolve via GetModuleHandleW + GetProcAddress */
 } ClassFixupTargetKind;
 
@@ -150,10 +150,11 @@ static const wchar_t* arena_ascii_to_w(ModsArena* arena,
 
 /* Parse one fixup object. Returns 0 on success. Arena needed only when
    the fixup is `extern_module` (allocates wide-string copies of module
-   + symbol names). */
+   + symbol names). `mod` resolves `back_ref` fixups against its scope. */
 static int parse_one_fixup(const ModsJson* j, int obj_idx,
-                            ModsArena* arena, ClassFixup* out) {
-    int at_idx, kind_idx, abs_idx, intern_idx, value_idx, em_idx;
+                            ModsArena* arena, const Mod* mod,
+                            ClassFixup* out) {
+    int at_idx, kind_idx, abs_idx, intern_idx, value_idx, em_idx, br_idx;
     int v = 0;
 
     at_idx = ModsJsonObjectFind(j, obj_idx, "at");
@@ -174,6 +175,7 @@ static int parse_one_fixup(const ModsJson* j, int obj_idx,
     intern_idx = ModsJsonObjectFind(j, obj_idx, "intern");
     value_idx  = ModsJsonObjectFind(j, obj_idx, "value");
     em_idx     = ModsJsonObjectFind(j, obj_idx, "extern_module");
+    br_idx     = ModsJsonObjectFind(j, obj_idx, "back_ref");
 
     if (out->kind == CFX_IMM8) {
         if (value_idx < 0) return -1;
@@ -192,6 +194,20 @@ static int parse_one_fixup(const ModsJson* j, int obj_idx,
         if (!out->module_w || !out->symbol_w) return -1;
         out->target_kind = CFX_EXTERN_MODULE;
         out->target = 0;
+    } else if (br_idx >= 0) {
+        const char* name;
+        DWORD resolved = 0;
+        if (out->kind != CFX_WORD) return -1;
+        if (ModsJsonTypeOf(j, br_idx) != MODS_JSON_STRING) return -1;
+        name = ModsJsonStrdup(arena, j, br_idx);
+        if (!name) return -1;
+        if (ModScopeGet(mod, name, &resolved) < 0) {
+            ModsLogf("      back_ref: $%s not set by an earlier action", name);
+            return -1;
+        }
+        ModsLogf("      back_ref: $%s = %lu", name, (unsigned long)resolved);
+        out->target_kind = CFX_VALUE;
+        out->target = resolved;
     } else if (abs_idx >= 0) {
         if (ModsJsonInt(j, abs_idx, &v) < 0) return -1;
         out->target_kind = CFX_ABS;
@@ -209,7 +225,8 @@ static int parse_one_fixup(const ModsJson* j, int obj_idx,
 /* Parse class.reloc.json into a ClassFixup array. On success:
      *out_factory_offset = blob byte-offset of the factory entry
      *out_fixups, *out_nfixups = arena-allocated array */
-static int parse_class_reloc(ModsArena* arena, const char* src, DWORD srclen,
+static int parse_class_reloc(ModsArena* arena, const Mod* mod,
+                              const char* src, DWORD srclen,
                               int* out_factory_offset,
                               ClassFixup** out_fixups, int* out_nfixups) {
     ModsJson j;
@@ -252,7 +269,7 @@ static int parse_class_reloc(ModsArena* arena, const char* src, DWORD srclen,
             ModsLogf("      reloc parse: fixup[%d] not object", i);
             return -1;
         }
-        if (parse_one_fixup(&j, it, arena, &fxs[i]) < 0) {
+        if (parse_one_fixup(&j, it, arena, mod, &fxs[i]) < 0) {
             ModsLogf("      reloc parse: fixup[%d] malformed", i);
             return -1;
         }
@@ -277,6 +294,9 @@ static int apply_one_fixup(DWORD plant_va, const ClassFixup* fx) {
     case CFX_BL:
     case CFX_WORD:
         if (fx->target_kind == CFX_ABS) {
+            target = fx->target;
+        } else if (fx->target_kind == CFX_VALUE) {
+            if (fx->kind != CFX_WORD) return -1;
             target = fx->target;
         } else if (fx->target_kind == CFX_INTERN) {
             target = plant_va + fx->target;
@@ -370,7 +390,7 @@ static int plant_class_blob(ModAction* a, ModsArena* arena,
     if (read_blob_file(reloc_path, arena, &reloc_bytes, &reloc_len) < 0)
         return -1;
 
-    if (parse_class_reloc(arena, (const char*)reloc_bytes, reloc_len,
+    if (parse_class_reloc(arena, a->mod, (const char*)reloc_bytes, reloc_len,
                            &factory_offset, &fxs, &nfx) < 0)
         return -1;
 
