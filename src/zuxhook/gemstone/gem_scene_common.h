@@ -15,6 +15,21 @@ typedef HRESULT (*XuiElementGetDescendantByIdFn)(void* parent,
                                                   int flags);
 #define XUI_GET_DESC_BY_ID  ((XuiElementGetDescendantByIdFn)0x0006afec)
 
+typedef HRESULT (*SetLabelTextFn)(void* elem, const wchar_t* text);
+#define SET_LABEL_TEXT  ((SetLabelTextFn)0x00038434)
+typedef int (*SetShowFn)(void* elem, int show);
+#define SET_SHOW  ((SetShowFn)0x00058860)
+
+/* Guarded: a skin need not carry every element, and one it omits resolves to 0. */
+static void render_label(void* elem, const wchar_t* text) {
+    if (!elem || !text) return;
+    __try { SET_LABEL_TEXT(elem, text); } __except (EXCEPTION_EXECUTE_HANDLER) {}
+}
+
+static void show_elem(DWORD e, int on) {
+    if (e) { __try { SET_SHOW((void*)e, on ? 1 : 0); } __except (EXCEPTION_EXECUTE_HANDLER) {} }
+}
+
 /* Base XuiScene message handler (gemstone+0x653f4), the fall-through a scene
    subclass invokes for messages it does not handle itself. */
 typedef HRESULT (*MessageHandlerFn)(void* this_, void* msg);

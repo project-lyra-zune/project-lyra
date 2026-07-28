@@ -21,6 +21,16 @@ void RepoClientInstall(void);
 /* The shared block (daemon writes rows/status, UI reads). NULL if the map failed. */
 RepoBlock* RepoClientBlock(void);
 
+/* False means no daemon has ever attached, so no request will ever be answered. */
+int RepoClientDaemonPresent(void);
+
+/* Set when a feed request goes unanswered past REPO_FEED_TIMEOUT_MS, cleared by the
+   next request. The DONE callback fires once as it trips, so a waiting scene repaints. */
+int RepoClientFeedTimedOut(void);
+
+/* Retract that verdict: the answer landed after all, only late. */
+void RepoClientClearFeedTimeout(void);
+
 /* Fire-and-forget requests: bump req_seq and wake the daemon. */
 void RepoClientRequestFeed(void);
 void RepoClientRequestInstall(const char* id);

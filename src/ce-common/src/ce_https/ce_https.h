@@ -141,6 +141,11 @@ const char *ce_https_result_str(enum ce_https_result r);
  * CE_HTTPS_ERR_TLS). 0 if none. */
 int ce_https_last_tls_error(void);
 
+/* True when the most recent CE_HTTPS_ERR_CERT was the certificate's validity dates
+ * rather than the certificate itself, which on this device means the clock is wrong
+ * and not that anything is untrusted. */
+int ce_https_cert_failed_on_date(void);
+
 #ifdef __cplusplus
 }
 #endif

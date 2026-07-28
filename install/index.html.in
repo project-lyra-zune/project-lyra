@@ -2,6 +2,18 @@
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>Install Project Lyra</title>
 
+<meta name="description" content="A persistent jailbreak and modding platform for the Zune HD, installed from the device's own browser.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Project Lyra">
+<meta property="og:url" content="http://install.zune.moe/">
+<meta property="og:title" content="Project Lyra">
+<meta property="og:description" content="A persistent jailbreak and modding platform for the Zune HD, installed from the device's own browser.">
+<meta property="og:image" content="http://install.zune.moe/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Project Lyra">
+<meta name="twitter:card" content="summary_large_image">
+
 <style type="text/css">
 body { background: #000; color: #fff; font-family: Verdana, sans-serif;
        margin: 0; padding: 16px; }
@@ -13,6 +25,7 @@ body { background: #000; color: #fff; font-family: Verdana, sans-serif;
       color: #000; background: #f0f0f0; border: 2px solid #fff; margin-bottom: 16px; }
 #go.off { color: #6a6a6a; background: #2a2a2a; border-color: #4a4a4a; }
 #msg { font-size: 14px; line-height: 1.5em; min-height: 6em; }
+#msg b { color: #fff; }
 #note { font-size: 11px; color: #8a8a8a; margin-top: 20px; line-height: 1.45em; }
 #log { font-size: 10px; color: #4ad24a; margin-top: 18px; word-wrap: break-word; }
 </style>
@@ -22,8 +35,15 @@ body { background: #000; color: #fff; font-family: Verdana, sans-serif;
   <img id="logo" src="lyra.png" width="280" height="85" alt="Project Lyra">
   <div id="ver">__VERSION__ &nbsp;&middot;&nbsp; Zune HD firmware 4.5</div>
   <div id="what">A persistent jailbreak and modding platform for the Zune HD.</div>
-  <button id="go" onclick="start()">Install</button>
-  <div id="msg">Tap Install. Keep the Zune awake and on Wi-Fi until it restarts by itself.</div>
+  <!-- Ships in the scripting-off state; the script below turns it on. With Script
+       off nothing here runs, so this markup is all such a device can say. -->
+  <button id="go" class="off" onclick="start()">Install</button>
+  <div id="msg">
+    <b>Scripting is turned off on this Zune, so this page cannot install anything.</b>
+    <br><br>
+    On the Zune, go to <b>Settings</b>, then <b>Internet</b>, and set
+    <b>Script</b> to <b>Enabled</b>. Then come back here and tap Install.
+  </div>
   <div id="note">
     Your music, videos and settings are left alone.
     To remove Lyra later, open the Mods tab and remove Project Lyra.
@@ -50,17 +70,23 @@ var IMAGE_BYTES = __IMAGE_BYTES__;   /* count + payload + any pad, as transferre
 
 var DEBUG = (window.location.search + "").indexOf("debug") >= 0;
 
-var busy = false;
+/* The chain is a race the device loses more often than it wins. */
+var MAX_TRIES = 5;
+
+var busy = true;
+var blocked = null;      /* why the button is off, or null once the page is usable */
 var cached = null;
+var tries = 0;
+var stages = [];
 
 function el(id) { return document.getElementById(id); }
 function say(html) { el("msg").innerHTML = html; }
+function trail(s) { el("log").innerHTML = s; }
 function dbg(s) { if (DEBUG) { el("log").innerHTML += s + "<br>"; } }
 
+/* Never disabled: a tap must always be able to reprint why nothing is happening. */
 function arm(on) {
-    var b = el("go");
-    b.disabled = !on;
-    b.className = on ? "" : "off";
+    el("go").className = on ? "" : "off";
     busy = !on;
 }
 
@@ -122,14 +148,13 @@ function fail(what) {
 }
 
 function start() {
+    if (blocked) { say(blocked); return; }
     if (busy) { return; }
     arm(false);
+    tries = 0;
+    stages = [];
 
-    if (cached) {
-        say("Installing. Your device will restart in a moment.");
-        window.setTimeout(fire, 120);
-        return;
-    }
+    if (cached) { attemptSoon(); return; }
 
     say("Downloading Project Lyra...");
     window.setTimeout(download, 60);
@@ -140,7 +165,7 @@ function download() {
     try {
         xhr = new ActiveXObject("Microsoft.XMLHTTP");
     } catch (e) {
-        fail("This browser cannot download the installer.");
+        fail("This browser cannot download the installer. (E-XHR)");
         return;
     }
 
@@ -148,8 +173,14 @@ function download() {
         if (xhr.readyState !== 4) { return; }
         var status = 0;
         try { status = xhr.status; } catch (e) { status = 0; }
+        if (status === 0) {
+            fail("Could not reach install.zune.moe.<br><br>Check the Zune is on Wi-Fi, "
+               + "then tap Install again. (E-NET)");
+            return;
+        }
         if (status !== 200) {
-            fail("Download failed (" + status + "). Check the Zune is on Wi-Fi.");
+            fail("The server would not send the installer, it answered " + status
+               + ". (E-HTTP " + status + ")");
             return;
         }
         var body = xhr.responseText;
@@ -162,7 +193,8 @@ function download() {
         xhr.open("GET", IMAGE_URL, true);
         xhr.send();
     } catch (e) {
-        fail("Could not reach the server.");
+        fail("Could not reach install.zune.moe.<br><br>Check the Zune is on Wi-Fi, "
+           + "then tap Install again. (E-NET)");
     }
 }
 
@@ -171,27 +203,80 @@ function prepare(body) {
     dbg("decoded " + got.bytes + " bytes, want " + IMAGE_BYTES);
 
     if (got.bytes !== IMAGE_BYTES) {
-        fail("The download was incomplete (" + got.bytes + " of " + IMAGE_BYTES + " bytes).");
+        fail("The download stopped early, " + got.bytes + " of " + IMAGE_BYTES
+           + " bytes arrived.<br><br>Check the Zune's Wi-Fi signal. (E-SHORT)");
         return;
     }
 
     cached = stubString() + got.text;
     dbg("shellcode " + cached.length + " units");
-
-    say("Installing. Your device will restart in a moment.<br><br>Do not turn it off.");
-    window.setTimeout(fire, 120);
+    attemptSoon();
 }
 
-function fire() {
-    var stage = null;
+/* run() returns null when the last step landed without the installer taking over,
+   which is a loss like any other. */
+var STAGE = {
+    "leak":   "The browser never leaked its memory layout (stage: leak).",
+    "locate": "The installer could not be found in memory (stage: locate).",
+    "fire":   "The last step did not land (stage: fire).",
+    "hijack": "The last step landed but the installer did not start (stage: hijack).",
+    "error":  "The installer script hit an error (stage: error)."
+};
+
+/* Paint first: LyraChain.run blocks this thread, and nothing repaints until it returns. */
+function attemptSoon() {
+    tries++;
+    say("Installing, attempt " + tries + " of " + MAX_TRIES + ".<br><br>"
+      + "Keep the Zune awake and do not turn it off. The screen stops responding "
+      + "while each attempt runs.");
+    window.setTimeout(attempt, 120);
+}
+
+function attempt() {
+    var stage;
     try {
         stage = LyraChain.run(cached, dbg);
+        if (stage === null) { stage = "hijack"; }
     } catch (e) {
         stage = "error";
         dbg("threw: " + e.message);
     }
-    /* Reached only on failure: success exits this thread inside run(). */
-    fail("That attempt did not take (" + stage + "). This is normal and harmless.");
+    /* Reached only on a loss: a win exits this thread inside run(). */
+    stages[stages.length] = stage;
+    trail("stages: " + stages.join(", "));
+
+    if (tries < MAX_TRIES) { window.setTimeout(attemptSoon, 400); return; }
+
+    fail("Lyra did not install after " + MAX_TRIES + " attempts.<br><br>"
+       + (STAGE[stage] || ("Stage: " + stage)) + "<br><br>"
+       + "This is normal and harmless. The last step is a race the Zune often "
+       + "loses, and nothing on the device was changed.");
+}
+
+function envProblem() {
+    if (typeof LyraChain === "undefined") {
+        return "The installer script did not load. Reload this page. (E-CHAIN)";
+    }
+    /* No code: the reader here is a desktop visitor, not someone reporting a device. */
+    if (typeof CollectGarbage !== "function") {
+        return "This is not the Zune HD browser, so there is nothing here to run.<br><br>"
+             + "Put the Zune HD on Wi-Fi, open its browser, and go to "
+             + "<b>install.zune.moe</b>.";
+    }
+    try {
+        if (!new ActiveXObject("Microsoft.XMLHTTP")) { throw 0; }
+    } catch (e) {
+        return "This browser cannot download the installer. (E-XHR)";
+    }
+    return null;
+}
+
+blocked = envProblem();
+if (blocked) {
+    say(blocked);
+} else {
+    say("Tap Install. Keep the Zune awake and on Wi-Fi until it restarts by itself.");
+    arm(true);
 }
 
 </script>

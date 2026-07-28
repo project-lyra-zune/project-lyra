@@ -47,6 +47,32 @@ static RepoBlock* map_block(void) {
 /* The platform is the reserved catalog id `lyra`; everything else is a feature mod. */
 static int is_platform(const RepoRow* r) { return strcmp(r->id, LYRA_PLATFORM_ID) == 0; }
 
+/* A cert rejected on its dates is the device clock, the one failure here a user can
+   fix, so it does not fold in with the other cert verdicts. */
+static long classify_feed_failure(enum ce_https_result hr) {
+    switch (hr) {
+    case CE_HTTPS_ERR_RESOLVE:
+    case CE_HTTPS_ERR_CONNECT:
+        return REPO_FEED_NO_NET;
+    case CE_HTTPS_ERR_CERT:
+        return ce_https_cert_failed_on_date() ? REPO_FEED_CLOCK : REPO_FEED_CERT;
+    case CE_HTTPS_ERR_TLS:
+        return REPO_FEED_TLS;
+    case CE_HTTPS_ERR_SEND:
+    case CE_HTTPS_ERR_RECV:
+    case CE_HTTPS_ERR_PROTOCOL:
+        return REPO_FEED_TRANSFER;
+    default:
+        return REPO_FEED_INTERNAL;
+    }
+}
+
+/* Only a TLS or cert verdict has a fresh wolfSSL error; for the rest it is stale. */
+static long feed_failure_detail(enum ce_https_result hr, long cls) {
+    if (cls == REPO_FEED_CERT || cls == REPO_FEED_TLS) return (long)ce_https_last_tls_error();
+    return (long)hr;
+}
+
 /* reposd serves the catalog only. Whether each row is installed (and at what version)
    is disk truth the UI reads from the scanner; the daemon does not compute it. */
 static void do_feed(RepoBlock* blk) {
@@ -56,8 +82,11 @@ static void do_feed(RepoBlock* blk) {
     int ct = 0, tl = 0, rc = 0;
     ce_https_last_timing(&ct, &tl, &rc);
     char line[256];
+    blk->feed_error = REPO_FEED_OK; blk->feed_detail = 0;
     if (hr != CE_HTTPS_OK) {
         blk->status = (long)hr; blk->count = 0;
+        blk->feed_error = classify_feed_failure(hr);
+        blk->feed_detail = feed_failure_detail(hr, blk->feed_error);
         if (hr == CE_HTTPS_ERR_TLS || hr == CE_HTTPS_ERR_CERT)
             _snprintf(line, sizeof(line), "feed %s%s -> %s (connect=%dms tls=%dms tls_err=%d)",
                       REPO_HOST, REPO_FEED_PATH, ce_https_result_str(hr), ct, tl,
@@ -70,6 +99,7 @@ static void do_feed(RepoBlock* blk) {
     }
     if (resp.status != 200) {
         blk->status = 1000 + resp.status; blk->count = 0;
+        blk->feed_error = REPO_FEED_HTTP; blk->feed_detail = resp.status;
         _snprintf(line, sizeof(line), "feed %s%s -> HTTP http=%d (connect=%dms tls=%dms)",
                   REPO_HOST, REPO_FEED_PATH, resp.status, ct, tl);
         line[sizeof(line) - 1] = 0; ce_https_response_free(&resp); L(line);
@@ -81,6 +111,7 @@ static void do_feed(RepoBlock* blk) {
     unsigned long blen = (unsigned long)resp.body_len;
     ce_https_response_free(&resp);
     blk->count = n; blk->truncated = trunc; blk->plat_provides_count = pp; blk->status = 0;
+    blk->feed_error = n > 0 ? REPO_FEED_OK : REPO_FEED_EMPTY;
     /* Hoist the official channel's Lyra version into the platform-authority field, so the
        update remedy does not depend on a `lyra` row surviving in the browsable set. */
     blk->plat_version[0] = 0;
@@ -315,6 +346,7 @@ int WINAPI wWinMain(HINSTANCE a, HINSTANCE b, LPWSTR c, int d) {
     RepoBlock* blk = map_block();
     if (!blk) { L("map_block failed"); return -1; }
     if (blk->version == 0) blk->version = REPO_VERSION;
+    blk->daemon_started = 1;
 
     HANDLE wake = CreateEventW(NULL, FALSE, FALSE, REPO_WAKE_EVENT);   /* auto-reset */
     HANDLE done = CreateEventW(NULL, FALSE, FALSE, REPO_DONE_EVENT);   /* auto-reset */

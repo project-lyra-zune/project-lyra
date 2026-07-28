@@ -6,6 +6,9 @@
 #define MSGWAIT_IAT_GEMSTONE  0x00096244u
 #define MWMO_WAITALL          0x00000001u
 
+/* One TLS handshake plus a small body, which is a couple of seconds on this CPU. */
+#define REPO_FEED_TIMEOUT_MS  30000u
+
 typedef DWORD (WINAPI *MsgWaitFn)(DWORD, const HANDLE*, DWORD, DWORD, DWORD);
 
 static MsgWaitFn  g_orig_wait = 0;
@@ -13,14 +16,24 @@ static RepoBlock* g_repo      = 0;   /* daemon writes, we read */
 static HANDLE     g_wake      = 0;
 static HANDLE     g_done      = 0;
 static void     (*g_on_done)(void) = 0;
+static int        g_feed_waiting  = 0;
+static DWORD      g_feed_deadline = 0;
+static int        g_feed_late     = 0;
 
 RepoBlock* RepoClientBlock(void) { return g_repo; }
 void RepoClientSetOnDone(void (*cb)(void)) { g_on_done = cb; }
+
+int RepoClientDaemonPresent(void) { return g_repo && g_repo->daemon_started != 0; }
+int RepoClientFeedTimedOut(void) { return g_feed_late; }
+void RepoClientClearFeedTimeout(void) { g_feed_late = 0; }
 
 void RepoClientRequestFeed(void) {
     if (!g_repo || !g_wake) return;
     g_repo->request = REPO_REQ_FEED;
     InterlockedIncrement(&g_repo->req_seq);
+    g_feed_waiting = 1;
+    g_feed_late = 0;
+    g_feed_deadline = GetTickCount() + REPO_FEED_TIMEOUT_MS;
     SetEvent(g_wake);
 }
 
@@ -68,6 +81,15 @@ void RepoClientRequestUninstall(const char* id) {
     SetEvent(g_wake);
 }
 
+/* Checked on whatever wakeup the pump takes next; never shorten the caller's wait,
+   the timeout it passes is gemstone's own. */
+static void check_feed_deadline(void) {
+    if (!g_feed_waiting || (long)(GetTickCount() - g_feed_deadline) < 0) return;
+    g_feed_waiting = 0;
+    g_feed_late = 1;
+    if (g_on_done) g_on_done();
+}
+
 /* Append g_done to the pump's wait set; on its signal, deliver on this (UI) thread
    and report a timeout so the pump loops without treating it as one of its handles. */
 static DWORD WINAPI MsgWait_proxy(DWORD count, const HANDLE* handles,
@@ -80,7 +102,12 @@ static DWORD WINAPI MsgWait_proxy(DWORD count, const HANDLE* handles,
     for (i = 0; i < count; i++) local[i] = handles[i];
     local[count] = g_done;
     r = g_orig_wait(count + 1, local, ms, mask, flags);
-    if (r == WAIT_OBJECT_0 + count) { if (g_on_done) g_on_done(); return WAIT_TIMEOUT; }
+    if (r == WAIT_OBJECT_0 + count) {
+        g_feed_waiting = 0;
+        if (g_on_done) g_on_done();
+        return WAIT_TIMEOUT;
+    }
+    check_feed_deadline();
     if (r == WAIT_OBJECT_0 + count + 1) return WAIT_OBJECT_0 + count;
     return r;
 }

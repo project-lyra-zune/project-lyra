@@ -78,6 +78,7 @@ def main() -> None:
     (args.out / "index.html").write_text(page)
     (args.out / "about.html").write_text(about)
     shutil.copyfile(HERE / "lyra.png", args.out / "lyra.png")
+    shutil.copyfile(HERE / "og.png", args.out / "og.png")
     b64 = base64.b64encode(payload).decode()
     (args.out / b64_name).write_text("\n".join(b64[i:i + 76] for i in range(0, len(b64), 76)) + "\n")
 

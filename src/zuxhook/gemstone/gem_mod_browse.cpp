@@ -13,6 +13,7 @@
 #include "gem_mod_detail.h"
 #include "repo_client.h"
 #include "repo_version.h"
+#include "browse_status.h"
 extern "C" {
 #include "mod_scanner.h"
 }
@@ -31,8 +32,6 @@ typedef int (*ListInvalidateFn)(void*, int, int);
 #define LIST_INVALIDATE  ((ListInvalidateFn)0x00058890)
 typedef int (*ListGetRowCountFn)(void*);
 #define LIST_GET_ROW_COUNT  ((ListGetRowCountFn)0x0004b058)
-typedef int (*SetShowFn)(void*, int);
-#define SET_SHOW  ((SetShowFn)0x00058860)
 
 #define MSG_NAV_SOURCE_QUERY 0x18000022
 #define MSG_CONTENT_LOAD     0x1800001c
@@ -48,9 +47,23 @@ static const wchar_t* const CATS[] = { L"all", L"appearance", L"media", L"networ
 
 static volatile LONG g_feed_fetched = 0;
 static long g_last_done_seq = -1;
+/* Snapshot at the answer: an install or uninstall writes the same block fields, and
+   would otherwise read as a verdict on the catalog. */
+static long g_feed_error = REPO_FEED_OK;
+static long g_feed_detail = 0;
 
-static void show_elem(DWORD e, int on) {
-    if (e) { __try { SET_SHOW((void*)e, on ? 1 : 0); } __except (EXCEPTION_EXECUTE_HANDLER) {} }
+static int browse_status_for(int rows_in_category, wchar_t* buf, int cap) {
+    const RepoBlock* repo = RepoClientBlock();
+    BrowseStatus s;
+    s.rows_in_category = rows_in_category;
+    s.ipc_mapped       = repo != NULL;
+    s.daemon_present   = RepoClientDaemonPresent();
+    s.timed_out        = RepoClientFeedTimedOut();
+    s.fetched          = g_feed_fetched != 0;
+    s.feed_error       = g_feed_error;
+    s.feed_detail      = g_feed_detail;
+    s.feed_rows        = repo ? repo->count : 0;
+    return BrowseStatusFor(&s, buf, cap);
 }
 
 static int nav_to_scene_by_name(const wchar_t* name) {
@@ -225,7 +238,7 @@ struct GemBrowseListInstance {
     DWORD nav_source_elem;   /* +0x18 */
     DWORD reserved_1c[3];    /* +0x1c..+0x24 */
     DWORD list_element;      /* +0x28 */
-    DWORD noItems_element;   /* +0x2c */
+    DWORD status_elem;       /* +0x2c */
     DWORD loading_elem;      /* +0x30 */
     DWORD cat_idx;           /* +0x34 */
     DWORD reserved_38[6];    /* +0x38..+0x4c */
@@ -234,13 +247,15 @@ struct GemBrowseListInstance {
 static GemBrowseListInstance* g_active_list = NULL;
 
 static void list_show_state(GemBrowseListInstance* self) {
-    int n, loading;
+    static wchar_t buf[512];
+    int state;
     if (!self) return;
-    n = count_in_category((int)self->cat_idx);
-    loading = (n == 0) && !g_feed_fetched;
-    show_elem(self->list_element,    n > 0);
-    show_elem(self->loading_elem,    loading);
-    show_elem(self->noItems_element, (n == 0 && !loading));
+    state = browse_status_for(count_in_category((int)self->cat_idx),
+                              buf, (int)(sizeof(buf) / sizeof(buf[0])));
+    show_elem(self->list_element,  state == BROWSE_UI_ROWS);
+    show_elem(self->loading_elem,  state == BROWSE_UI_WAITING);
+    if (state == BROWSE_UI_MESSAGE) render_label((void*)self->status_elem, buf);
+    show_elem(self->status_elem,   state == BROWSE_UI_MESSAGE);
 }
 
 static void list_refresh(GemBrowseListInstance* self) {
@@ -257,14 +272,14 @@ HRESULT GemModBrowseList_OnInit(GemBrowseListInstance* self) {
     void* h = NULL;
     if (!self) return -1;
     self->breadcrumb_elem = 0; self->nav_source_elem = 0;
-    self->list_element = 0; self->noItems_element = 0; self->loading_elem = 0;
+    self->list_element = 0; self->status_elem = 0; self->loading_elem = 0;
     self->cat_idx = 0;
     XUI_GET_DESC_BY_ID((void*)self->scene_handle, L"breadcrumb", &h, 0);
     self->breadcrumb_elem = (DWORD)h;
     h = NULL; XUI_GET_DESC_BY_ID((void*)self->scene_handle, L"list", &h, 0);
     self->list_element = (DWORD)h;
-    h = NULL; XUI_GET_DESC_BY_ID((void*)self->scene_handle, L"noItems", &h, 0);
-    self->noItems_element = (DWORD)h;
+    h = NULL; XUI_GET_DESC_BY_ID((void*)self->scene_handle, L"status", &h, 0);
+    self->status_elem = (DWORD)h;
     h = NULL; XUI_GET_DESC_BY_ID((void*)self->scene_handle, L"loading", &h, 0);
     self->loading_elem = (DWORD)h;
     g_active_list = self;
@@ -373,13 +388,14 @@ HRESULT GemModBrowseList_OnMessage(GemBrowseListInstance* self, void* msg) {
    browse list. Called from GemModDetailOnRepoDone (the single registered handler). */
 extern "C" void GemModBrowseHandleRepoDone(void) {
     RepoBlock* repo = RepoClientBlock();
-    if (!repo) return;
-    if (repo->request == REPO_REQ_INSTALL || repo->request == REPO_REQ_UNINSTALL) {
-        if (g_active_list) list_refresh(g_active_list);
-        return;
+    /* A feed answer, including one that landed after the client gave up, is what
+       retracts the timeout. Anything else here only repaints. */
+    if (repo && repo->request == REPO_REQ_FEED && repo->done_seq != g_last_done_seq) {
+        g_last_done_seq = repo->done_seq;
+        g_feed_fetched = 1;
+        g_feed_error = repo->feed_error;
+        g_feed_detail = repo->feed_detail;
+        RepoClientClearFeedTimeout();
     }
-    if (repo->done_seq == g_last_done_seq) return;
-    g_last_done_seq = repo->done_seq;
-    g_feed_fetched = 1;
     if (g_active_list) list_refresh(g_active_list);
 }

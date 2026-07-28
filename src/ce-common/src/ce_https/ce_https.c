@@ -24,15 +24,20 @@
 static int          g_wsa_up = 0;
 static WOLFSSL_CTX *g_ctx    = NULL;
 static int          g_last_tls_err = 0;   /* wolfSSL_get_error of the last failed handshake */
+static int          g_last_cert_was_date = 0;
 
 int ce_https_last_tls_error(void) { return g_last_tls_err; }
+int ce_https_cert_failed_on_date(void) { return g_last_cert_was_date; }
 
 static enum ce_https_result classify_handshake_error(WOLFSSL *ssl)
 {
     g_last_tls_err = wolfSSL_get_error(ssl, -1);
+    g_last_cert_was_date = 0;
     switch (g_last_tls_err) {
     case ASN_BEFORE_DATE_E:
     case ASN_AFTER_DATE_E:
+        g_last_cert_was_date = 1;
+        return CE_HTTPS_ERR_CERT;
     case ASN_SIG_CONFIRM_E:
     case ASN_NO_SIGNER_E:
     case DOMAIN_NAME_MISMATCH:

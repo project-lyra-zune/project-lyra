@@ -141,8 +141,6 @@ typedef int (*ListInvalidateFn)(void* list_element, int arg2, int arg3);
 typedef int (*ListGetRowCountFn)(void* list_element);
 #define LIST_GET_ROW_COUNT  ((ListGetRowCountFn)0x0004b058)
 
-typedef int (*SetShowFn)(void* elem, int show);
-#define SET_SHOW  ((SetShowFn)0x00058860)
 
 
 /* ── Canonical visibility flip ─────────────────────────────────────────

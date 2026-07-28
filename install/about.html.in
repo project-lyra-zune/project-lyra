@@ -4,6 +4,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Project Lyra</title>
+<meta name="description" content="A persistent jailbreak and modding platform for the Zune HD, installed from the device's own browser.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Project Lyra">
+<meta property="og:url" content="https://install.zune.moe/">
+<meta property="og:title" content="Project Lyra">
+<meta property="og:description" content="A persistent jailbreak and modding platform for the Zune HD, installed from the device's own browser.">
+<meta property="og:image" content="https://install.zune.moe/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Project Lyra">
+<meta name="twitter:card" content="summary_large_image">
 <style>
 :root { color-scheme: dark; }
 body { background: #000; color: #e8e8e8; margin: 0; padding: 40px 20px;

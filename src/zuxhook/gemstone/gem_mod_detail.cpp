@@ -33,10 +33,6 @@ extern "C" {
 #include "mods_phase2.h"   /* ModsPlatformProvides (install-gate capability check) */
 #include "mods_capability.h" /* ModsCapSatisfies (match a mod's requires vs feed provides) */
 
-typedef HRESULT (*SetLabelTextFn)(void* elem, const wchar_t* text);
-#define SET_LABEL_TEXT  ((SetLabelTextFn)0x00038434)
-typedef int (*SetShowFn)(void* elem, int show);
-#define SET_SHOW  ((SetShowFn)0x00058860)
 
 #define MSG_DETACHED  0x18000007
 
@@ -90,13 +86,6 @@ struct GemModDetailInstance {
 
 static GemModDetailInstance* g_active_detail = NULL;
 
-static void render_label(void* elem, const wchar_t* text) {
-    if (!elem || !text) return;
-    __try { SET_LABEL_TEXT(elem, text); } __except (EXCEPTION_EXECUTE_HANDLER) {}
-}
-static void show_elem(DWORD e, int on) {
-    if (e) { __try { SET_SHOW((void*)e, on ? 1 : 0); } __except (EXCEPTION_EXECUTE_HANDLER) {} }
-}
 
 /* wide == ascii equality (ids are ASCII). */
 static int id_weq_a(const wchar_t* w, const char* a) {

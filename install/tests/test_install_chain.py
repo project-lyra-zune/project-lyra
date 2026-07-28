@@ -120,12 +120,31 @@ def main():
                        check=True, stdout=subprocess.DEVNULL)
 
         page = tmp / "index.html"
+        raw = page.read_text()
         b64 = tmp / f"lyraboot-{VERSION}.b64"
         blob_path = tmp / "memory.bin"
         out = subprocess.run(["node", str(HERE / "reconstruct.js"), str(page), str(b64), str(blob_path)],
                              check=True, capture_output=True, text=True)
         info = json.loads(out.stdout)
         blob = blob_path.read_bytes()
+
+    print("\na device that runs no script is still told why")
+    # The shipped markup is the scripting-off state: it is all a Zune with Script
+    # disabled ever renders, so the reason and the remedy have to be in it verbatim.
+    body = raw.split("<script", 1)[0]
+    check("shipped page names scripting as the reason", "Scripting is turned off" in body)
+    check("shipped page names the setting to change",
+          "Settings" in body and "Internet" in body and "Script" in body)
+    check("shipped button reads as unavailable", 'id="go" class="off"' in body)
+    check("shipped page does not promise it is ready",
+          "Tap Install. Keep the Zune awake" not in body)
+
+    print("\nscript turns the page on when the browser can run the install")
+    check("readiness check found no problem", info["blocked"] is None, repr(info["blocked"]))
+    check("button is armed", info["goClass"] == "", repr(info["goClass"]))
+    check("message replaced with the ready text",
+          "Tap Install" in info["msgHtml"], info["msgHtml"][:60])
+    check("one tap runs more than one attempt", (info["maxTries"] or 0) > 1, info["maxTries"])
 
     print("\npage decodes what it claims")
     check("reported byte count matches the stamped one",

@@ -80,6 +80,18 @@ record, including that an unreadable marker resolves to safe mode and that a fau
 is scoped to the mod version that produced it. The flash I/O halves
 (`boot_state_file.c`, `mod_fault_file.c`) are not covered and still need the device.
 
+The gemstone mod UI keeps its one testable decision out of the scenes for the same
+reason:
+
+```
+src/zuxhook/gemstone/tests/run-tests.sh
+```
+
+It covers `browse_status.c`, which turns a feed outcome into the line Browse shows
+when it has no rows: that no connection and a wrong clock each arrive as their own
+sentence and remedy, that a missing daemon outranks a stale "Loading...", and that
+every other failure still reaches the user as a code they can quote.
+
 ## Phase 2: packaging (.NET 8 machine)
 
 Run on Windows 10+/macOS/Linux with:

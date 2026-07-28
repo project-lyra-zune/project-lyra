@@ -266,6 +266,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\gemstone\browse_status.c"
+				>
+			</File>
+			<File
 				RelativePath=".\core\mods.c"
 				>
 			</File>

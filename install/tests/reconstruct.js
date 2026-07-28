@@ -11,11 +11,13 @@ const html = fs.readFileSync(pagePath, "utf8");
 const scripts = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
 if (scripts.length < 2) throw new Error("page has no inlined chain and page script");
 
-const node = () => ({ innerHTML: "", className: "", disabled: false });
+/* One node per id, kept, so the page's own readiness decision can be read back out. */
+const nodes = {};
+const node = (id) => (nodes[id] = nodes[id] || { innerHTML: "", className: "", disabled: false });
 const sandbox = {
     document: { getElementById: node },
     window: { location: { search: "" }, setTimeout: () => {} },
-    ActiveXObject: function () { throw new Error("not used here"); },
+    ActiveXObject: function () { return {}; },
     CollectGarbage: () => {},
     String, Array, Math, Number,
 };
@@ -35,4 +37,8 @@ console.log(JSON.stringify({
     expectedBytes: sandbox.IMAGE_BYTES,
     stubBytes: sandbox.STUB.length,
     units: shellcode.length,
+    blocked: sandbox.blocked,
+    msgHtml: nodes.msg ? nodes.msg.innerHTML : "",
+    goClass: nodes.go ? nodes.go.className : null,
+    maxTries: sandbox.MAX_TRIES,
 }));

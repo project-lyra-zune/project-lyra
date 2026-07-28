@@ -38,8 +38,6 @@ typedef HRESULT (*RawRowLabelFn)(DWORD out_8, DWORD out_c, const wchar_t* text);
 typedef int (*ListInvalidateFn)(void* list_element, int arg2, int arg3);
 #define LIST_INVALIDATE  ((ListInvalidateFn)0x00058890)
 
-typedef int (*SetShowFn)(void* elem, int show);
-#define SET_SHOW  ((SetShowFn)0x00058860)
 
 typedef int (*ListGetSelectedIdxFn)(void* list_element, int* out_secondary);
 #define GET_SELECTED_IDX  ((ListGetSelectedIdxFn)0x0003195c)

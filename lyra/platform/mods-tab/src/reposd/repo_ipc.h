@@ -8,9 +8,9 @@
 
 #include <stddef.h>   /* wchar_t */
 
-#define REPO_SECTION_NAME  L"lyra-repo-v12"
-#define REPO_WAKE_EVENT    L"lyra-repo-wake-v12"   /* UI -> daemon */
-#define REPO_DONE_EVENT    L"lyra-repo-done-v12"   /* daemon -> UI */
+#define REPO_SECTION_NAME  L"lyra-repo-v14"
+#define REPO_WAKE_EVENT    L"lyra-repo-wake-v14"   /* UI -> daemon */
+#define REPO_DONE_EVENT    L"lyra-repo-done-v14"   /* daemon -> UI */
 
 /* The one platform is the reserved catalog id `lyra`; reposd routes it to the
    platform apply path. Everything else is a feature mod. */
@@ -37,6 +37,20 @@ enum {
     REPO_REQ_FEED      = 1,
     REPO_REQ_INSTALL   = 2,   /* installs install_set[0..count-1] in order; count 1 is a plain install */
     REPO_REQ_UNINSTALL = 3
+};
+
+/* Why the last feed request ended as it did. reposd owns ce_https and wolfSSL, so it
+   classifies; the UI only renders. */
+enum {
+    REPO_FEED_OK       = 0,
+    REPO_FEED_NO_NET   = 1,   /* DNS or TCP never got off the device */
+    REPO_FEED_CLOCK    = 2,   /* certificate rejected on its validity dates */
+    REPO_FEED_CERT     = 3,   /* certificate rejected for any other reason */
+    REPO_FEED_TLS      = 4,   /* handshake failed short of a certificate verdict */
+    REPO_FEED_TRANSFER = 5,   /* connected, then the exchange broke */
+    REPO_FEED_HTTP     = 6,   /* answered, not 200; feed_detail is the status */
+    REPO_FEED_EMPTY    = 7,   /* 200, but nothing parsed out of it */
+    REPO_FEED_INTERNAL = 8
 };
 
 /* Install progress; DONE/ERROR are terminal (done_seq set). */
@@ -76,10 +90,14 @@ typedef struct {
 
 typedef struct {
     unsigned long version;
+    /* Set once by reposd at startup; zero means no daemon has ever attached. */
+    volatile long daemon_started;
     volatile long req_seq;                /* UI bumps per request; daemon echoes into done_seq */
     volatile long done_seq;
     long          request;                /* REPO_REQ_* */
     long          status;                 /* feed: 0 or ce_https_result; install: 0 or error */
+    long          feed_error;             /* REPO_FEED_*, the classified outcome the UI renders */
+    long          feed_detail;            /* the number worth quoting: HTTP status, or TLS error */
     long          count;
     long          truncated;              /* feed had more than REPO_MAX_ROWS */
     char          install_id[REPO_ID_LEN]; /* the member reposd is installing now (a set entry) */
@@ -103,6 +121,6 @@ typedef struct {
     RepoRow       rows[REPO_MAX_ROWS];
 } RepoBlock;
 
-#define REPO_VERSION  13u
+#define REPO_VERSION  14u
 
 #endif /* REPO_IPC_H */

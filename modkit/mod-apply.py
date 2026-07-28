@@ -20,6 +20,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+REPO_ROOT = Path(__file__).resolve().parents[1]
 from modkit import Mod, ApplyContext, ManifestError, deploy_mods, restart_gemstone
 from modkit.validate import structural_check
 
@@ -170,11 +171,13 @@ def main():
     p.add_argument("--all", action="store_true",
                    help="publish every feature mod under --mods-root "
                         "(system mods excluded); the repo.zune.moe catalog")
-    p.add_argument("--mods-root", default="mods",
-                   help="root scanned by --all (default: mods)")
-    p.add_argument("--lyra-dir", default="lyra",
+    # Anchored at the repo, not the cwd: --all decides what gets published, and a
+    # sibling tree with a mods/ of its own must never answer that.
+    p.add_argument("--mods-root", default=str(REPO_ROOT / "mods"),
+                   help="root scanned by --all (default: <repo>/mods)")
+    p.add_argument("--lyra-dir", default=str(REPO_ROOT / "lyra"),
                    help="the Lyra platform bundle dir, packaged by --all if present "
-                        "(default: lyra)")
+                        "(default: <repo>/lyra)")
     p.add_argument("--out", default="dist/repo",
                    help="output dir (feed.json + mods/*.zmod)")
     p.add_argument("--base-url", default="https://repo.zune.moe",
