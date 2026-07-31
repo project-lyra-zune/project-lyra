@@ -16,6 +16,7 @@ typedef int    (*fn_int)(void);
 typedef int    (*fn_int_key)(const char*);
 typedef int    (*fn_stage_row)(const char*, int, const wchar_t*, const wchar_t*, const char*);
 typedef void   (*fn_commit)(const char*, int);
+typedef void   (*fn_key_void)(const char*);
 typedef int    (*fn_get_row)(const char*, int, wchar_t*, int, wchar_t*, int, char*, int);
 typedef int    (*fn_get_sel)(const char*, char*, int);
 typedef void   (*fn_set_sel)(const char*, const char*);
@@ -26,6 +27,8 @@ typedef void   (*fn_kmemcpy)(DWORD, const void*, DWORD);
 typedef DWORD  (*fn_kcall)(DWORD, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD);
 typedef DWORD  (*fn_dword_arg)(DWORD);
 typedef int    (*fn_patch)(DWORD, DWORD, const void*, int);
+typedef int    (*fn_hook)(DWORD, void*, void**);
+typedef int    (*fn_ui_post)(void (*)(void*), void*);
 typedef DWORD  (*fn_dword_void)(void);
 typedef DWORD  (*fn_kexec)(DWORD, DWORD);
 
@@ -40,6 +43,7 @@ static struct {
     fn_handle_key       channel_scan_event;
     fn_stage_row        channel_stage_row;
     fn_commit           channel_commit;
+    fn_key_void         channel_open;
     fn_int_key          channel_row_count;
     fn_get_row          channel_get_row;
     fn_get_sel          channel_get_selection;
@@ -53,6 +57,8 @@ static struct {
     fn_kcall            kcall;
     fn_dword_arg        find_proc_struct;
     fn_patch            patch_code;
+    fn_hook             hook_install;
+    fn_ui_post          ui_post;
     fn_dword_void       kscratch;
     fn_kexec            kexec_in_proc;
 } R;
@@ -82,6 +88,7 @@ static int resolve(void) {
     R.channel_scan_event    = (fn_handle_key)      bind_verb("lyra_channel_scan_event");
     R.channel_stage_row     = (fn_stage_row)       bind_verb("lyra_channel_stage_row");
     R.channel_commit        = (fn_commit)          bind_verb("lyra_channel_commit");
+    R.channel_open          = (fn_key_void)        bind_verb("lyra_channel_open");
     R.channel_row_count     = (fn_int_key)         bind_verb("lyra_channel_row_count");
     R.channel_get_row       = (fn_get_row)         bind_verb("lyra_channel_get_row");
     R.channel_get_selection = (fn_get_sel)         bind_verb("lyra_channel_get_selection");
@@ -95,6 +102,8 @@ static int resolve(void) {
     R.kcall                 = (fn_kcall)           bind_verb("lyra_kcall");
     R.find_proc_struct      = (fn_dword_arg)       bind_verb("lyra_find_proc_struct");
     R.patch_code            = (fn_patch)           bind_verb("lyra_patch_code");
+    R.hook_install          = (fn_hook)            bind_verb("lyra_hook_install");
+    R.ui_post               = (fn_ui_post)         bind_verb("lyra_ui_post");
     R.kscratch              = (fn_dword_void)      bind_verb("lyra_kscratch");
     R.kexec_in_proc         = (fn_kexec)           bind_verb("lyra_kexec_in_proc");
     return 1;
@@ -137,6 +146,10 @@ int lyra_channel_stage_row(const char* toggle_key, int idx, const wchar_t* name,
 
 void lyra_channel_commit(const char* toggle_key, int count) {
     if (resolve() && R.channel_commit) R.channel_commit(toggle_key, count);
+}
+
+void lyra_channel_open(const char* toggle_key) {
+    if (resolve() && R.channel_open) R.channel_open(toggle_key);
 }
 
 int lyra_channel_row_count(const char* toggle_key) {
@@ -204,6 +217,17 @@ int lyra_patch_code(DWORD target_proc, DWORD target_va,
                     const void* bytes, int len) {
     if (!resolve() || !R.patch_code) return -1;
     return R.patch_code(target_proc, target_va, bytes, len);
+}
+
+int lyra_hook_install(DWORD target_va, void* replacement, void** out_next) {
+    if (out_next) *out_next = 0;
+    if (!resolve() || !R.hook_install) return -1;
+    return R.hook_install(target_va, replacement, out_next);
+}
+
+int lyra_ui_post(void (*fn)(void* ctx), void* ctx) {
+    if (!resolve() || !R.ui_post) return -1;
+    return R.ui_post(fn, ctx);
 }
 
 DWORD lyra_kscratch(void) {

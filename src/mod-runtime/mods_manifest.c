@@ -515,6 +515,7 @@ static ModAction* synth_action(ModsArena* arena, Mod* m, int* pos,
         a->args = (ModActionArg*)ModsArenaAllocZ(arena,
             argc * sizeof(ModActionArg));
         if (!a->args || !a->type) return NULL;
+        a->args_cap = argc;
     }
     (*pos)++;
     return a;
@@ -524,6 +525,7 @@ static int synth_arg_string(ModsArena* arena, ModAction* a,
                             const char* key, const char* value) {
     ModActionArg* arg;
     if (!a || !a->args || !key || !value) return -1;
+    if (a->args_count >= a->args_cap) return -1;   /* the caller under-sized argc */
     arg = &a->args[a->args_count++];
     arg->key = ModsArenaStrdup(arena, key);
     arg->kind = MOD_ACTION_ARG_STRING;
@@ -535,6 +537,7 @@ static int synth_arg_bool(ModsArena* arena, ModAction* a,
                           const char* key, int value) {
     ModActionArg* arg;
     if (!a || !a->args || !key) return -1;
+    if (a->args_count >= a->args_cap) return -1;   /* the caller under-sized argc */
     arg = &a->args[a->args_count++];
     arg->key = ModsArenaStrdup(arena, key);
     arg->kind = MOD_ACTION_ARG_BOOL;
@@ -671,7 +674,7 @@ static int lower_settings(ModsArena* arena, Mod* m, int root, int* pos) {
             ModsLogf("  %s: settings[%d] duplicate id %s", m->mod_id, i, id_s);
             return -1;
         }
-        a = synth_action(arena, m, pos, "lyra.register_setting", 15);
+        a = synth_action(arena, m, pos, "lyra.register_setting", 16);
         if (!a) return -1;
         if (synth_arg_string(arena, a, "target_proc", "servicesd") != 0 ||
             synth_arg_string(arena, a, "value_type", "bool") != 0 ||
@@ -781,6 +784,14 @@ static int lower_settings(ModsArena* arena, Mod* m, int root, int* pos) {
                     return -1;
                 }
                 if (synth_arg_string(arena, a, "context_kind", kind) != 0) return -1;
+                {
+                    int tt = ModsJsonObjectFind(&m->json, ct, "title");
+                    if (tt >= 0 && m->json.toks[tt].type == MODS_JSON_STRING) {
+                        char* title = ModsJsonStrdup(arena, &m->json, tt);
+                        if (!title) return -1;
+                        if (synth_arg_string(arena, a, "context_title", title) != 0) return -1;
+                    }
+                }
             }
         }
         ModsLogf("  %s: lowered settings[%d] -> register_setting", m->mod_id, i);

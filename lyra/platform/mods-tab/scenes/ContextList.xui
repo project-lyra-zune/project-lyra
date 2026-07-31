@@ -60,7 +60,7 @@
 <Opacity>0.000000</Opacity>
 <LayoutLineBreak>true</LayoutLineBreak>
 <Visual>ContextTitleLabel</Visual>
-<Text>select device:</Text>
+<Text>select:</Text>
 </Properties>
 </XuiLabel>
 <Timelines>

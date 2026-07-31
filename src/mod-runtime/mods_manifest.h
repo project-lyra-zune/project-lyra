@@ -40,6 +40,7 @@ typedef struct ModAction {
     struct Mod*       mod;           /* backpointer */
     struct ModActionArg* args;       /* synthetic args; NULL for JSON actions */
     int               args_count;
+    int               args_cap;      /* argc the array was sized for */
 } ModAction;
 
 typedef enum {

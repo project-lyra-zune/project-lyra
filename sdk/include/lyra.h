@@ -68,6 +68,14 @@ int    lyra_channel_stage_row(const char* toggle_key, int idx, const wchar_t* na
 /* Publish the first `count` staged rows as the option list, and wake the UI. */
 void   lyra_channel_commit(const char* toggle_key, int count);
 
+/* Raise the picker yourself, rather than waiting for the user to open your
+   setting. Use it when the choice belongs to an action the user just took: stage
+   and commit your rows first, call this, and return. The picker is a HUD overlay
+   so it appears over whatever is on screen; it does not block, and the choice
+   arrives the same way as always, through lyra_channel_get_selection once the
+   user picks. Wait on lyra_state_change_event rather than polling for it. */
+void   lyra_channel_open(const char* toggle_key);
+
 /* Read back the published list, e.g. to merge a lossy rescan into it. */
 int    lyra_channel_row_count(const char* toggle_key);
 int    lyra_channel_get_row(const char* toggle_key, int idx,
@@ -121,6 +129,25 @@ DWORD  lyra_kexec_in_proc(DWORD target_proc, DWORD code_va);
  * lyra_find_proc_struct; len is 1..64. 0 on success. */
 int    lyra_patch_code(DWORD target_proc, DWORD target_va,
                        const void* bytes, int len);
+
+/* Replace a function in your own process, keeping whoever else replaced it.
+ * `*out_next` receives what you must call to continue: the hook installed before
+ * yours, or the original function if you are the first. Take the target's
+ * arguments, return what it returns, and call through unless you fully handled
+ * the call.
+ *
+ * Prefer this to patching an entry by hand. A hand-rolled patch owns the address
+ * outright, so the second mod wanting the same function silently stops working,
+ * and which mod that is depends on load order. The target's first two
+ * instructions must be position-independent. 0 on success. */
+int    lyra_hook_install(DWORD target_va, void* replacement, void** out_next);
+
+/* ── UI thread ───────────────────────────────────────────────────────────────
+ * Anything touching the interface must run on the host's UI thread. Your daemon
+ * thread, your discovery worker and any hook that deferred its work do not.
+ * Hand the callback back with this and it runs on the next UI-loop pass, in your
+ * own process. 0 if queued, -1 if the queue is full. */
+int    lyra_ui_post(void (*fn)(void* ctx), void* ctx);
 
 /* 1 if the runtime resolved. Call once at startup to log a clear reason. */
 int    lyra_runtime_available(void);

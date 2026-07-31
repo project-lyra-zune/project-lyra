@@ -262,7 +262,7 @@ static const struct { const char* name; const char* host; int cur; int min_compa
 SUBSYSTEMS[] = {
     { "lyra.wifi_awake",   "servicesd", 1, 1, WifiAwake_EnsureActive },
     { "lyra.volume_state", "servicesd", 1, 1, VolumeStateInstall },
-    { "lyra.mod_runtime",  "servicesd", 1, 1, NULL },
+    { "lyra.mod_runtime",  "servicesd", 2, 1, NULL },
 };
 
 /* The compatibility window [min_compat, cur] at which this platform provides `name`.

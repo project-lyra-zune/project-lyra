@@ -127,6 +127,8 @@ int apply_register_setting(ModAction* a, ModsArena* arena) {
     int            default_val = 0;
     int            persist = 1;       /* values persist across boots unless persist:false */
     char           key[MOD_STATE_ID_LEN + 1];
+    const char*    ckind = NULL;
+    const char*    ctitle = NULL;
 
     if (ModActionGetString(a, "value_type", arena, &value_type, NULL, 0) != 0 || !value_type) {
         ModsLogf("    register_setting: value_type required");
@@ -237,19 +239,20 @@ int apply_register_setting(ModAction* a, ModsArena* arena) {
        this key. Long-pressing the row opens a list sourced from the setting's
        cross-process channel (the mod's daemon publishes options). "select" is the
        only kind today; an unknown kind is a declaration error (fail fast). */
-    {
-        const char* ckind = NULL;
+    if (1) {
         if (ModActionGetString(a, "context_kind", arena, &ckind, NULL, 0) == 0 && ckind) {
             if (strcmp(ckind, "select") != 0) {
                 ModsLogf("    register_setting: unknown context.kind %s", ckind);
                 return -1;
             }
-            ModListChannelProviderRegister(key);
+            if (ModActionGetString(a, "context_title", arena, &ctitle, NULL, 0) != 0)
+                ctitle = NULL;
+            ModListChannelProviderRegister(key, ctitle);
         }
     }
 
-    ModsLogf("    register_setting: %s value_type=bool default=%d quick_toggle=%d",
-             key, default_val, (int)qt);
+    ModsLogf("    register_setting: %s value_type=bool default=%d quick_toggle=%d picker=%s",
+             key, default_val, (int)qt, ctitle ? ctitle : (ckind ? "(untitled)" : "no"));
     return 0;
 }
 

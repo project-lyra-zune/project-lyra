@@ -31,6 +31,13 @@ struct ModContextListSceneInstance {
 typedef HRESULT (*XuiGetDescByIdFn)(void* parent, const wchar_t* id, void** out, int flags);
 static XuiGetDescByIdFn g_get_desc = NULL;
 
+/* Setting a visual-backed XuiLabel's text is a message to the element's outer, not
+   an xuidll export: XuiTextElementSetText does nothing here. Same body in both
+   hosts (gemstone 0x38434 == zhud 0x419c6a14, instruction for instruction), so
+   pick by host as mods_icon_host.c does for SetShow. */
+typedef HRESULT (*SetLabelTextFn)(void* elem, const wchar_t* text);
+static SetLabelTextFn g_set_text = NULL;
+
 /* Assign a wide string into a row's text output slot (output[2], output[3], text).
    zhud VA from HudNetworkListScene's get-text path. */
 typedef HRESULT (*RowAssignTextFn)(DWORD out_8, DWORD out_c, const wchar_t* text);
@@ -82,6 +89,8 @@ static void resolve_engine(void) {
     if (g_get_desc) return;
     x = GetModuleHandleW(L"xuidll.dll");
     if (x) g_get_desc = (XuiGetDescByIdFn)GetProcAddress(x, L"XuiElementGetDescendantById");
+    g_set_text = (SetLabelTextFn)(GetModuleHandleW(L"zhud_serv.dll")
+                                  ? 0x419c6a14u : 0x00038434u);
 }
 
 extern "C" __declspec(dllexport)
@@ -101,6 +110,19 @@ HRESULT ModContextListScene_OnInit(ModContextListSceneInstance* self) {
     self->list_element   = (DWORD)list;
     self->cancel_element = (DWORD)cancel;
     g_ctx_list = (DWORD)list;
+
+    if (g_ctx_source && g_ctx_source->title && g_get_desc && g_set_text) {
+        const wchar_t* cap = g_ctx_source->title(g_ctx_source->ctx);
+        void* title_elem = NULL;
+        if (cap && cap[0]) {
+            __try { g_get_desc((void*)self->scene_handle, L"title", &title_elem, 0); }
+            __except (EXCEPTION_EXECUTE_HANDLER) { title_elem = NULL; }
+            if (title_elem) {
+                __try { g_set_text(title_elem, cap); }
+                __except (EXCEPTION_EXECUTE_HANDLER) {}
+            }
+        }
+    }
 
     /* Snapshot from the bound source before the engine starts querying. */
     if (g_ctx_source) ModListModelPopulate(&g_ctx_model, g_ctx_source);

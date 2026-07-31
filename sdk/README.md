@@ -118,6 +118,14 @@ Sizes include the NUL. Longer strings are truncated.
     void   lyra_channel_commit(const char* toggle_key, int count)
            Publish the first count staged rows and wake the UI.
 
+    void   lyra_channel_open(const char* toggle_key)
+           Raise the picker yourself, instead of waiting for the user to open
+           your setting. Use it when the choice belongs to an action the user
+           just took: stage and commit your rows, call this, and return. It is a
+           HUD overlay, so it appears over whatever is on screen, and it does not
+           block. The choice arrives as always, through get_selection once the
+           user picks; wait on lyra_state_change_event rather than polling.
+
     int    lyra_channel_row_count(const char* toggle_key)
     int    lyra_channel_get_row(const char* toggle_key, int idx,
                                 wchar_t* name_out, int name_cap,
@@ -175,6 +183,24 @@ change shape, and a mod that compiled neither one keeps running.
     int    lyra_patch_code(DWORD target_proc, DWORD target_va,
                            const void* bytes, int len)
            Patch read-only code in another process. len is 1..64. 0 on success.
+
+    int    lyra_hook_install(DWORD target_va, void* replacement,
+                             void** out_next)
+           Replace a function in your own process, keeping whoever else replaced
+           it. out_next receives what you call to continue: the hook installed
+           before yours, or the original if you are first. Take the target's
+           arguments, return what it returns, and call through unless you fully
+           handled the call. Prefer this to patching an entry by hand, which
+           owns the address outright and silently breaks the second mod to want
+           the same function. The target's first two instructions must be
+           position-independent. 0 on success.
+
+    int    lyra_ui_post(void (*fn)(void* ctx), void* ctx)
+           Run a callback on the host's UI thread. Anything touching the
+           interface must run there; your daemon thread, your discovery worker
+           and any hook that deferred its work do not. It runs on the next
+           UI-loop pass, in your own process. 0 if queued, -1 if the queue is
+           full.
 
 Kernel access is not up the instant a daemon starts. Poll `lyra_kernel_ready()`
 before the first kernel call, and call `lyra_kernel_ensure_helpers()` before a

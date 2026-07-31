@@ -10,6 +10,8 @@
 #include "mod_notify.h"
 #include "mods_list_channel.h"
 #include "kerncore.h"
+#include "mods_hook.h"
+#include "mods_ui_post.h"
 
 #define LYRA_API __declspec(dllexport)
 
@@ -48,6 +50,7 @@ static CRITICAL_SECTION g_evt_cs;
 LYRA_API void LyraRuntimeProcessAttach(void) {
     InitializeCriticalSection(&g_evt_cs);
     ModListChannelProcessAttach();
+    ModUiPostProcessAttach();
 }
 
 LYRA_API HANDLE lyra_state_change_event(const wchar_t* daemon_event_name) {
@@ -100,6 +103,11 @@ LYRA_API int lyra_channel_stage_row(const char* toggle_key, int idx, const wchar
 LYRA_API void lyra_channel_commit(const char* toggle_key, int count) {
     ModListChannelCommit(toggle_key, count);
     ModStateEventPublish();    /* an open picker re-queries */
+}
+
+LYRA_API void lyra_channel_open(const char* toggle_key) {
+    ModListChannelRequestOpen(toggle_key);
+    ModStateEventPublish();    /* the HUD tick picks the request up */
 }
 
 LYRA_API int lyra_channel_row_count(const char* toggle_key) {
@@ -191,4 +199,12 @@ LYRA_API DWORD lyra_kexec_in_proc(DWORD target_proc, DWORD code_va) {
 LYRA_API int lyra_patch_code(DWORD target_proc, DWORD target_va,
                              const void* bytes, int len) {
     return kerncore_patch_code(target_proc, target_va, bytes, len);
+}
+
+LYRA_API int lyra_hook_install(DWORD target_va, void* replacement, void** out_next) {
+    return ModHookInstall(target_va, replacement, out_next);
+}
+
+LYRA_API int lyra_ui_post(void (*fn)(void*), void* ctx) {
+    return ModUiPost((ModUiFn)fn, ctx);
 }

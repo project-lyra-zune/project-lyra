@@ -49,6 +49,13 @@ void ModListChannelCommit(const char* setting_key, int count);
    wakes the daemon separately (ModStateEventPublish). */
 void ModListChannelSelect(const char* setting_key, const char* value);
 
+/* Ask the HUD to raise this key's picker. Callable from any process; the request
+   crosses to the HUD through the shared block. */
+void ModListChannelRequestOpen(const char* setting_key);
+
+/* HUD side: 1 once per outstanding request, then acknowledged. */
+int  ModListChannelTakeOpenRequest(const char* setting_key);
+
 /* The daemon-composed sub-label for this key's channel, or NULL if the channel
    is absent or its sublabel is empty (caller falls back to the state label).
    The returned pointer is into the mapped section; read immediately. */

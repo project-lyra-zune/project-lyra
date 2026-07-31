@@ -16,8 +16,10 @@
    never freed (registration is a boot-time, once-per-mod act), so the pointers
    handed to the context registry stay valid for the process lifetime. */
 #define CHP_MAX  8
+#define CHP_TITLE_LEN 48
 typedef struct {
     char         key[MOD_STATE_ID_LEN + 1];
+    wchar_t      title[CHP_TITLE_LEN];   /* empty: keep the scene's authored caption */
     ModListSource src;
     int          used;
 } ChpSlot;
@@ -90,7 +92,12 @@ static void chp_on_tap(void* ctx, int row) {
     chp_log("SELECT %s row=%d value=%s", s->key, row, b->row[row].value);
 }
 
-void ModListChannelProviderRegister(const char* setting_key) {
+static const wchar_t* chp_title(void* ctx) {
+    ChpSlot* s = (ChpSlot*)ctx;
+    return s->title[0] ? s->title : NULL;
+}
+
+void ModListChannelProviderRegister(const char* setting_key, const char* title) {
     int i, klen;
     ChpSlot* s = NULL;
     if (!setting_key) return;
@@ -106,6 +113,10 @@ void ModListChannelProviderRegister(const char* setting_key) {
     s->src.on_tap  = chp_on_tap;
     s->src.ctx     = s;
     s->src.on_open = chp_on_open;
+    s->src.title   = chp_title;
+    for (i = 0; i < CHP_TITLE_LEN - 1 && title && title[i]; i++)
+        s->title[i] = (wchar_t)(unsigned char)title[i];
+    s->title[i] = 0;
     s->used        = 1;
     ModsHudContextRegister(s->key, &s->src);
     ModListChannelMap(s->key);   /* create the section now so the daemon can attach */

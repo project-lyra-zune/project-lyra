@@ -7,9 +7,9 @@ version.
 ## Compatibility is automatic
 
 You declare what your mod *does* (its `actions`, and the `settings` / `status` / `status_icons`
-/ `daemons` that lower to actions). You do not declare which Lyra version you need. When a mod
-is packaged, its capability footprint is computed from the manifest and travels in the feed; a
-device installs the mod only if its Lyra provides every capability in that footprint.
+/ `daemons` that lower to actions). You never name a Lyra version. When a mod is packaged, its
+capability footprint is computed from the manifest and travels in the feed; a device installs the
+mod only if its Lyra provides every capability in that footprint.
 
 Lyra only ever adds capabilities within a major version, so a mod built for one release runs on
 every later release in the same major line unchanged. When a capability is missing, the mod
@@ -32,10 +32,24 @@ named by that mod's own provenance (`myaudioplugin.reverb`) and may never use `l
 namespace tells the device where to resolve a capability: `lyra.*` against the platform,
 anything else against the other installed mods.
 
-A capability also has a revision, and the packager handles it for you. Each platform capability
-advertises a compatibility window; when your mod is packaged, every `lyra.*` capability it uses
-is stamped with the platform's current revision automatically. You write no revision by hand.
-All platform capabilities are currently at revision 1.
+A capability also has a revision. A stamped revision means **the revision whose behaviour your
+mod depends on**, and the device checks it against the platform's window: above the window the
+platform is too old and a Lyra update fixes it, below it the platform has moved past what your
+mod uses and the mod itself needs updating.
+
+The packager stamps the platform's current revision by default, because the verbs a mod calls
+from inside its own binary are not visible to it, and guessing low would ship a mod that installs
+and then quietly does nothing. That default is safe but pessimistic: it makes any mod republished
+after a platform release require that release, even one using nothing new.
+
+So if you know your mod only needs older behaviour, pin it in `requires` and the packager keeps
+your number instead of raising it. `zune-cast` pins `lyra.mod_runtime@1` for exactly this reason:
+it uses only baseline verbs, so it stays installable on older platforms. Pin too low and the
+newer calls fail softly at runtime instead of being caught at install, so pin what you know.
+
+Platform capabilities are at revision 1, except `lyra.mod_runtime`, which is at 2 and still
+serves 1: the SDK gained `lyra_channel_open`, `lyra_hook_install` and `lyra_ui_post`, and adding
+a verb never breaks a mod built against an earlier revision.
 
 The two string forms differ by their number count, and you rarely write either:
 
@@ -53,7 +67,8 @@ a capability to other mods lists it in `provides` as a range under your own name
 
 `Phase` is the boot pass that applies the action: 1 is the compositor (file I/O, no kernel), 2
 is servicesd/gemstone (XUI surfaces and kernel-backed actions). Subsystems are activated on
-demand for a mod that uses them. All capabilities are currently at revision 1.
+demand for a mod that uses them. Every capability is at revision 1 except `lyra.mod_runtime`,
+which is at 2.
 
 ### Actions, Phase 1 (compositor)
 

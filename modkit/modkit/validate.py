@@ -8,6 +8,7 @@ dropped on-device. Because packaging calls `structural_check` too, `validate` an
 """
 from __future__ import annotations
 
+from .capabilities import platform_capability_ranges
 from .manifest import Mod, LYRA_PLATFORM_ID
 
 
@@ -120,6 +121,24 @@ def structural_check(mod: Mod, raw: dict) -> list[str]:
     for i, c in enumerate(raw.get("requires") or []):
         if isinstance(c, str) and (e := _cap_point_error(c)):
             errs.append(f"requires[{i}]: {e}")
+    # A pinned lyra.* revision is honoured verbatim by the packager, so a pin outside the
+    # platform's window would ship a mod that can never install: above cur names a revision
+    # nothing provides yet, below min_compat one the platform has already dropped.
+    _plat_ranges = platform_capability_ranges()
+    for i, c in enumerate(raw.get("requires") or []):
+        if not isinstance(c, str) or "@" not in c:
+            continue
+        name, _, rev_s = c.partition("@")
+        rng = _plat_ranges.get(name)
+        if rng is None or ":" in rev_s or not rev_s.isdigit():
+            continue
+        cur, min_compat = rng
+        rev = int(rev_s)
+        if rev > cur:
+            errs.append(f"requires[{i}]: pins {c}, but this platform's newest {name} is {cur}")
+        elif rev < min_compat:
+            errs.append(f"requires[{i}]: pins {c}, but this platform no longer serves "
+                        f"{name} below {min_compat}")
     for i, c in enumerate(raw.get("provides") or []):
         if isinstance(c, str) and (e := _cap_range_error(c)):
             errs.append(f"provides[{i}]: {e}")
@@ -181,8 +200,11 @@ def structural_check(mod: Mod, raw: dict) -> list[str]:
                 kind = ctx_decl.get("kind")
                 if kind not in _CONTEXT_KINDS:
                     errs.append(f"settings[{i}]: context.kind must be one of {sorted(_CONTEXT_KINDS)}")
+                title = ctx_decl.get("title")
+                if title is not None and not isinstance(title, str):
+                    errs.append(f"settings[{i}]: context.title must be a string")
                 for k in ctx_decl:
-                    if k != "kind":
+                    if k not in ("kind", "title"):
                         errs.append(f"settings[{i}]: unknown context key '{k}'")
         # Reject unknown keys so an authoring typo (e.g. 'quik_icon') is caught
         # here instead of being silently dropped by the runtime.

@@ -5,7 +5,7 @@
 /* Section + scan-event names are derived from the setting key so both sides
    compute them identically from one source of truth (the key) with no extra ids
    to keep in sync. '/' -> '_' keeps the name a legal object name. */
-#define CH_SECTION_PREFIX  L"zune-mod-listch-v2-"
+#define CH_SECTION_PREFIX  L"zune-mod-listch-v3-"
 #define CH_SCAN_PREFIX     L"zune-mod-listch-scan-"
 #define CH_NAME_MAX        96
 
@@ -112,6 +112,22 @@ void ModListChannelSelect(const char* setting_key, const char* value) {
     for (i = 0; i < MODLISTCH_VAL_LEN - 1 && value[i]; i++) b->sel_value[i] = value[i];
     b->sel_value[i] = 0;
     b->sel_seq++;
+}
+
+void ModListChannelRequestOpen(const char* setting_key) {
+    ModListChannelBlock* b;
+    if (!setting_key) return;
+    b = ModListChannelMap(setting_key);
+    if (b) b->open_seq++;
+}
+
+int ModListChannelTakeOpenRequest(const char* setting_key) {
+    ModListChannelBlock* b;
+    if (!setting_key) return 0;
+    b = ModListChannelMap(setting_key);
+    if (!b || b->open_ack == b->open_seq) return 0;
+    b->open_ack = b->open_seq;
+    return 1;
 }
 
 const wchar_t* ModListChannelSubLabel(const char* setting_key) {

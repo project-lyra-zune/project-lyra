@@ -44,6 +44,9 @@ typedef struct {
     void (*on_tap)(void* ctx, int idx);
     void* ctx;
     void (*on_open)(void* ctx);
+    /* Optional caption. NULL, or a NULL/empty return, keeps the scene's authored
+       text; the scene is shared by every picker. */
+    const wchar_t* (*title)(void* ctx);
 } ModListSource;
 
 typedef struct {

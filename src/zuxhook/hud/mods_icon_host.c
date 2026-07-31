@@ -190,6 +190,9 @@ static DWORD g_ctx_dismiss_at        = 0;
 
 void ModsHudContextRequestDismiss(void) { g_ctx_dismiss_requested = 1; }
 
+/* Defined with the context-provider registry it walks. */
+static void ModsHudContextPumpRequests(void);
+
 void ModsHudMenuTick(void) {
     if (g_dismiss_requested) {
         g_dismiss_requested = 0;
@@ -235,6 +238,8 @@ void ModsHudMenuTick(void) {
         ModListChannelSignalScan(g_open_context_key);
         g_ctx_scan_at = GetTickCount() + CTX_RESCAN_MS;
     }
+
+    ModsHudContextPumpRequests();
 }
 
 /* Handles of the injected quick-settings "•••" buttons. The scene's tap dispatcher
@@ -1348,6 +1353,13 @@ int ModsHudContextOpenForKey(const char* key) {
     g_ctx_scan_at = GetTickCount() + CTX_RESCAN_MS;   /* on_open did the first scan; keep re-scanning while open */
     g_ctx_rows = n;   /* overlay is sized for n rows now; the tick re-sizes it as the list grows */
     return 1;
+}
+
+static void ModsHudContextPumpRequests(void) {
+    int i;
+    for (i = 0; i < g_ctx_provider_n; i++)
+        if (ModListChannelTakeOpenRequest(g_ctx_providers[i].key))
+            ModsHudContextOpenForKey(g_ctx_providers[i].key);
 }
 
 void ModsIconHostInstall(unsigned int iatSlot) {

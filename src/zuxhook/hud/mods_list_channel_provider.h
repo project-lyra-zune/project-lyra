@@ -12,7 +12,7 @@ extern "C" {
    publishes them); opening the picker requests a scan; selecting a row writes the
    chosen token back to the channel and wakes the daemon. Called from
    apply_register_setting when a setting declares a context. Idempotent per key. */
-void ModListChannelProviderRegister(const char* setting_key);
+void ModListChannelProviderRegister(const char* setting_key, const char* title);
 
 #ifdef __cplusplus
 }

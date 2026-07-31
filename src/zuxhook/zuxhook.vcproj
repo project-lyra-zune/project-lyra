@@ -422,6 +422,14 @@
 				>
 			</File>
 			<File
+				RelativePath=".\platform\mods_hook.c"
+				>
+			</File>
+			<File
+				RelativePath=".\platform\mods_ui_post.c"
+				>
+			</File>
+			<File
 				RelativePath=".\state\mods_scene_suppress.c"
 				>
 			</File>
@@ -533,6 +541,14 @@
 			</File>
 			<File
 				RelativePath=".\platform\mods_detour.h"
+				>
+			</File>
+			<File
+				RelativePath=".\platform\mods_hook.h"
+				>
+			</File>
+			<File
+				RelativePath=".\platform\mods_ui_post.h"
 				>
 			</File>
 			<File

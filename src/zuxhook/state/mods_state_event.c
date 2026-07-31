@@ -1,6 +1,7 @@
 #include "mods_state_event.h"
 #include "mod_notify.h"       /* ModNotifyRegister / ModNotifyCreateQueue / drain */
 #include "mods_icon_host.h"   /* ModsIconOnStateChanged */
+#include "mods_ui_post.h"
 #include "mods_log.h"
 #include "boot_state.h"
 
@@ -50,6 +51,7 @@ static DWORD WINAPI MsgWait_proxy(DWORD count, const HANDLE* handles,
     DWORD  i, r;
     if (g_orig_wait == 0) return WAIT_FAILED;
     ModsHudMenuTick();   /* UI thread: dismiss a HUD menu whose HUD has closed (no-op off the HUD host) */
+    ModUiDrain();        /* UI thread: run whatever a mod's worker handed back */
     BootStateTick();     /* UI thread: commit the boot once the shell's loop is live (no-op off the shell) */
     if (g_read_q == 0 || count == 0 || count >= 63 || (flags & MWMO_WAITALL_))
         return g_orig_wait(count, handles, ms, mask, flags);

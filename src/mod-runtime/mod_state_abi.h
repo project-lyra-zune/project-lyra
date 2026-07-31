@@ -85,6 +85,10 @@ typedef struct {
     /* Overrides the setting's status state label when non-empty. A trailing
        ellipsis renders as the native list's animated loading indicator. */
     wchar_t           sublabel[MODLISTCH_SUBLABEL_LEN];
+    /* Two counters rather than a flag: the requesting process never writes HUD
+       state, and a request arriving while the picker is up is absorbed by the ack. */
+    DWORD             open_seq;
+    DWORD             open_ack;
 } ModListChannelBlock;
 
 #endif /* MOD_STATE_ABI_H */
