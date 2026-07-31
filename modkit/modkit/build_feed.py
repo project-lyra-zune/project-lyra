@@ -25,17 +25,27 @@ def _capability_footprint(raw: dict) -> list[str]:
     """The platform capabilities a feature mod uses, as points, computed from its own
     manifest: every explicit action type; the capabilities each declarative field lowers to
     on-device (DECLARATIVE_CAPABILITIES); every subsystem a setting holds; and its top-level
-    `requires` (mod dependencies and binary-reached capabilities). A platform capability is
-    stamped with the platform's current revision at build time, so the device's min_compat
-    floor can gate it; a mod-dependency keeps its author-declared revision. Entries merge per
-    name to the higher revision, so a capability is never listed twice. Lyra checks this
-    footprint against what it provides, so a mod declares what it does, never what it needs."""
+    `requires` (mod dependencies and binary-reached capabilities).
+
+    A stamped revision means "the revision of this capability whose behaviour this mod
+    depends on", which is what the device's [min_compat, cur] window is checked against:
+    above cur the platform is too old, below min_compat the platform has moved past what
+    the mod uses. It defaults to the platform's current revision, because the verbs a mod
+    reaches from inside a compiled binary are not visible here and guessing low would ship
+    a mod that installs and then quietly does nothing. An author who knows their mod only
+    needs older behaviour says so by pinning the revision in `requires`, and that pin is
+    honoured rather than raised: it is the one thing here the author knows and the
+    packager cannot. Entries merge per name to the higher revision, so a capability is
+    never listed twice."""
     ranges = platform_capability_ranges()
     req: dict[str, int] = {}
+    pinned: set[str] = set()
 
-    def note(s: str):
+    def note(s: str, is_pin: bool = False):
         name, rev = _split_point(s)
         req[name] = max(req.get(name, 1), rev)
+        if is_pin and "@" in s:
+            pinned.add(name)
 
     for a in raw.get("actions") or []:
         if a.get("type"):
@@ -48,14 +58,14 @@ def _capability_footprint(raw: dict) -> list[str]:
         for h in (s.get("holds") or []):
             note(h)
     for c in raw.get("requires") or []:
-        note(c)
+        note(c, is_pin=True)
 
     out = []
     for name in sorted(req):
         rev = req[name]
         cr = ranges.get(name)
-        if cr:
-            rev = max(rev, cr[0])   # platform cap: stamp the current cur
+        if cr and name not in pinned:
+            rev = max(rev, cr[0])   # no author pin: stamp the current cur
         out.append(name if rev == 1 else f"{name}@{rev}")
     return out
 

@@ -165,6 +165,54 @@ def _movefile_on_device(device_ip: str, src: str, dst: str,
         return 0 if ok else err
 
 
+# Platform binaries are built into each component's own tree, so the packager and
+# the deployer look in the same places rather than a staging dir that can go stale.
+_PLATFORM_BINARY_DIRS = {
+    "zuxhook.dll":   "src/zuxhook/bin/OpenZDK (ARMV4I)/Release",
+    "nativeapp.exe": "src/nativeapp/bin/OpenZDK (ARMV4I)/Release",
+}
+
+
+def _platform_binary_path(mod, name: str):
+    """Absolute path of a built platform binary, or None if it is not there."""
+    sub = _PLATFORM_BINARY_DIRS.get(name)
+    if sub is None:
+        return None
+    repo = Path(__file__).resolve().parents[2]
+    cand = repo / sub / name
+    return cand if cand.is_file() else None
+
+
+def _rmfile_on_device(device_ip: str, remote: str, timeout: float = 10.0) -> int:
+    """Delete a file on the device via opcode 14 (DeleteFileW). Returns
+    GetLastError; ERROR_FILE_NOT_FOUND is the normal case for a first deploy."""
+    import socket as _socket
+    path_bytes = remote.encode("utf-8")
+    with _socket.create_connection((device_ip, 1337), timeout=timeout) as sock:
+        sock.settimeout(timeout)
+        banner = b""
+        while len(banner) < 6:
+            ch = sock.recv(6 - len(banner))
+            if not ch:
+                raise RuntimeError("rmfile: socket closed before banner")
+            banner += ch
+        header = bytearray(32)
+        header[0] = 14
+        header[1:5] = struct.pack("<I", len(path_bytes))
+        sock.sendall(bytes(header))
+        sock.sendall(path_bytes)
+        resp = b""
+        while len(resp) < 32:
+            ch = sock.recv(32 - len(resp))
+            if not ch:
+                raise RuntimeError("rmfile: socket closed during response")
+            resp += ch
+        if resp[0] != 14:
+            raise RuntimeError(f"rmfile: bad opcode 0x{resp[0]:02x}")
+        err = struct.unpack("<I", resp[1:5])[0]
+        return 0 if resp[5] != 0 else err
+
+
 def _push_file_chunked(device_ip: str, local: Path, remote: str,
                         timeout: float = 30.0) -> None:
     """Push a single file to the device via nativeapp's opcode 12 wire
@@ -172,17 +220,21 @@ def _push_file_chunked(device_ip: str, local: Path, remote: str,
 
     On ERROR_SHARING_VIOLATION (0x20) at offset 0, falls back to
     move-then-copy (memory: feedback_zpod_deploy_move_then_copy): the
-    live file gets renamed to `<remote>.bak-<timestamp>` via opcode 17
-    and the write retries once against the freed path."""
+    live file gets renamed to `<remote>.old` via opcode 17 and the write
+    retries once against the freed path. `.old` is deliberate, not a
+    timestamp: mod_scanner's boot sweep reclaims exactly that suffix, so
+    the displaced image is cleaned on the next boot rather than
+    accumulating one copy per deploy."""
     err = _push_file_chunked_once(device_ip, local, remote, timeout=timeout)
     if err == 0:
         return
     if err != 0x20:   # ERROR_SHARING_VIOLATION
         raise RuntimeError(
             f"deploy: write {remote} failed at +0: err=0x{err:08x}")
-    # File in use: rename live aside, retry once.
-    import time as _time
-    bak = f"{remote}.bak-{_time.strftime('%Y%m%d-%H%M%S')}"
+    # File in use: rename live aside, retry once. MoveFileW will not overwrite,
+    # so free the name first if a previous deploy this boot already used it.
+    bak = f"{remote}.old"
+    _rmfile_on_device(device_ip, bak)
     mv_err = _movefile_on_device(device_ip, remote, bak)
     if mv_err != 0:
         raise RuntimeError(
@@ -284,8 +336,13 @@ def _deploy_mod_dirs(mods: list[Mod], ctx: ApplyContext) -> None:
         # Same split the packager/installer use (Content/platform vs Content/mods).
         root = "platform" if m.source_dir.parent.name == "platform" else "mods"
         remote_root = f"\\flash2\\automation\\{root}\\{m.mod_id}"
-        _mkdir_p_on_device(ctx.device_ip, remote_root)
-        for f in sorted(deployable_files(m)):
+        # The platform is not a mods\ dir: mod_scanner synthesizes its row from
+        # lyra.json, so a manifest mirrored under mods\lyra would surface a second,
+        # empty Lyra entry in the mod list. Ship only its binaries.
+        files = [] if m.platform_files else sorted(deployable_files(m))
+        if files:
+            _mkdir_p_on_device(ctx.device_ip, remote_root)
+        for f in files:
             rel = f.relative_to(m.source_dir)
             remote = remote_root + "\\" + str(rel).replace("/", "\\")
             # Ensure any intermediate sub-directories exist.
@@ -294,6 +351,26 @@ def _deploy_mod_dirs(mods: list[Mod], ctx: ApplyContext) -> None:
                 _mkdir_p_on_device(ctx.device_ip, parent)
             _push_file_chunked(ctx.device_ip, f, remote)
             ctx.emit(f"    {m.mod_id}: {rel} -> {remote}")
+
+        # zuxhook.dll and nativeapp.exe are not @/ token references, so
+        # deployable_files cannot see them.
+        if m.platform_files:
+            # The version marker mod_scanner reads for the Lyra row; package_lyra
+            # writes it into the .zmod, so `apply` has to write it too.
+            marker = m.source_dir / "manifest.json"
+            remote = "\\flash2\\automation\\lyra.json"
+            _push_file_chunked(ctx.device_ip, marker, remote)
+            ctx.emit(f"    {m.mod_id}: manifest.json -> {remote}")
+
+        for name in sorted(m.platform_files):
+            local = _platform_binary_path(m, name)
+            if local is None:
+                raise RuntimeError(
+                    f"deploy: {m.mod_id} declares platform_files {name!r} but no "
+                    f"built binary was found; build it first")
+            remote = f"\\flash2\\automation\\{name}"
+            _push_file_chunked(ctx.device_ip, local, remote)
+            ctx.emit(f"    {m.mod_id}: {name} -> {remote}")
 
 
 def restart_gemstone(ctx: ApplyContext, *, timeout_s: float = 8.0) -> int:
