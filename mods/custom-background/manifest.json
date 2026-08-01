@@ -1,0 +1,46 @@
+{
+  "mod_id": "custom-background",
+  "name": "Custom Background",
+  "version": "1.0.0",
+  "author": "Project Lyra",
+  "category": "Appearance",
+  "description": "Apply a photo from your library as the background behind Start and the library. Applying a picture now asks whether it should become the lock screen or the background, so you can set each independently.",
+  "changelog": "First release.",
+  "requires": [
+    "lyra.mod_runtime"
+  ],
+  "settings": [
+    {
+      "id": "target",
+      "type": "bool",
+      "label": "Apply photos to",
+      "default": false,
+      "persist": false,
+      "quick_toggle": false,
+      "context": {
+        "kind": "select",
+        "title": "select destination:"
+      }
+    }
+  ],
+  "actions": [
+    {
+      "type": "lyra.gem_replace_entry",
+      "gem": "scenes_standard.gem",
+      "entry_name": "Pivot.xur",
+      "new_content_ref": "@/scenes/Pivot.xur"
+    },
+    {
+      "type": "lyra.gem_replace_entry",
+      "gem": "scenes_standard.gem",
+      "entry_name": "Start.xur",
+      "new_content_ref": "@/scenes/Start.xur"
+    },
+    {
+      "type": "lyra.load_module",
+      "target_proc": "gemstone",
+      "module_ref": "@/custom-background.dll",
+      "init": "CustomBackgroundInstall"
+    }
+  ]
+}
