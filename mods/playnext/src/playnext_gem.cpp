@@ -1,8 +1,9 @@
 /* "Play Next" gemstone integration (load_module init PlayNextInstall).
- * Two detours on gemstone.exe, base 0x10000, static VA == live VA:
- *   0x669fc  row-add helper, replaced to inject the "Play Next" row into media menus
- *   0x67f94  context-menu command executor, hooked to handle PN_CMD
- *   0x66204  label resolver, called by the row-add replacement
+ * Two chained hooks on gemstone.exe, base 0x10000, static VA == live VA:
+ *   0x669fc  row-add helper, to inject the "Play Next" row into media menus
+ *   0x67f94  context-menu command executor, to handle PN_CMD
+ * Both go through lyra_hook_install, so another mod hooking the same functions
+ * keeps working whatever the load order.
  * See playnext_queue.c and notes/re-2026-07-14-queue-insertitem-stub/. */
 
 #include <windows.h>
@@ -56,66 +57,32 @@ extern "C" int PlayNext_Handle(DWORD command_id, DWORD ctx, DWORD item) {
     return 1;
 }
 
-/* Modifying entry detour on the executor: call PlayNext_Handle; if it handled
-   PN_CMD, return S_OK and skip the native body, else replay the prologue and
-   continue. Hand-assembled A32; the word annotations are the encoding. */
-static int install_executor_hook(void) {
-    DWORD proc, orig0, orig1, entry[2];
-    DWORD* t;
-    if (!lyra_kernel_ready() || !lyra_kernel_ensure_helpers()) return -1;
-    proc = lyra_find_proc_struct(GetCurrentProcessId());
-    if (!proc) return -1;
-    __try {
-        orig0 = *(volatile DWORD*)GEM_EXECUTOR;
-        orig1 = *(volatile DWORD*)(GEM_EXECUTOR + 4);
-    } __except (EXCEPTION_EXECUTE_HANDLER) { return -1; }
-    if (orig0 == 0xe51ff004u) return -1;               /* already hooked */
+/* Executor hook: handle PN_CMD, otherwise continue down the chain so another
+   mod's hook, and finally the native body, still run. */
+static ExecFn g_next_exec = 0;
 
-    t = (DWORD*)VirtualAlloc(NULL, 64, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-    if (!t) return -1;
-    t[0]  = 0xe92d400fu;                               /* push {r0-r3, lr}     */
-    t[1]  = 0xe59fc028u;                               /* ldr r12,[pc,#0x28]->[13] */
-    t[2]  = 0xe12fff3cu;                               /* blx r12              */
-    t[3]  = 0xe1a0c000u;                               /* mov r12, r0          */
-    t[4]  = 0xe8bd400fu;                               /* pop {r0-r3, lr}      */
-    t[5]  = 0xe35c0000u;                               /* cmp r12, #0          */
-    t[6]  = 0x0a000001u;                               /* beq -> [9]           */
-    t[7]  = 0xe3a00000u;                               /* mov r0, #0           */
-    t[8]  = 0xe12fff1eu;                               /* bx lr                */
-    t[9]  = orig0;
-    t[10] = orig1;
-    t[11] = 0xe51ff004u;                               /* ldr pc,[pc,#-4]->[12]*/
-    t[12] = GEM_EXECUTOR + 8;
-    t[13] = (DWORD)&PlayNext_Handle;
-    FlushInstructionCache(GetCurrentProcess(), t, 64);
-
-    entry[0] = 0xe51ff004u;                            /* ldr pc,[pc,#-4]      */
-    entry[1] = (DWORD)t;
-    if (lyra_patch_code(proc, GEM_EXECUTOR, entry, 8) != 0) {
-        VirtualFree(t, 0, MEM_RELEASE);
-        return -1;
-    }
-    FlushInstructionCache(GetCurrentProcess(), (void*)GEM_EXECUTOR, 8);
-    return 0;
+extern "C" DWORD PlayNext_Exec(DWORD command_id, DWORD ctx, DWORD item) {
+    if (command_id == PN_CMD) { PlayNext_Handle(command_id, ctx, item); return 0; }
+    return g_next_exec ? g_next_exec(command_id, ctx, item) : 0;
 }
 
 #define GEM_ROW_ADD        0x000669fcu
-#define GEM_RESOLVE_LABEL  0x00066204u   /* resolve_label(command_id) -> wchar_t* */
+typedef int   (*RowAddFn)(DWORD idx, DWORD max, DWORD* items, DWORD cmd, DWORD* count);
 
-typedef DWORD (*LabelFn)(DWORD cmd);
-static int g_media = 0;                  /* this build's menu is a media menu */
+static RowAddFn g_next_rowadd = 0;       /* rest of the row-add chain          */
+static int g_media = 0;                  /* this build's menu is a media menu  */
 static int g_injected = 0;               /* our row already added this build   */
 
-/* Replacement for the native row-add helper 0x669fc. Reproduces the native store,
-   then on media menus (marked by the add-to-now-playing cmd 0x19/0x1a) injects our
-   row once at the top. The builder takes each next index from *count, so inject
-   exactly once (guarded). 5th arg (count) is the caller's stack slot. */
+/* Row-add hook. The chain does the native store (and any other mod's rows);
+   this adds ours once per build, on media menus, marked by the add-to-now-playing
+   cmd 0x19/0x1a. The builder takes each next index from *count, so inject exactly
+   once (guarded). 5th arg (count) is the caller's stack slot. */
 extern "C" int PlayNext_RowAdd(DWORD idx, DWORD max, DWORD* items, DWORD cmd, DWORD* count) {
-    int i;
+    int i, rc;
     if (idx >= max) return (int)0x8007007au;
-    items[idx * 2 + 0] = ((LabelFn)GEM_RESOLVE_LABEL)(cmd);
-    items[idx * 2 + 1] = cmd;
-    if (count) *count = idx + 1;
+    rc = g_next_rowadd ? g_next_rowadd(idx, max, items, cmd, count) : 0;
+    if (rc < 0) return rc;
+    idx = count ? *count - 1 : idx;      /* the chain may have moved the cursor */
 
     if (idx == 0) { g_media = 0; g_injected = 0; }
     if (cmd == 0x19 || cmd == 0x1a) { g_media = 1; g_add_cmd = cmd; }
@@ -132,30 +99,13 @@ extern "C" int PlayNext_RowAdd(DWORD idx, DWORD max, DWORD* items, DWORD cmd, DW
     return 0;
 }
 
-/* Redirect a function entry straight to a replacement (no trampoline). */
-static int install_replace(DWORD target, void* func) {
-    DWORD proc, orig0, entry[2];
-    if (!lyra_kernel_ready() || !lyra_kernel_ensure_helpers()) return -1;
-    proc = lyra_find_proc_struct(GetCurrentProcessId());
-    if (!proc) return -1;
-    __try { orig0 = *(volatile DWORD*)target; }
-    __except (EXCEPTION_EXECUTE_HANDLER) { return -1; }
-    if (orig0 == 0xe51ff004u) return -1;               /* already redirected */
-    entry[0] = 0xe51ff004u;                            /* ldr pc,[pc,#-4]    */
-    entry[1] = (DWORD)func;                            /* &replacement (Thumb bit set) */
-    if (lyra_patch_code(proc, target, entry, 8) != 0) return -1;
-    FlushInstructionCache(GetCurrentProcess(), (void*)target, 8);
-    return 0;
-}
-
 extern "C" __declspec(dllexport) int PlayNextInstall(void) {
     int rc, rc2;
     L("PlayNextInstall: loaded into gemstone");
-    rc = install_executor_hook();
-    L("executor hook rc=%d", rc);
-    rc2 = install_replace(GEM_ROW_ADD, (void*)&PlayNext_RowAdd);
-    L("rowadd replace rc=%d", rc2);
-    return rc;
+    rc  = lyra_hook_install(GEM_EXECUTOR, (void*)&PlayNext_Exec, (void**)&g_next_exec);
+    rc2 = lyra_hook_install(GEM_ROW_ADD, (void*)&PlayNext_RowAdd, (void**)&g_next_rowadd);
+    L("executor hook rc=%d rowadd hook rc=%d", rc, rc2);
+    return (rc == 0 && rc2 == 0) ? 0 : -1;
 }
 
 extern "C" BOOL WINAPI DllMain(HANDLE h, DWORD r, LPVOID l) { (void)h; (void)r; (void)l; return TRUE; }
