@@ -35,6 +35,7 @@ a:hover { color: #f0a04a; }
 footer { margin-top: 3rem; padding-top: 1.4rem; border-top: 1px solid #232323;
          color: #6f6f6f; font-size: .85rem; }
 footer a { margin-right: 1.2rem; white-space: nowrap; }
+footer img { display: inline-block; width: auto; height: 18px; vertical-align: middle; }
 </style>
 </head>
 <body>
@@ -67,6 +68,8 @@ footer a { margin-right: 1.2rem; white-space: nowrap; }
     <a href="https://wiki.zune.moe/getting-started/install/">Install guide</a>
     <a href="https://wiki.zune.moe/">Wiki</a>
     <a href="https://github.com/project-lyra-zune/project-lyra">Source</a>
+    <a href="https://ko-fi.com/magichole"><img alt="Support on Ko-fi" src="https://img.shields.io/badge/Ko--fi-support-FF5E5B?logo=ko-fi&logoColor=white"></a>
+    <a href="https://buymeacoffee.com/magichole"><img alt="Support on Buy Me a Coffee" src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-FFDD00?logo=buymeacoffee&logoColor=black"></a>
   </footer>
 </main>
 </body>

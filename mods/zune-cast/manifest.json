@@ -1,13 +1,19 @@
 {
   "mod_id": "zune-cast",
   "name": "Zune Cast",
-  "version": "0.3.0",
-  "changelog": "Rebuilt on the Lyra mod SDK, so a platform update no longer risks breaking casting. Needs Lyra 1.3.0 or newer.",
+  "version": "0.3.1",
+  "changelog": "The device list is titled again now that the picker is shared with other mods.",
   "author": "Project Lyra",
   "category": "Media",
   "description": "Streams the Zune's live decoded audio to a Chromecast device over WiFi. Toggle it from quick settings; the daemon holds WiFi awake for the session and mirrors on-screen volume to the receiver. Long-press the toggle to pick the output device.",
-  "requires": ["lyra.wifi_awake", "lyra.volume_state", "lyra.mod_runtime"],
-  "persistent": ["target.txt"],
+  "requires": [
+    "lyra.wifi_awake",
+    "lyra.volume_state",
+    "lyra.mod_runtime@1"
+  ],
+  "persistent": [
+    "target.txt"
+  ],
   "settings": [
     {
       "id": "cast",
@@ -18,21 +24,43 @@
       "quick_toggle": true,
       "quick_icon": "@asset/cast-big.png",
       "status": "casting",
-      "holds": ["lyra.wifi_awake"],
-      "context": { "kind": "select" }
+      "holds": [
+        "lyra.wifi_awake"
+      ],
+      "context": {
+        "kind": "select",
+        "title": "select device:"
+      }
     }
   ],
   "status": [
-    { "id": "casting", "states": ["Off", "Connecting", "Connected", "Casting", "Error"] }
+    {
+      "id": "casting",
+      "states": [
+        "Off",
+        "Connecting",
+        "Connected",
+        "Casting",
+        "Error"
+      ]
+    }
   ],
   "status_icons": [
     {
       "source": "status/casting",
       "image": "@asset/cast.png",
-      "frames": [null, "FFB000", "888888", "FFFFFF", "FF4040"]
+      "frames": [
+        null,
+        "FFB000",
+        "888888",
+        "FFFFFF",
+        "FF4040"
+      ]
     }
   ],
   "daemons": [
-    { "binary": "@/castd.exe" }
+    {
+      "binary": "@/castd.exe"
+    }
   ]
 }

@@ -1,12 +1,15 @@
 {
   "mod_id": "screencast",
   "name": "Screen Share",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "author": "Project Lyra",
   "category": "Utilities",
   "description": "Streams the Zune's screen over WiFi to any browser. Turn it on from quick settings, then open the shown http:// address to watch live and tap to control. The zune-screencast.py desktop client works too.",
-  "changelog": "Rebuilt on the Lyra mod SDK, so a platform update no longer risks breaking screen sharing. Needs Lyra 1.3.0 or newer.",
-  "requires": ["lyra.wifi_awake", "lyra.mod_runtime"],
+  "changelog": "The status icon no longer sits on a black square. The device list is titled again now that the picker is shared with other mods.",
+  "requires": [
+    "lyra.wifi_awake",
+    "lyra.mod_runtime@1"
+  ],
   "settings": [
     {
       "id": "screencast",
@@ -17,21 +20,39 @@
       "quick_toggle": true,
       "quick_icon": "@asset/screencast-big.png",
       "status": "sharing",
-      "holds": ["lyra.wifi_awake"],
-      "context": { "kind": "select" }
+      "holds": [
+        "lyra.wifi_awake"
+      ],
+      "context": {
+        "kind": "select",
+        "title": "select device:"
+      }
     }
   ],
   "status": [
-    { "id": "sharing", "states": ["Off", "Ready", "Live"] }
+    {
+      "id": "sharing",
+      "states": [
+        "Off",
+        "Ready",
+        "Live"
+      ]
+    }
   ],
   "status_icons": [
     {
       "source": "status/sharing",
       "image": "@asset/screencast.png",
-      "frames": [null, "888888", "00C000"]
+      "frames": [
+        null,
+        "888888",
+        "00C000"
+      ]
     }
   ],
   "daemons": [
-    { "binary": "@/screencastd.exe" }
+    {
+      "binary": "@/screencastd.exe"
+    }
   ]
 }

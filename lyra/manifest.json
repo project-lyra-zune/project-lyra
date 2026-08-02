@@ -1,10 +1,13 @@
 {
   "mod_id": "lyra",
   "name": "Lyra",
-  "version": "1.3.2",
+  "version": "1.4.0",
   "author": "Project Lyra",
   "category": "Platform",
   "description": "A persistent jailbreak and modding platform for the Zune HD: the mod manager UI, zuxhook, nativeapp daemon, and its component mods (mods-tab, wifi-power, clock-date) all wrapped in a pretty bow.",
-  "changelog": "Browse now says why the mod list is empty instead of sitting on Loading. No connection, a wrong clock with the setting to fix it, a repo error, and a mod service that is not running each get their own message and a code to quote when reporting a problem.",
-  "platform_files": ["zuxhook.dll", "nativeapp.exe"]
+  "changelog": "Mods can now raise a selection list for a choice you are making right then, instead of only from their own settings row. Two mods that change the same part of the interface no longer cancel each other out.",
+  "platform_files": [
+    "zuxhook.dll",
+    "nativeapp.exe"
+  ]
 }
