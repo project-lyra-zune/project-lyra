@@ -15,6 +15,9 @@
 #define GEM_APPLY_BACKGROUND 0x000656f4u
 #define GEM_PATH_COMPOSE     0x00070facu
 #define GEM_CURRENT_CTX      0x00097300u   /* the shell object the scene tree hangs off */
+#define GEM_SCENE_BY_ID      0x0002ab60u   /* (src, scene_id, args, flags, &out) */
+#define GEM_SET_SHOW         0x00058860u   /* gemstone-side; zhud has its own */
+#define SCENE_VIDEO_MAIN     0x48u         /* NowPlayingVideoMain */
 #define SHELL_PIVOT_SCENE    0x60u         /* [shell+0x60] = the Pivot scene handle */
 
 #define CMD_APPLY_BACKGROUND 0x39u
@@ -103,8 +106,11 @@ CE_LOGGER(L, L"\\flash2\\automation\\custom-background.log")
 typedef int   (*ComposeFn)(DWORD dir_id, const wchar_t* name, wchar_t* out, DWORD cap);
 typedef DWORD (*ApplyFn)(DWORD item);
 typedef DWORD (*ExecFn)(DWORD cmd, DWORD target, DWORD ctx);
+typedef HRESULT (*SceneByIdFn)(const wchar_t* src, DWORD id, void* args, DWORD flags, void** out);
+typedef int (*SetShowFn)(void* elem, int show);
 
-static ExecFn g_next_exec = 0;      /* rest of the executor chain */
+static ExecFn      g_next_exec  = 0;   /* rest of the executor chain */
+static SceneByIdFn g_next_scene = 0;   /* rest of the scene-navigate chain */
 static int    g_to_background = 0;  /* sink for the conversion in flight */
 static DWORD  g_pending_target = 0; /* picture the user is applying */
 
@@ -140,30 +146,56 @@ static int value_is(const char* a, const char* b) {
     return a[i] == b[i];
 }
 
+/* The backdrop must not be drawn while a video is on screen: the video is a hardware
+   plane composited under the UI, and NowPlayingVideoMain carries no surface of its own,
+   so it shows through only where the UI draws nothing. An opaque full-screen image is
+   exactly what that scene cannot have beneath it. */
+static void* find_background(void) {
+    HMODULE x = GetModuleHandleW(L"xuidll.dll");
+    typedef HRESULT (*GetDescFn)(void* parent, const wchar_t* id, void** out, int flags);
+    GetDescFn get_desc;
+    void* elem = NULL;
+    DWORD shell, pivot;
+    if (!x) return NULL;
+    get_desc = (GetDescFn)GetProcAddress(x, L"XuiElementGetDescendantById");
+    if (!get_desc) return NULL;
+    __try {
+        shell = *(volatile DWORD*)GEM_CURRENT_CTX;
+        if (!shell) return NULL;
+        pivot = *(volatile DWORD*)(shell + SHELL_PIVOT_SCENE);
+        if (!pivot) return NULL;
+        if (get_desc((void*)pivot, L"lyraBackground", &elem, 0) < 0) return NULL;
+    } __except (EXCEPTION_EXECUTE_HANDLER) { return NULL; }
+    return elem;
+}
+
+/* Runs on the UI thread: every id-based navigation passes through here. */
+extern "C" HRESULT CustomBackground_SceneById(const wchar_t* src, DWORD id, void* args,
+                                              DWORD flags, void** out) {
+    void* elem = find_background();
+    if (elem) {
+        __try { ((SetShowFn)GEM_SET_SHOW)(elem, id == SCENE_VIDEO_MAIN ? 0 : 1); }
+        __except (EXCEPTION_EXECUTE_HANDLER) {}
+    }
+    return g_next_scene ? g_next_scene(src, id, args, flags, out)
+                        : ((SceneByIdFn)GEM_SCENE_BY_ID)(src, id, args, flags, out);
+}
+
 /* UI thread: point the element at a generation and drop the one it replaced. */
 static void show_generation(void* ctx) {
     HMODULE x = GetModuleHandleW(L"xuidll.dll");
-    typedef HRESULT (*GetDescFn)(void* parent, const wchar_t* id, void** out, int flags);
     typedef HRESULT (*SetPathFn)(void* elem, const wchar_t* path);
-    GetDescFn get_desc;
     SetPathFn set_path;
     unsigned gen = (unsigned)(DWORD)ctx;
-    void* elem = NULL;
-    DWORD shell, pivot;
+    void* elem = find_background();
     wchar_t uri[BG_PATH_CAP];
 
-    if (!x) return;
-    get_desc = (GetDescFn)GetProcAddress(x, L"XuiElementGetDescendantById");
+    if (!x || !elem) return;
     set_path = (SetPathFn)GetProcAddress(x, L"XuiImageElementSetImagePath");
-    if (!get_desc || !set_path) return;
+    if (!set_path) return;
 
     bg_uri(uri, gen);
     __try {
-        shell = *(volatile DWORD*)GEM_CURRENT_CTX;
-        if (!shell) return;
-        pivot = *(volatile DWORD*)(shell + SHELL_PIVOT_SCENE);
-        if (!pivot) return;
-        if (get_desc((void*)pivot, L"lyraBackground", &elem, 0) < 0 || !elem) return;
         if (set_path(elem, uri) < 0) { L("show gen %u: set path failed", gen); return; }
     } __except (EXCEPTION_EXECUTE_HANDLER) { return; }
 
@@ -227,13 +259,15 @@ extern "C" DWORD CustomBackground_Exec(DWORD command_id, DWORD target, DWORD ctx
 }
 
 extern "C" __declspec(dllexport) int CustomBackgroundInstall(void) {
-    int rc, rc2;
+    int rc, rc2, rc3;
     HANDLE th;
 
     rc  = lyra_hook_install(GEM_EXECUTOR, (void*)&CustomBackground_Exec,
                             (void**)&g_next_exec);
     rc2 = lyra_hook_install(GEM_PATH_COMPOSE, (void*)&CustomBackground_ComposePath,
                             (void**)&g_next_compose);
+    rc3 = lyra_hook_install(GEM_SCENE_BY_ID, (void*)&CustomBackground_SceneById,
+                            (void**)&g_next_scene);
     {
         unsigned gen = newest_gen();
         g_next = gen;
@@ -241,8 +275,9 @@ extern "C" __declspec(dllexport) int CustomBackgroundInstall(void) {
     }
     th  = CreateThread(NULL, 0, selection_worker, NULL, 0, NULL);
     if (th) CloseHandle(th);
-    L("CustomBackgroundInstall: executor rc=%d path rc=%d worker=%d", rc, rc2, th != NULL);
-    return (rc == 0 && rc2 == 0 && th != NULL) ? 0 : -1;
+    L("CustomBackgroundInstall: executor rc=%d path rc=%d scene rc=%d worker=%d",
+      rc, rc2, rc3, th != NULL);
+    return (rc == 0 && rc2 == 0 && rc3 == 0 && th != NULL) ? 0 : -1;
 }
 
 extern "C" BOOL WINAPI DllMain(HANDLE h, DWORD r, LPVOID l) { (void)h; (void)r; (void)l; return TRUE; }

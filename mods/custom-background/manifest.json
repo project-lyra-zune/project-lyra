@@ -1,11 +1,11 @@
 {
   "mod_id": "custom-background",
   "name": "Custom Background",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "Project Lyra",
   "category": "Appearance",
   "description": "Apply a photo from your library as the background behind Start and the library. Applying a picture now asks whether it should become the lock screen or the background, so you can set each independently.",
-  "changelog": "First release.",
+  "changelog": "The background no longer covers a playing video.",
   "requires": [
     "lyra.mod_runtime"
   ],
