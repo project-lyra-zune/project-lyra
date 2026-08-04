@@ -18,6 +18,8 @@
 #define GEM_SCENE_BY_ID      0x0002ab60u   /* (src, scene_id, args, flags, &out) */
 #define GEM_SET_SHOW         0x00058860u   /* gemstone-side; zhud has its own */
 #define SCENE_VIDEO_MAIN     0x48u         /* NowPlayingVideoMain */
+#define GEM_CONTENT_NAV      0x0001e6fcu   /* (shell, scene): the content-scene navigate */
+#define SHELL_CUR_SCENE      0x70u         /* [shell+0x70] = the content scene showing now */
 #define SHELL_PIVOT_SCENE    0x60u         /* [shell+0x60] = the Pivot scene handle */
 
 #define CMD_APPLY_BACKGROUND 0x39u
@@ -108,9 +110,12 @@ typedef DWORD (*ApplyFn)(DWORD item);
 typedef DWORD (*ExecFn)(DWORD cmd, DWORD target, DWORD ctx);
 typedef HRESULT (*SceneByIdFn)(const wchar_t* src, DWORD id, void* args, DWORD flags, void** out);
 typedef int (*SetShowFn)(void* elem, int show);
+typedef HRESULT (*NavFn)(DWORD shell, DWORD scene, DWORD a2, DWORD a3);
 
 static ExecFn      g_next_exec  = 0;   /* rest of the executor chain */
 static SceneByIdFn g_next_scene = 0;   /* rest of the scene-navigate chain */
+static NavFn       g_next_nav   = 0;   /* rest of the content-navigate chain */
+static DWORD       g_video_scene = 0;  /* the video scene's handle, once seen */
 static int    g_to_background = 0;  /* sink for the conversion in flight */
 static DWORD  g_pending_target = 0; /* picture the user is applying */
 
@@ -169,16 +174,37 @@ static void* find_background(void) {
     return elem;
 }
 
-/* Runs on the UI thread: every id-based navigation passes through here. */
+static void gate_on_video(int hide) {
+    void* elem = find_background();
+    if (!elem) return;
+    __try { ((SetShowFn)GEM_SET_SHOW)(elem, hide ? 0 : 1); }
+    __except (EXCEPTION_EXECUTE_HANDLER) {}
+}
+
+/* Both hooks run on the UI thread. The id lookup catches the video scene being built and
+   remembers its handle; the content navigate is what tells us which scene is showing now,
+   including a return to one already loaded (the quickplay grid lives in Start.xur, so
+   coming back to it creates nothing and no id is looked up). */
 extern "C" HRESULT CustomBackground_SceneById(const wchar_t* src, DWORD id, void* args,
                                               DWORD flags, void** out) {
-    void* elem = find_background();
-    if (elem) {
-        __try { ((SetShowFn)GEM_SET_SHOW)(elem, id == SCENE_VIDEO_MAIN ? 0 : 1); }
+    HRESULT hr = g_next_scene ? g_next_scene(src, id, args, flags, out)
+                              : ((SceneByIdFn)GEM_SCENE_BY_ID)(src, id, args, flags, out);
+    if (id == SCENE_VIDEO_MAIN) {
+        __try { if (out && *out) g_video_scene = (DWORD)*out; }
         __except (EXCEPTION_EXECUTE_HANDLER) {}
+        gate_on_video(1);
     }
-    return g_next_scene ? g_next_scene(src, id, args, flags, out)
-                        : ((SceneByIdFn)GEM_SCENE_BY_ID)(src, id, args, flags, out);
+    return hr;
+}
+
+extern "C" HRESULT CustomBackground_Navigate(DWORD shell, DWORD scene, DWORD a2, DWORD a3) {
+    HRESULT hr = g_next_nav ? g_next_nav(shell, scene, a2, a3)
+                            : ((NavFn)GEM_CONTENT_NAV)(shell, scene, a2, a3);
+    __try {
+        DWORD cur = *(volatile DWORD*)(shell + SHELL_CUR_SCENE);
+        gate_on_video(g_video_scene && cur == g_video_scene);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {}
+    return hr;
 }
 
 /* UI thread: point the element at a generation and drop the one it replaced. */
@@ -259,7 +285,7 @@ extern "C" DWORD CustomBackground_Exec(DWORD command_id, DWORD target, DWORD ctx
 }
 
 extern "C" __declspec(dllexport) int CustomBackgroundInstall(void) {
-    int rc, rc2, rc3;
+    int rc, rc2, rc3, rc4;
     HANDLE th;
 
     rc  = lyra_hook_install(GEM_EXECUTOR, (void*)&CustomBackground_Exec,
@@ -268,6 +294,8 @@ extern "C" __declspec(dllexport) int CustomBackgroundInstall(void) {
                             (void**)&g_next_compose);
     rc3 = lyra_hook_install(GEM_SCENE_BY_ID, (void*)&CustomBackground_SceneById,
                             (void**)&g_next_scene);
+    rc4 = lyra_hook_install(GEM_CONTENT_NAV, (void*)&CustomBackground_Navigate,
+                            (void**)&g_next_nav);
     {
         unsigned gen = newest_gen();
         g_next = gen;
@@ -275,9 +303,9 @@ extern "C" __declspec(dllexport) int CustomBackgroundInstall(void) {
     }
     th  = CreateThread(NULL, 0, selection_worker, NULL, 0, NULL);
     if (th) CloseHandle(th);
-    L("CustomBackgroundInstall: executor rc=%d path rc=%d scene rc=%d worker=%d",
-      rc, rc2, rc3, th != NULL);
-    return (rc == 0 && rc2 == 0 && rc3 == 0 && th != NULL) ? 0 : -1;
+    L("CustomBackgroundInstall: executor rc=%d path rc=%d scene rc=%d nav rc=%d worker=%d",
+      rc, rc2, rc3, rc4, th != NULL);
+    return (rc == 0 && rc2 == 0 && rc3 == 0 && rc4 == 0 && th != NULL) ? 0 : -1;
 }
 
 extern "C" BOOL WINAPI DllMain(HANDLE h, DWORD r, LPVOID l) { (void)h; (void)r; (void)l; return TRUE; }
